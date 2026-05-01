@@ -10,13 +10,8 @@ import { ProposalCard } from '@/components/dao/ProposalCard'
 import { StatTile } from '@/components/dao/StatTile'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
-import {
-  ACTIVITY,
-  AUCTION,
-  CHART_AUCTION,
-  PRESETS,
-  PROPOSALS,
-} from '@/lib/mockData'
+import { getDashboardData } from '@/lib/dao-data'
+import { ACTIVITY, PRESETS } from '@/lib/mockData'
 
 const CHAIN_NAMES: Record<number, string> = {
   1: 'Ethereum',
@@ -25,12 +20,25 @@ const CHAIN_NAMES: Record<number, string> = {
   7777777: 'Zora',
 }
 
-export default function Dashboard() {
-  // Mock numbers for now (PR #1 ships visual layer). PR #2+ wires live subgraph.
-  const preset = PRESETS.builder
+// Re-fetch every 60s on the server.
+export const revalidate = 60
+
+export default async function Dashboard() {
+  const data = await getDashboardData()
+
   const tokenLabel = daoConfig.name.split(' ')[0]
-  const topBid = AUCTION.recentBids[0]
   const chainName = CHAIN_NAMES[daoConfig.chainId] ?? `Chain ${daoConfig.chainId}`
+  const palette = PRESETS.builder.artworkPalette
+  const auction = data.currentAuction
+
+  const treasuryEthDisplay = trimDecimals(data.treasuryEth, 4)
+  const auctionSalesEthDisplay = trimDecimals(data.totalAuctionSalesEth, 4)
+  const topBidDisplay = auction?.topBidEth
+    ? `${trimDecimals(auction.topBidEth, 4)} ETH`
+    : 'No bids yet'
+  const endsIn = auction
+    ? formatEndsIn(auction.endTimeUnix)
+    : '—'
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,25 +62,38 @@ export default function Dashboard() {
             <StatTile
               icon={<BadgeCheck className="h-4 w-4" />}
               label={`Total ${tokenLabel}`}
-              value={preset.totalSupply.toLocaleString()}
+              value={data.totalSupply.toLocaleString()}
+            />
+            <StatTile
+              icon={<Users className="h-4 w-4" />}
+              label="Members"
+              value={data.ownerCount.toLocaleString()}
             />
             <StatTile
               icon={<Diamond className="h-4 w-4" />}
-              label="Members"
-              value={preset.members.toLocaleString()}
-            />
-            <StatTile
-              icon={<ArrowUpRight className="h-4 w-4" />}
               label="Treasury"
-              value={`$${(preset.treasuryUsd / 1000).toFixed(1)}k`}
+              value={`${treasuryEthDisplay} ETH`}
             />
           </div>
         </div>
         <div className="relative aspect-square overflow-hidden rounded-xl border border-border md:aspect-[1.1/1]">
-          <AuctionArt palette={preset.artworkPalette} />
-          <div className="absolute bottom-3 left-3 rounded-full border border-border bg-bg/80 px-2.5 py-1 text-xs font-semibold backdrop-blur-md">
-            Today&apos;s auction · #{AUCTION.tokenId}
-          </div>
+          {auction?.image ? (
+            // External token artwork — using a plain img keeps PR #10 free of
+            // next/image domain config; tighten later with a remotePatterns entry.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={resolveIpfs(auction.image)}
+              alt={auction.name ?? `${tokenLabel} #${auction.tokenId}`}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <AuctionArt palette={palette} />
+          )}
+          {auction && (
+            <div className="absolute bottom-3 left-3 rounded-full border border-border bg-bg/80 px-2.5 py-1 text-xs font-semibold backdrop-blur-md">
+              Today&apos;s auction · #{auction.tokenId}
+            </div>
+          )}
         </div>
       </section>
 
@@ -81,51 +102,72 @@ export default function Dashboard() {
         <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold tracking-tight">Live auction</h2>
-            <Link
-              href={`/auction/${AUCTION.tokenId}`}
-              className="text-sm font-semibold text-accent-strong hover:underline"
-            >
-              Open auction →
-            </Link>
+            {auction && (
+              <Link
+                href={`/auction/${auction.tokenId}`}
+                className="text-sm font-semibold text-accent-strong hover:underline"
+              >
+                Open auction →
+              </Link>
+            )}
           </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-[200px_1fr]">
-            <div className="aspect-square overflow-hidden rounded-md">
-              <AuctionArt palette={preset.artworkPalette} />
-            </div>
-            <div className="flex flex-col gap-2.5">
-              <div className="text-[12.5px] text-muted-fg">
-                Latest auction · {AUCTION.date}
+          {auction ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-[200px_1fr]">
+              <div className="aspect-square overflow-hidden rounded-md bg-surface-2">
+                {auction.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolveIpfs(auction.image)}
+                    alt={auction.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <AuctionArt palette={palette} />
+                )}
               </div>
-              <h3 className="font-display text-[28px] font-bold leading-tight tracking-tight">
-                {tokenLabel} #{AUCTION.tokenId}
-              </h3>
-              <div className="my-1 flex flex-wrap gap-x-6 gap-y-3">
-                <div>
-                  <div className="text-[12.5px] text-muted-fg">Top bid</div>
-                  <div className="text-[17px] font-bold">{topBid.amount} ETH</div>
+              <div className="flex flex-col gap-2.5">
+                <div className="text-[12.5px] text-muted-fg">
+                  {auction.name}
                 </div>
-                <div>
-                  <div className="text-[12.5px] text-muted-fg">Held by</div>
-                  <div className="font-mono text-[14px] font-bold">
-                    {topBid.addr}
+                <h3 className="font-display text-[28px] font-bold leading-tight tracking-tight">
+                  {tokenLabel} #{auction.tokenId}
+                </h3>
+                <div className="my-1 flex flex-wrap gap-x-6 gap-y-3">
+                  <div>
+                    <div className="text-[12.5px] text-muted-fg">Top bid</div>
+                    <div className="text-[17px] font-bold">{topBidDisplay}</div>
+                  </div>
+                  {auction.bidderShort && (
+                    <div>
+                      <div className="text-[12.5px] text-muted-fg">Held by</div>
+                      <div className="font-mono text-[14px] font-bold">
+                        {auction.bidderShort}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-[12.5px] text-muted-fg">Ends in</div>
+                    <div className="text-[17px] font-bold">{endsIn}</div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-[12.5px] text-muted-fg">Ends in</div>
-                  <div className="text-[17px] font-bold">17h 54m</div>
-                </div>
+                <Button asChild className="self-start">
+                  <Link href={`/auction/${auction.tokenId}`}>Place a bid</Link>
+                </Button>
               </div>
-              <Button asChild className="self-start">
-                <Link href={`/auction/${AUCTION.tokenId}`}>Place a bid</Link>
-              </Button>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-surface-2 px-6 py-10 text-center text-sm text-muted-fg">
+              No auctions yet — check back soon.
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold tracking-tight">Activity</h2>
           </div>
+          {/* Activity feed still on mocks. Wiring it requires merging recent */}
+          {/* bids + votes + proposal-created events; lands in a follow-up PR. */}
           <ActivityFeed items={ACTIVITY} />
         </section>
       </div>
@@ -141,11 +183,21 @@ export default function Dashboard() {
             View all →
           </Link>
         </div>
-        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
-          {PROPOSALS.slice(0, 3).map((p) => (
-            <ProposalCard key={p.id} p={p} />
-          ))}
-        </div>
+        {data.recentProposals.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+            {data.recentProposals.slice(0, 3).map((p) => (
+              <ProposalCard key={p.id} p={p} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-border bg-surface-2 px-6 py-10 text-center text-sm text-muted-fg">
+            No proposals yet — be the first to{' '}
+            <Link href="/proposals" className="text-accent-strong hover:underline">
+              create one
+            </Link>
+            .
+          </div>
+        )}
       </section>
 
       {/* TREASURY SNAPSHOT */}
@@ -161,15 +213,16 @@ export default function Dashboard() {
         </div>
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <KpiCard
-            value={`$${preset.treasuryUsd.toLocaleString(undefined, {
-              maximumFractionDigits: 0,
-            })}`}
-            label="Total treasury value"
+            value={`${treasuryEthDisplay} ETH`}
+            label="Treasury balance"
           />
-          <KpiCard value={`${preset.treasuryEth} ETH`} label="ETH balance" />
           <KpiCard
-            value={`${preset.auctionSales} ETH`}
+            value={`${auctionSalesEthDisplay} ETH`}
             label="Total auction sales"
+          />
+          <KpiCard
+            value={data.ownerCount.toLocaleString()}
+            label="Owners"
           />
         </div>
         <div className="rounded-md border border-border bg-surface p-4">
@@ -178,19 +231,44 @@ export default function Dashboard() {
             <div className="text-[12.5px] text-muted-fg">last 12 months</div>
           </div>
           <BarChart
-            data={CHART_AUCTION}
-            labels={['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']}
+            data={data.auctionRevenueByMonth}
+            labels={lastTwelveMonthLabels()}
             height={140}
           />
         </div>
       </section>
-
-      <div className="mt-2 rounded-md border border-dashed border-border px-4 py-3 text-[12.5px] text-muted-fg">
-        <strong className="font-semibold text-fg">Note:</strong> dashboard uses
-        mock data from <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[11.5px]">src/lib/mockData.ts</code>{' '}
-        (PR #1 ships visual layer). Subgraph + on-chain wiring lands in a follow-up
-        PR per the original plan.
-      </div>
     </div>
   )
+}
+
+function trimDecimals(value: string, max: number): string {
+  if (!value || !value.includes('.')) return value
+  const [intPart, decPart] = value.split('.')
+  return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
+}
+
+function formatEndsIn(unixSec: number): string {
+  const diff = unixSec * 1000 - Date.now()
+  if (diff <= 0) return 'Ended'
+  const h = Math.floor(diff / (1000 * 60 * 60))
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`
+  return `${h}h ${m}m`
+}
+
+function lastTwelveMonthLabels(): string[] {
+  const out: string[] = []
+  const d = new Date()
+  for (let i = 11; i >= 0; i--) {
+    const dd = new Date(d.getFullYear(), d.getMonth() - i, 1)
+    out.push(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][dd.getMonth()])
+  }
+  return out
+}
+
+function resolveIpfs(uri: string): string {
+  if (uri.startsWith('ipfs://')) {
+    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
+  }
+  return uri
 }
