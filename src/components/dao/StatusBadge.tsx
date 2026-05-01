@@ -1,4 +1,4 @@
-import type { ProposalStatus } from '@/lib/mockData'
+import type { ProposalStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const STYLES: Record<

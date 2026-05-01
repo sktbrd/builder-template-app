@@ -4,7 +4,7 @@ import { Settings2, X } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 
-import { PRESETS } from '@/lib/mockData'
+import { PRESETS } from '@/lib/presets'
 
 const STORAGE_KEY = 'tweaks.v1'
 
@@ -98,11 +98,12 @@ export function TweaksPanel() {
 
   const applyPreset = (key: keyof typeof PRESETS) => {
     const p = PRESETS[key]
+    if (!p) return
     setTweaks({
       preset: key,
-      accent: p.accent,
-      radius: p.radius,
-      displayFont: p.displayFont,
+      accent: p.theme.accent,
+      radius: p.theme.radius,
+      displayFont: p.theme.displayFont,
     })
   }
 
@@ -140,11 +141,10 @@ export function TweaksPanel() {
           label="DAO preset"
           value={tweaks.preset}
           onChange={(v) => applyPreset(v as keyof typeof PRESETS)}
-          options={[
-            { value: 'builder', label: 'Builder' },
-            { value: 'gnars', label: 'Gnars' },
-            { value: 'verdant', label: 'Verdant' },
-          ]}
+          options={Object.values(PRESETS).map((p) => ({
+            value: p.key,
+            label: p.label.replace(/ DAO$/, ''),
+          }))}
         />
       </Section>
 

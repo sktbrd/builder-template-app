@@ -9,9 +9,7 @@
  * Usage:
  *   pnpm switch-dao <preset>
  *
- *   pnpm switch-dao gnars       — Gnars DAO on Base
- *   pnpm switch-dao builder     — Builder DAO on Base
- *
+ * Preset list lives in src/lib/presets.ts (shared with the dev Tweaks panel).
  * After switching, restart `pnpm dev` for the new DAO to take effect.
  */
 
@@ -19,68 +17,38 @@ import { spawnSync } from 'child_process'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-type Preset = {
-  label: string
-  chainId: number
-  networkType: 'mainnet' | 'testnet'
-  tokenAddress: string
-  // Visual overrides — applied to dao.theme.json so the template re-skins
-  // immediately on next dev reload.
-  tagline?: string
-  theme: {
-    accent: string
-    radius: number
-    displayFont: string
-  }
-}
-
-const PRESETS: Record<string, Preset> = {
-  builder: {
-    label: 'Builder DAO',
-    chainId: 8453,
-    networkType: 'mainnet',
-    tokenAddress: '0xe8af882f2f5c79580230710ac0e2344070099432',
-    tagline: 'Powering Onchain Communities.',
-    theme: { accent: '#2563eb', radius: 12, displayFont: 'Geist' },
-  },
-  gnars: {
-    label: 'Gnars DAO',
-    chainId: 8453,
-    networkType: 'mainnet',
-    tokenAddress: '0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17',
-    tagline: 'Nounish Open Source Action Sports Brand experiment.',
-    theme: { accent: '#f5d447', radius: 8, displayFont: 'Londrina Solid' },
-  },
-}
+import { SWITCHABLE_PRESETS } from '../src/lib/presets'
 
 function parseArgs() {
   const args = process.argv.slice(2)
-  const presetName = args[0]
-  if (!presetName || presetName === '--help' || presetName === '-h') {
+  const presetKey = args[0]
+  if (!presetKey || presetKey === '--help' || presetKey === '-h') {
     console.log('Usage: pnpm switch-dao <preset>')
     console.log('')
-    console.log('Presets:')
-    for (const [key, p] of Object.entries(PRESETS)) {
+    console.log('Switchable presets:')
+    for (const p of Object.values(SWITCHABLE_PRESETS)) {
       console.log(
-        `  ${key.padEnd(10)} — ${p.label} (chain ${p.chainId}, ${p.tokenAddress})`
+        `  ${p.key.padEnd(10)} — ${p.label} (chain ${p.chain.id}, ${p.tokenAddress})`
       )
     }
-    process.exit(presetName ? 0 : 1)
+    process.exit(presetKey ? 0 : 1)
   }
-  const preset = PRESETS[presetName]
+  const preset = SWITCHABLE_PRESETS[presetKey]
   if (!preset) {
-    console.error(`❌ Unknown preset: ${presetName}`)
-    console.error(`   Available: ${Object.keys(PRESETS).join(', ')}`)
+    console.error(`❌ Unknown or non-switchable preset: ${presetKey}`)
+    console.error(
+      `   Available: ${Object.keys(SWITCHABLE_PRESETS).join(', ')}`
+    )
     process.exit(1)
   }
-  return { name: presetName, preset }
+  return preset
 }
 
 /**
  * Update .env.local in place. Preserves any keys we don't manage and
  * overwrites the DAO-targeting ones. Creates the file if missing.
  */
-function updateEnv(preset: Preset) {
+function updateEnv(preset: ReturnType<typeof parseArgs>) {
   const envPath = join(process.cwd(), '.env.local')
   const sample = join(process.cwd(), 'sample.env')
   const seed = existsSync(envPath)
@@ -90,8 +58,8 @@ function updateEnv(preset: Preset) {
       : ''
 
   const overrides: Record<string, string> = {
-    NEXT_PUBLIC_NETWORK_TYPE: `"${preset.networkType}"`,
-    NEXT_PUBLIC_CHAIN_ID: `"${preset.chainId}"`,
+    NEXT_PUBLIC_NETWORK_TYPE: `"${preset.chain.networkType}"`,
+    NEXT_PUBLIC_CHAIN_ID: `"${preset.chain.id}"`,
     NEXT_PUBLIC_DAO_TOKEN_ADDRESS: `"${preset.tokenAddress}"`,
   }
 
@@ -114,7 +82,7 @@ function updateEnv(preset: Preset) {
   console.log(`✅ .env.local updated`)
 }
 
-function writeThemeOverrides(preset: Preset) {
+function writeThemeOverrides(preset: ReturnType<typeof parseArgs>) {
   const path = join(process.cwd(), 'src/config/dao.theme.json')
   writeFileSync(
     path,
@@ -144,8 +112,8 @@ function runFetchDao() {
 }
 
 function main() {
-  const { name, preset } = parseArgs()
-  console.log(`🔁 Switching template to ${preset.label} (preset: ${name})`)
+  const preset = parseArgs()
+  console.log(`🔁 Switching template to ${preset.label} (preset: ${preset.key})`)
   updateEnv(preset)
   writeThemeOverrides(preset)
   runFetchDao()

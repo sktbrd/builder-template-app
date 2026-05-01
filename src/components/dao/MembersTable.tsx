@@ -4,10 +4,18 @@ import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import type { MockMember } from '@/lib/mockData'
+
+export type MembersTableRow = {
+  ens: string | null
+  addr: string
+  votes: number
+  pct: number
+  joined: string
+  active: boolean
+}
 
 type Props = {
-  members: MockMember[]
+  members: MembersTableRow[]
   totalMembers: number
   activeMembers: number
 }

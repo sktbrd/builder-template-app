@@ -16,7 +16,7 @@ import { transports } from '@buildeross/utils/wagmi'
 import { createPublicClient, formatEther } from 'viem'
 
 import { daoConfig } from './dao.config'
-import type { ProposalStatus } from './mockData'
+import type { ProposalStatus } from './types'
 
 const chainId = daoConfig.chainId
 const tokenAddressLc = daoConfig.addresses.token.toLowerCase() as `0x${string}`

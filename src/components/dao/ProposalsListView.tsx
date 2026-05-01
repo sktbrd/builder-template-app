@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { ProposalCard } from '@/components/dao/ProposalCard'
 import { Button } from '@/components/ui/button'
 import type { ProposalSummary } from '@/lib/dao-data'
-import type { ProposalStatus } from '@/lib/mockData'
+import type { ProposalStatus } from '@/lib/types'
 
 const STATUS_OPTIONS: Array<{ value: ProposalStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All statuses' },
