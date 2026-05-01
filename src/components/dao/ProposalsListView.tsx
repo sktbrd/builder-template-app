@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus, Search } from 'lucide-react'
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import { ProposalCard } from '@/components/dao/ProposalCard'
@@ -45,9 +46,11 @@ export function ProposalsListView({
             How the community funds projects, media, and public work.
           </p>
         </div>
-        <Button className="self-start">
-          <Plus className="h-4 w-4" />
-          Create proposal
+        <Button asChild className="self-start">
+          <Link href="/proposals/new">
+            <Plus className="h-4 w-4" />
+            Create proposal
+          </Link>
         </Button>
       </div>
 
