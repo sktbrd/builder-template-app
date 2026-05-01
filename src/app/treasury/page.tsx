@@ -1,26 +1,23 @@
 import type { Metadata } from 'next'
 
 import { AddressChip } from '@/components/dao/AddressChip'
-import { AuctionArt } from '@/components/dao/AuctionArt'
 import { BarChart } from '@/components/dao/BarChart'
 import { KpiCard } from '@/components/dao/KpiCard'
 import { daoConfig } from '@/lib/dao.config'
-import {
-  CHART_AUCTION,
-  CHART_MEMBERS,
-  CHART_PROPOSALS,
-  PRESETS,
-} from '@/lib/mockData'
+import { getTreasuryPageData } from '@/lib/dao-data'
 
 export const metadata: Metadata = {
   title: 'Treasury',
 }
 
-const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
+export const revalidate = 60
 
-export default function TreasuryPage() {
-  const preset = PRESETS.builder
-  const treasuryAddr = daoConfig.addresses.treasury
+export default async function TreasuryPage() {
+  const data = await getTreasuryPageData()
+
+  const treasuryDisplay = trimDecimals(data.treasuryEth, 4)
+  const salesDisplay = trimDecimals(data.totalAuctionSalesEth, 4)
+  const monthLabels = lastTwelveMonthLabels()
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,85 +31,61 @@ export default function TreasuryPage() {
             position.
           </p>
         </div>
-        <AddressChip addr={truncate(treasuryAddr)} />
+        <AddressChip addr={truncate(data.treasuryAddress)} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard
-          value={`$${preset.treasuryUsd.toLocaleString(undefined, {
-            maximumFractionDigits: 0,
-          })}`}
-          label="Total treasury value"
-        />
-        <KpiCard value={`${preset.treasuryEth} ETH`} label="ETH balance" />
-        <KpiCard
-          value={`${preset.auctionSales} ETH`}
-          label="Total auction sales"
-        />
+        <KpiCard value={`${treasuryDisplay} ETH`} label="Treasury balance" />
+        <KpiCard value={`${salesDisplay} ETH`} label="Total auction sales" />
+        <KpiCard value={data.ownerCount.toLocaleString()} label="Owners" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard title="Auction revenue" sub="ETH per month">
-          <BarChart data={CHART_AUCTION} labels={MONTHS} />
+          <BarChart data={data.auctionRevenueByMonth} labels={monthLabels} />
         </ChartCard>
         <ChartCard title="Proposal activity" sub="proposals / month">
-          <BarChart data={CHART_PROPOSALS} labels={MONTHS} />
+          <BarChart data={data.proposalsByMonth} labels={monthLabels} />
         </ChartCard>
-        <ChartCard title="Member activity" sub="voters per recent prop">
-          <BarChart data={CHART_MEMBERS} />
+        <ChartCard
+          title="Voter activity"
+          sub={`votes per recent prop (last ${data.votersByProposal.length})`}
+        >
+          <BarChart
+            data={
+              data.votersByProposal.length > 0
+                ? data.votersByProposal
+                : new Array(12).fill(0)
+            }
+          />
         </ChartCard>
       </div>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-xl font-bold tracking-tight">Token holdings</h2>
-          <span className="text-[17px] font-bold">$1,909.63</span>
         </div>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <Th>Asset</Th>
-              <Th>Balance</Th>
-              <Th>Value (USD)</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="hover:bg-surface-2">
-              <Td>
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-xs font-bold">
-                    Z
-                  </span>
-                  Zora
-                </div>
-              </Td>
-              <Td>152,790 ZORA</Td>
-              <Td>$1,909.63</Td>
-            </tr>
-          </tbody>
-        </table>
+        {/* ERC-20 holdings (Alchemy / Zora API enrichment) lands separately — */}
+        {/* showing the ETH balance only for now. */}
+        <div className="rounded-md border border-dashed border-border bg-surface-2 px-4 py-5 text-sm text-muted-fg">
+          ETH balance: <strong className="font-semibold text-fg">{treasuryDisplay} ETH</strong>.
+          Multi-asset breakdown (ERC-20 holdings via Alchemy) lands in a
+          follow-up.
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-xl font-bold tracking-tight">NFT holdings</h2>
           <span className="text-[12.5px] text-muted-fg">
-            {(preset.totalSupply - preset.members).toLocaleString()} in treasury
+            {Math.max(0, data.totalSupply - data.ownerCount).toLocaleString()} in
+            treasury
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="relative aspect-square overflow-hidden rounded-md border border-border bg-surface-2"
-            >
-              <AuctionArt palette={preset.artworkPalette} />
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-bg/85 px-2.5 py-1.5 text-xs font-semibold backdrop-blur-md">
-                <span>#{i}</span>
-                <span className="text-muted-fg">3/13/2026</span>
-              </div>
-            </div>
-          ))}
+        {/* NFT artwork rendering needs the metadata renderer — defer to a */}
+        {/* follow-up that fetches each token's image URL via the renderer. */}
+        <div className="rounded-md border border-dashed border-border bg-surface-2 px-4 py-5 text-sm text-muted-fg">
+          DAO-owned token artwork grid lands in a follow-up.
         </div>
       </section>
     </div>
@@ -139,20 +112,20 @@ function ChartCard({
   )
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th className="border-b border-border px-3.5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-fg">
-      {children}
-    </th>
-  )
+function trimDecimals(value: string, max: number): string {
+  if (!value || !value.includes('.')) return value
+  const [intPart, decPart] = value.split('.')
+  return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
 
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="border-b border-border px-3.5 py-2.5 last:border-b-0">
-      {children}
-    </td>
-  )
+function lastTwelveMonthLabels(): string[] {
+  const out: string[] = []
+  const d = new Date()
+  for (let i = 11; i >= 0; i--) {
+    const dd = new Date(d.getFullYear(), d.getMonth() - i, 1)
+    out.push(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][dd.getMonth()])
+  }
+  return out
 }
 
 function truncate(addr: string) {

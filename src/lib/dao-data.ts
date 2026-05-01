@@ -317,6 +317,147 @@ function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
+// ── Treasury page ──────────────────────────────────────────
+
+export type TreasuryPageData = {
+  treasuryEth: string
+  treasuryAddress: string
+  totalAuctionSalesEth: string
+  ownerCount: number
+  totalSupply: number
+  // 12 monthly buckets, oldest → newest
+  auctionRevenueByMonth: number[]
+  proposalsByMonth: number[]
+  /** Voters per recent proposal (last 14 proposals, oldest → newest). */
+  votersByProposal: number[]
+}
+
+export async function getTreasuryPageData(): Promise<TreasuryPageData> {
+  const oneYearAgo = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 365
+
+  const [
+    daoInfo,
+    salesResp,
+    historyResp,
+    proposalsResp,
+    treasuryWei,
+  ] = await Promise.all([
+    safeFetch(
+      'treasuryPage.daoInfo',
+      () => SubgraphSDK.connect(chainId).daoInfo({ tokenAddress: tokenAddressLc }),
+      { dao: null } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['daoInfo']>
+      >
+    ),
+    safeFetch(
+      'treasuryPage.totalAuctionSales',
+      () =>
+        SubgraphSDK.connect(chainId).totalAuctionSales({
+          tokenAddress: tokenAddressLc,
+        }),
+      { dao: null } as Awaited<
+        ReturnType<
+          ReturnType<typeof SubgraphSDK.connect>['totalAuctionSales']
+        >
+      >
+    ),
+    safeFetch(
+      'treasuryPage.auctionHistory',
+      () =>
+        SubgraphSDK.connect(chainId).auctionHistory({
+          daoId: tokenAddressLc,
+          startTime: BigInt(oneYearAgo).toString() as unknown as bigint,
+          orderBy: Auction_OrderBy.EndTime,
+          orderDirection: OrderDirection.Desc,
+          first: 1000,
+        }),
+      { dao: null } as Awaited<
+        ReturnType<
+          ReturnType<typeof SubgraphSDK.connect>['auctionHistory']
+        >
+      >
+    ),
+    safeFetch(
+      'treasuryPage.proposals',
+      () =>
+        SubgraphSDK.connect(chainId).proposals({
+          where: { dao: tokenAddressLc } as never,
+          first: 200,
+        }),
+      { proposals: [] as Array<unknown> } as never
+    ),
+    safeFetch(
+      'treasuryPage.balance',
+      async () => {
+        if (!publicClient) return BigInt(0)
+        return publicClient.getBalance({
+          address: daoConfig.addresses.treasury as `0x${string}`,
+        })
+      },
+      BigInt(0)
+    ),
+  ])
+
+  const totalAuctionSalesEth = formatEther(
+    BigInt(salesResp?.dao?.totalAuctionSales ?? '0')
+  )
+  const treasuryEth = formatEther(treasuryWei)
+
+  const auctionRevenueByMonth = bucketAuctionRevenueByMonth(
+    historyResp?.dao?.auctions ?? []
+  )
+
+  // proposals: count per-month over the last 12 months
+  const proposalsByMonth = bucketProposalsByMonth(
+    (proposalsResp as { proposals: Array<{ timeCreated: unknown }> }).proposals
+  )
+
+  // voters per proposal: total votes per proposal, oldest → newest
+  // (subgraph fragment doesn't carry vote count directly; for PR #14 we
+  // approximate from for+against+abstain counts on the latest 14 props).
+  const votersByProposal = (
+    proposalsResp as {
+      proposals: Array<{
+        forVotes: number
+        againstVotes: number
+        abstainVotes: number
+        timeCreated: unknown
+      }>
+    }
+  ).proposals
+    .slice()
+    .sort((a, b) => Number(a.timeCreated) - Number(b.timeCreated))
+    .slice(-14)
+    .map((p) => p.forVotes + p.againstVotes + p.abstainVotes)
+
+  return {
+    treasuryEth,
+    treasuryAddress: daoConfig.addresses.treasury,
+    totalAuctionSalesEth,
+    ownerCount: daoInfo?.dao?.ownerCount ?? 0,
+    totalSupply: daoInfo?.dao?.totalSupply ?? 0,
+    auctionRevenueByMonth,
+    proposalsByMonth,
+    votersByProposal,
+  }
+}
+
+function bucketProposalsByMonth(
+  proposals: Array<{ timeCreated: unknown }>
+): number[] {
+  const buckets = new Array<number>(12).fill(0)
+  const now = new Date()
+  for (const p of proposals) {
+    const d = new Date(Number(p.timeCreated) * 1000)
+    const monthsAgo =
+      (now.getFullYear() - d.getFullYear()) * 12 +
+      (now.getMonth() - d.getMonth())
+    if (monthsAgo < 0 || monthsAgo > 11) continue
+    buckets[11 - monthsAgo] += 1
+  }
+  return buckets
+}
+
 // ── Proposals list page ────────────────────────────────────
 
 export async function getAllProposals(limit = 50): Promise<ProposalSummary[]> {
