@@ -2,6 +2,7 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { Markdown } from '@/components/Markdown'
 import { StatusBadge } from '@/components/dao/StatusBadge'
 import { VoteBar } from '@/components/dao/VoteBar'
 import { VotePanel } from '@/components/dao/VotePanel'
@@ -72,16 +73,12 @@ export default async function ProposalDetailPage({ params }: { params: Params })
           <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
             <h3 className="mb-3 text-base font-bold">Description</h3>
             {description ? (
-              <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg-2">
-                {description}
-              </div>
+              <Markdown>{description}</Markdown>
             ) : (
               <div className="text-sm text-muted-fg">
                 (No description provided.)
               </div>
             )}
-            {/* Markdown rendering (rehype/remark) lands in a follow-up — for */}
-            {/* now we render the raw description text with whitespace preserved. */}
           </section>
 
           <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">

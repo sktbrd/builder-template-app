@@ -284,12 +284,13 @@ async function buildRecentActivity(
   // ordering by amount desc (which is also chronological in normal auctions
   // — each new bid must exceed the previous). Unknown gap, so label as
   // "recent" rather than minute-precise.
+  // getBids returns amount as ETH-formatted strings, not wei.
   const bidEvents: DashboardActivityItem[] = (bidsRaw ?? [])
     .slice(0, 4)
     .map((b, i) => ({
       type: 'bid' as const,
       who: short(b.bidder),
-      what: `bid ${trimDec(formatEther(BigInt(b.amount)), 4)} ETH on #${currentTokenId}`,
+      what: `bid ${trimDec(String(b.amount), 4)} ETH on #${currentTokenId}`,
       timeAgo: i === 0 ? 'just now' : 'recent',
       href: `/auction/${currentTokenId}`,
     }))
@@ -889,9 +890,11 @@ export async function getAuctionPageData(
     (a) => Number(a.token.tokenId) === tokenId
   )
 
+  // Note: getBids() returns ETH-formatted amount strings (e.g. "0.0005"),
+  // not wei. Don't pass through formatEther() — pass through as-is.
   const bids = (bidsResp ?? []).map((b) => ({
     id: b.id,
-    amountEth: formatEther(BigInt(b.amount)),
+    amountEth: String(b.amount),
     bidder: b.bidder,
     bidderShort: short(b.bidder),
   }))
