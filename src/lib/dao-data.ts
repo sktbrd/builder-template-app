@@ -1,7 +1,8 @@
 import 'server-only'
 
 import { PUBLIC_DEFAULT_CHAINS } from '@buildeross/constants/chains'
-import { tokenAbi } from '@buildeross/sdk/contract'
+import { erc20Abi, tokenAbi } from '@buildeross/sdk/contract'
+import { mainnet } from 'viem/chains'
 import {
   Auction_OrderBy,
   getBids,
@@ -29,6 +30,12 @@ const publicClient = chain
         transports[chainId as keyof typeof transports] ?? transports[8453],
     })
   : null
+
+// ENS resolves on Ethereum mainnet regardless of which chain the DAO lives on.
+const mainnetClient = createPublicClient({
+  chain: mainnet,
+  transport: transports[1] ?? transports[8453],
+})
 
 async function safeFetch<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -398,6 +405,23 @@ function short(addr: string) {
 
 // ── Treasury page ──────────────────────────────────────────
 
+export type TreasuryTokenHolding = {
+  symbol: string
+  address: string
+  decimals: number
+  /** Formatted balance, trimmed (e.g. "1,234.56"). */
+  balance: string
+  /** Raw balance as string (for sorting / future USD price math). */
+  balanceRaw: string
+}
+
+export type TreasuryNft = {
+  tokenId: number
+  name: string
+  image: string | null
+  mintedAt: number
+}
+
 export type TreasuryPageData = {
   treasuryEth: string
   treasuryAddress: string
@@ -409,10 +433,15 @@ export type TreasuryPageData = {
   proposalsByMonth: number[]
   /** Voters per recent proposal (last 14 proposals, oldest → newest). */
   votersByProposal: number[]
+  nftHoldings: TreasuryNft[]
+  nftHoldingsCount: number
+  tokenHoldings: TreasuryTokenHolding[]
 }
 
 export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   const oneYearAgo = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 365
+
+  const treasuryAddrLc = daoConfig.addresses.treasury.toLowerCase() as `0x${string}`
 
   const [
     daoInfo,
@@ -420,6 +449,8 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
     historyResp,
     proposalsResp,
     treasuryWei,
+    nftsResp,
+    tokenHoldings,
   ] = await Promise.all([
     safeFetch(
       'treasuryPage.daoInfo',
@@ -475,6 +506,20 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
       },
       BigInt(0)
     ),
+    safeFetch(
+      'treasuryPage.nfts',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: { dao: tokenAddressLc, owner: treasuryAddrLc } as never,
+          orderBy: Token_OrderBy.MintedAt,
+          orderDirection: OrderDirection.Desc,
+          first: 24,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    ),
+    fetchTreasuryTokenHoldings(treasuryAddrLc),
   ])
 
   const totalAuctionSalesEth = formatEther(
@@ -509,16 +554,90 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
     .slice(-14)
     .map((p) => p.forVotes + p.againstVotes + p.abstainVotes)
 
+  const nftHoldings: TreasuryNft[] = (nftsResp.tokens ?? []).map((t) => ({
+    tokenId: Number(t.tokenId),
+    name: t.name,
+    image: t.image ?? null,
+    mintedAt: Number(t.mintedAt),
+  }))
+
+  const totalSupply = daoInfo?.dao?.totalSupply ?? 0
+  const ownerCount = daoInfo?.dao?.ownerCount ?? 0
+  // The subgraph treats treasury-owned tokens as a regular owner; subtract
+  // 1 from the displayed "in treasury" count when the treasury holds any,
+  // so totalSupply - ownerCount is roughly accurate.
+  const nftHoldingsCount = nftHoldings.length
+
   return {
     treasuryEth,
     treasuryAddress: daoConfig.addresses.treasury,
     totalAuctionSalesEth,
-    ownerCount: daoInfo?.dao?.ownerCount ?? 0,
-    totalSupply: daoInfo?.dao?.totalSupply ?? 0,
+    ownerCount,
+    totalSupply,
     auctionRevenueByMonth,
     proposalsByMonth,
     votersByProposal,
+    nftHoldings,
+    nftHoldingsCount,
+    tokenHoldings,
   }
+}
+
+async function fetchTreasuryTokenHoldings(
+  treasuryAddrLc: `0x${string}`
+): Promise<TreasuryTokenHolding[]> {
+  const tokens = daoConfig.treasuryTokens
+  if (!tokens.length || !publicClient) return []
+
+  const result = await safeFetch(
+    'treasuryPage.tokenHoldings.multicall',
+    () =>
+      publicClient.multicall({
+        contracts: tokens.map((t) => ({
+          address: t.address,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [treasuryAddrLc],
+        })),
+        allowFailure: true,
+      }),
+    [] as Array<{ status: 'success' | 'failure'; result?: unknown }>
+  )
+
+  return tokens
+    .map((t, i) => {
+      const r = result[i]
+      const raw =
+        r?.status === 'success' && typeof r.result === 'bigint'
+          ? r.result
+          : BigInt(0)
+      const display = formatTokenAmount(raw, t.decimals)
+      return {
+        symbol: t.symbol,
+        address: t.address,
+        decimals: t.decimals,
+        balance: display,
+        balanceRaw: raw.toString(),
+      }
+    })
+    .filter((h) => h.balanceRaw !== '0')
+    .sort((a, b) => (BigInt(b.balanceRaw) > BigInt(a.balanceRaw) ? 1 : -1))
+}
+
+function formatTokenAmount(value: bigint, decimals: number): string {
+  if (value === BigInt(0)) return '0'
+  const base = BigInt(10) ** BigInt(decimals)
+  const whole = value / base
+  const fraction = value % base
+  if (fraction === BigInt(0)) {
+    return whole.toLocaleString('en-US')
+  }
+  // Show up to 4 fractional digits (trim trailing zeros).
+  const fracStr = fraction.toString().padStart(decimals, '0').slice(0, 4)
+  const trimmed = fracStr.replace(/0+$/, '')
+  return trimmed
+    ? `${whole.toLocaleString('en-US')}.${trimmed}`
+    : whole.toLocaleString('en-US')
 }
 
 function bucketProposalsByMonth(
@@ -790,16 +909,23 @@ export async function getMembersPageData(): Promise<MembersPageData> {
     0
   )
 
+  // Resolve ENS names for the top members. Capped + per-call timeout so the
+  // page still renders quickly when only a public mainnet RPC is available.
+  const ENS_RESOLVE_LIMIT = 20
+  const topAddresses = owners
+    .slice(0, ENS_RESOLVE_LIMIT)
+    .map((o) => String(o.owner))
+  const ensMap = await resolveEnsNames(topAddresses)
+
   const members: MemberRow[] = owners.map((o) => {
     const addr = String(o.owner)
     const tokens = o.daoTokenCount ?? 0
-    // Earliest minted token = joined date.
     const earliestMinted = (o.daoTokens ?? []).reduce<number>((min, t) => {
       const ts = Number(t.mintedAt ?? 0)
       return min === 0 || ts < min ? ts : min
     }, 0)
     return {
-      ens: null, // ENS lives in a follow-up (viem batch resolver server-side)
+      ens: ensMap.get(addr.toLowerCase()) ?? null,
       addr,
       addrShort: short(addr),
       votes: tokens,
@@ -821,6 +947,69 @@ export async function getMembersPageData(): Promise<MembersPageData> {
     totalMembers: members.length,
     activeMembers: members.filter((m) => m.active).length,
   }
+}
+
+const ENS_LOOKUP_TIMEOUT_MS = 6000
+
+/**
+ * Resolve ENS names for a batch of addresses against Ethereum mainnet.
+ *
+ * Skipped entirely if no Alchemy key is configured — public mainnet RPCs
+ * are too slow for batch ENS lookups during SSR (a /members render would
+ * stall on 20 sequential reverse-resolver calls). With Alchemy set the
+ * ~6s budget per call is comfortable.
+ *
+ * Each address that doesn't have an ENS, or whose lookup times out, is
+ * silently dropped from the result map.
+ */
+async function resolveEnsNames(
+  addresses: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (addresses.length === 0) return out
+  if (!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY) return out
+  const settled = await Promise.allSettled(
+    addresses.map((a) =>
+      withTimeout(
+        mainnetClient.getEnsName({ address: a as `0x${string}` }),
+        ENS_LOOKUP_TIMEOUT_MS
+      )
+    )
+  )
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value) {
+      out.set(addresses[i].toLowerCase(), r.value)
+    }
+  })
+  return out
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve(null)
+      }
+    }, ms)
+    p.then(
+      (v) => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          resolve(v)
+        }
+      },
+      () => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          resolve(null)
+        }
+      }
+    )
+  })
 }
 
 // ── Auction page ───────────────────────────────────────────

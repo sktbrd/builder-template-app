@@ -6,6 +6,8 @@ import { DAO_CONFIG as ONCHAIN_CONFIG } from '@/config/dao'
 // `pnpm switch-dao <preset>` for the full DAO-swap workflow.
 import THEME_OVERRIDES from '@/config/dao.theme.json'
 
+import { BASE_COMMON_TOKENS, type TreasuryToken } from './treasury-tokens'
+
 /**
  * The single config surface a forking DAO touches.
  *
@@ -65,6 +67,8 @@ export type DaoConfig = {
   theme: DaoTheme
   features: DaoFeatures
   socials: DaoSocials
+  /** ERC-20 contracts to surface on /treasury. See lib/treasury-tokens.ts. */
+  treasuryTokens: TreasuryToken[]
 }
 
 const T = THEME_OVERRIDES as Partial<{
@@ -126,6 +130,11 @@ export const daoConfig: DaoConfig = {
     // github: 'https://github.com/yourdao',
     // website: 'https://yourdao.com',
   },
+
+  // ── Treasury tokens ──────────────────────────────
+  // ERC-20 tokens shown on /treasury. Default to common Base stables; forks
+  // on other chains should swap for ETHEREUM_COMMON_TOKENS or list manually.
+  treasuryTokens: ONCHAIN_CONFIG.chain.id === 8453 ? BASE_COMMON_TOKENS : [],
 }
 
 /**
