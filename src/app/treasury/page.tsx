@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { AddressChip } from '@/components/dao/AddressChip'
-import { BarChart } from '@/components/dao/BarChart'
+import { AnalyticsBarChart } from '@/components/dao/AnalyticsBarChart'
 import { KpiCard } from '@/components/dao/KpiCard'
 import { daoConfig } from '@/lib/dao.config'
 import { getTreasuryPageData } from '@/lib/dao-data'
@@ -42,21 +42,30 @@ export default async function TreasuryPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard title="Auction revenue" sub="ETH per month">
-          <BarChart data={data.auctionRevenueByMonth} labels={monthLabels} />
+          <AnalyticsBarChart
+            data={zip(monthLabels, data.auctionRevenueByMonth)}
+            valueSuffix="ETH"
+            precision={3}
+          />
         </ChartCard>
         <ChartCard title="Proposal activity" sub="proposals / month">
-          <BarChart data={data.proposalsByMonth} labels={monthLabels} />
+          <AnalyticsBarChart
+            data={zip(monthLabels, data.proposalsByMonth)}
+            valueSuffix="proposals"
+            precision={0}
+          />
         </ChartCard>
         <ChartCard
           title="Voter activity"
           sub={`votes per recent prop (last ${data.votersByProposal.length})`}
         >
-          <BarChart
-            data={
-              data.votersByProposal.length > 0
-                ? data.votersByProposal
-                : new Array(12).fill(0)
-            }
+          <AnalyticsBarChart
+            data={(data.votersByProposal.length > 0
+              ? data.votersByProposal
+              : new Array(12).fill(0)
+            ).map((v, i) => ({ label: `#${i + 1}`, value: v }))}
+            valueSuffix="votes"
+            precision={0}
           />
         </ChartCard>
       </div>
@@ -208,6 +217,13 @@ function trimDecimals(value: string, max: number): string {
   if (!value || !value.includes('.')) return value
   const [intPart, decPart] = value.split('.')
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
+}
+
+function zip(
+  labels: string[],
+  values: number[]
+): Array<{ label: string; value: number }> {
+  return labels.map((label, i) => ({ label, value: values[i] ?? 0 }))
 }
 
 function lastTwelveMonthLabels(): string[] {
