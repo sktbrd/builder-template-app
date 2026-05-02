@@ -91,8 +91,8 @@ export function TweaksPanel() {
     document.body.style.setProperty('--font-display-active', fontFamily)
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tweaks))
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.warn('[TweaksPanel] Could not save tweaks to localStorage:', e)
     }
   }, [tweaks])
 

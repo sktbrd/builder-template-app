@@ -473,7 +473,9 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
           where: { dao: tokenAddressLc } as never,
           first: 200,
         }),
-      { proposals: [] as Array<unknown> } as never
+      { proposals: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['proposals']>
+      >
     ),
     safeFetch(
       'treasuryPage.balance',
@@ -511,23 +513,12 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   )
 
   // proposals: count per-month over the last 12 months
-  const proposalsByMonth = bucketProposalsByMonth(
-    (proposalsResp as { proposals: Array<{ timeCreated: unknown }> }).proposals
-  )
+  const proposalsByMonth = bucketProposalsByMonth(proposalsResp.proposals)
 
   // voters per proposal: total votes per proposal, oldest → newest
   // (subgraph fragment doesn't carry vote count directly; for PR #14 we
   // approximate from for+against+abstain counts on the latest 14 props).
-  const votersByProposal = (
-    proposalsResp as {
-      proposals: Array<{
-        forVotes: number
-        againstVotes: number
-        abstainVotes: number
-        timeCreated: unknown
-      }>
-    }
-  ).proposals
+  const votersByProposal = proposalsResp.proposals
     .slice()
     .sort((a, b) => Number(a.timeCreated) - Number(b.timeCreated))
     .slice(-14)
@@ -678,33 +669,12 @@ export async function getProposalByNumber(
         } as never,
         first: 1,
       }),
-    { proposals: [] as Array<unknown> } as never
+    { proposals: [] } as Awaited<
+      ReturnType<ReturnType<typeof SubgraphSDK.connect>['proposals']>
+    >
   )
 
-  type Fragment = {
-    proposalNumber: number
-    proposalId: unknown
-    title?: string | null
-    description?: string | null
-    proposer: string
-    timeCreated: unknown
-    forVotes: number
-    againstVotes: number
-    abstainVotes: number
-    quorumVotes: unknown
-    snapshotBlockNumber: unknown
-    voteStart: unknown
-    voteEnd: unknown
-    expiresAt?: unknown
-    executedAt?: unknown
-    vetoTransactionHash?: unknown
-    cancelTransactionHash?: unknown
-    targets?: string[]
-    values?: string[]
-    calldatas?: string | null
-  }
-
-  const fragment = (resp as { proposals: Fragment[] }).proposals[0]
+  const fragment = resp.proposals[0]
   if (!fragment) return null
 
   // Calldatas come back as a single concatenated string in the fragment;
@@ -947,6 +917,8 @@ async function resolveEnsNames(addresses: string[]): Promise<Map<string, string>
   settled.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value) {
       out.set(addresses[i].toLowerCase(), r.value)
+    } else if (r.status === 'rejected') {
+      console.warn(`[dao-data] ENS lookup failed for ${addresses[i]}:`, r.reason)
     }
   })
   return out

@@ -68,11 +68,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const { accent, radius, displayFont } = daoConfig.theme
+  const resolvedFont = DISPLAY_FONT_VAR[displayFont]
+  if (!resolvedFont) {
+    console.warn(
+      `[layout] Unknown displayFont "${displayFont}" in dao.config — falling back to Geist. ` +
+        `Valid options: ${Object.keys(DISPLAY_FONT_VAR).join(', ')}`
+    )
+  }
   const rootStyle: React.CSSProperties & Record<string, string> = {
     '--accent': accent,
     '--accent-strong': `color-mix(in oklab, ${accent} 80%, black)`,
     '--radius': `${radius}px`,
-    '--font-display-active': DISPLAY_FONT_VAR[displayFont] ?? 'var(--font-geist)',
+    '--font-display-active': resolvedFont ?? 'var(--font-geist)',
   }
 
   return (
