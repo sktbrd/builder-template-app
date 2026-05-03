@@ -91,7 +91,10 @@ export default async function Dashboard() {
           </Link>
         </div>
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <KpiCard value={`${formatEth(data.treasuryEth)} ETH`} label="Treasury balance" />
+          <KpiCard
+            value={`${formatEth(data.treasuryEth)} ETH`}
+            label="Treasury balance"
+          />
           <KpiCard
             value={`${formatEth(data.totalAuctionSalesEth)} ETH`}
             label="Total auction sales"
@@ -102,14 +105,14 @@ export default async function Dashboard() {
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-fg">Auction revenue</p>
-              <p className="text-[12px] text-muted-fg">last 12 months · hover for details</p>
+              <p className="text-[12px] text-muted-fg">
+                last 12 months · hover for details
+              </p>
             </div>
             <div className="text-right">
               <p className="text-[13px] font-bold text-fg">
                 {formatEth(
-                  data.auctionRevenueByMonth
-                    .reduce((s, v) => s + v, 0)
-                    .toFixed(4)
+                  data.auctionRevenueByMonth.reduce((s, v) => s + v, 0).toFixed(4)
                 )}{' '}
                 ETH
               </p>
@@ -140,9 +143,7 @@ function lastTwelveMonthLabels(): string[] {
   const d = new Date()
   for (let i = 11; i >= 0; i--) {
     const dd = new Date(d.getFullYear(), d.getMonth() - i, 1)
-    out.push(
-      ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][dd.getMonth()]
-    )
+    out.push(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][dd.getMonth()])
   }
   return out
 }

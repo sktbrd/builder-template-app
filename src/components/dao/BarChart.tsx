@@ -21,8 +21,8 @@ export function BarChart({ data, labels, height = 130, className }: Props) {
 
   // SVG coords in 0–100 space. Labels rendered as HTML below to avoid
   // preserveAspectRatio="none" distortion.
-  const BOT = 2  // gap above baseline
-  const GAP = 8  // gap between bars as % of slot width
+  const BOT = 2 // gap above baseline
+  const GAP = 8 // gap between bars as % of slot width
 
   function barRect(i: number, v: number) {
     const slotW = 100 / n
@@ -41,7 +41,7 @@ export function BarChart({ data, labels, height = 130, className }: Props) {
   }
 
   const hovVal = hovered !== null ? data[hovered] : null
-  const hovX = hovered !== null ? (hovered + 0.5) / n * 100 : null
+  const hovX = hovered !== null ? ((hovered + 0.5) / n) * 100 : null
 
   function fmtVal(v: number) {
     if (v < 0.001) return '<0.001'
@@ -94,24 +94,34 @@ export function BarChart({ data, labels, height = 130, className }: Props) {
         </defs>
 
         {/* Baseline */}
-        <line x1="0" y1="100" x2="100" y2="100" stroke="var(--border)" strokeWidth="0.5" />
+        <line
+          x1="0"
+          y1="100"
+          x2="100"
+          y2="100"
+          stroke="var(--border)"
+          strokeWidth="0.5"
+        />
 
         {/* Bars */}
-        {hasData && data.map((v, i) => {
-          const { x, y, w, h } = barRect(i, v)
-          const isHov = hovered === i
-          if (h <= 0) return null
-          return (
-            <rect
-              key={i}
-              x={x} y={y}
-              width={w} height={h}
-              rx="1.5"
-              fill={isHov ? 'var(--accent)' : 'url(#bc-grad)'}
-              opacity={isHov ? 1 : 0.75}
-            />
-          )
-        })}
+        {hasData &&
+          data.map((v, i) => {
+            const { x, y, w, h } = barRect(i, v)
+            const isHov = hovered === i
+            if (h <= 0) return null
+            return (
+              <rect
+                key={i}
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                rx="1.5"
+                fill={isHov ? 'var(--accent)' : 'url(#bc-grad)'}
+                opacity={isHov ? 1 : 0.75}
+              />
+            )
+          })}
       </svg>
 
       {/* Month labels — plain HTML, never distorted */}
@@ -122,7 +132,7 @@ export function BarChart({ data, labels, height = 130, className }: Props) {
               key={i}
               className="absolute -translate-x-1/2 text-[10px] leading-none"
               style={{
-                left: `${(i + 0.5) / n * 100}%`,
+                left: `${((i + 0.5) / n) * 100}%`,
                 color: hovered === i ? 'var(--fg)' : 'var(--muted-fg)',
               }}
             >

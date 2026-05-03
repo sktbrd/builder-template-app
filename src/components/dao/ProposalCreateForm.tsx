@@ -411,4 +411,3 @@ function textInputClass(error: boolean): string {
     error ? 'border-warning focus:border-warning' : 'border-border focus:border-accent',
   ].join(' ')
 }
-

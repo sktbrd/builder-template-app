@@ -58,7 +58,8 @@ export function ActivityFeed({ items }: { items: ActivityFeedItem[] }) {
 
       {visible.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface-2 px-4 py-8 text-center text-sm text-muted-fg">
-          No {filter === 'all' ? 'recent activity' : filter === 'bid' ? 'bids' : 'proposals'}{' '}
+          No{' '}
+          {filter === 'all' ? 'recent activity' : filter === 'bid' ? 'bids' : 'proposals'}{' '}
           yet.
         </div>
       ) : (

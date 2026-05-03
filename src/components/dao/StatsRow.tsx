@@ -9,7 +9,12 @@ type Props = {
   totalAuctionSalesEth: string
 }
 
-export function StatsRow({ totalSupply, ownerCount, treasuryEth, totalAuctionSalesEth }: Props) {
+export function StatsRow({
+  totalSupply,
+  ownerCount,
+  treasuryEth,
+  totalAuctionSalesEth,
+}: Props) {
   const stats = [
     {
       icon: <Gavel className="h-3.5 w-3.5" />,

@@ -24,13 +24,16 @@ type Props = {
 }
 
 function useCountdown(endTimeUnix: number) {
-  const compute = () => Math.max(0, endTimeUnix - Math.floor(Date.now() / 1000))
-  const [secs, setSecs] = useState(compute)
+  const [secs, setSecs] = useState(() =>
+    Math.max(0, endTimeUnix - Math.floor(Date.now() / 1000))
+  )
   useEffect(() => {
-    setSecs(compute())
-    const id = setInterval(() => setSecs(compute()), 1000)
+    const id = setInterval(
+      () => setSecs(Math.max(0, endTimeUnix - Math.floor(Date.now() / 1000))),
+      1000
+    )
     return () => clearInterval(id)
-  }, [endTimeUnix]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [endTimeUnix])
   return secs
 }
 
@@ -62,7 +65,9 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
       <section className="flex min-h-[200px] items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center">
         <div>
           <p className="text-lg font-semibold text-fg">No active auction</p>
-          <p className="mt-1 text-sm text-muted-fg">Auctions run daily — check back soon.</p>
+          <p className="mt-1 text-sm text-muted-fg">
+            Auctions run daily — check back soon.
+          </p>
         </div>
       </section>
     )
@@ -127,10 +132,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
             </div>
 
             {/* Token name */}
-            <Link
-              href={`/auction/${auction.tokenId}`}
-              className="group/title"
-            >
+            <Link href={`/auction/${auction.tokenId}`} className="group/title">
               <h1 className="font-display text-[clamp(26px,3.5vw,42px)] font-extrabold leading-[1.06] tracking-[-0.025em] text-fg transition-colors group-hover/title:text-accent-strong">
                 {tokenName}
               </h1>
@@ -144,11 +146,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
               <p
                 className={cn(
                   'font-display text-[clamp(36px,5vw,58px)] font-extrabold leading-none tracking-[-0.03em] tabular-nums',
-                  critical
-                    ? 'text-destructive'
-                    : urgent
-                      ? 'text-warning'
-                      : 'text-fg'
+                  critical ? 'text-destructive' : urgent ? 'text-warning' : 'text-fg'
                 )}
               >
                 {formatCountdown(secs)}
