@@ -5,7 +5,7 @@ import { AuctionHero } from '@/components/dao/AuctionHero'
 import { BarChart } from '@/components/dao/BarChart'
 import { KpiCard } from '@/components/dao/KpiCard'
 import { OnboardingStrip } from '@/components/dao/OnboardingStrip'
-import { ProposalCard } from '@/components/dao/ProposalCard'
+import { ProposalRow } from '@/components/dao/ProposalRow'
 import { StatsRow } from '@/components/dao/StatsRow'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
 import { getDashboardData } from '@/lib/dao-data'
@@ -53,7 +53,7 @@ export default async function Dashboard() {
           {data.recentProposals.length > 0 ? (
             <div className="flex flex-col divide-y divide-border">
               {data.recentProposals.slice(0, 5).map((p) => (
-                <ProposalCard key={p.id} p={p} />
+                <ProposalRow key={p.id} p={p} />
               ))}
             </div>
           ) : (

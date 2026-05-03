@@ -12,47 +12,39 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
   return (
     <Link
       href={`/proposals/${p.id}`}
-      className="group flex items-center gap-4 rounded-lg px-3 py-3 transition-colors hover:bg-surface-2"
+      className="group flex flex-col gap-2.5 rounded-xl border border-border bg-surface px-[18px] py-4 text-left text-fg transition-[transform,border-color] hover:-translate-y-px hover:border-border-strong"
     >
-      {/* Prop ID */}
-      <span className="w-12 shrink-0 font-mono text-xs font-semibold text-muted-fg">
-        #{p.id}
-      </span>
-
-      {/* Title + meta */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-fg group-hover:text-accent-strong">
-          {p.title}
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted-fg">
-          {p.proposer} · {p.date}
-          {hasReq && (
-            <>
-              {' · '}
-              {p.requested.eth > 0 && `${p.requested.eth} ETH`}
-              {p.requested.eth > 0 && p.requested.usdc > 0 && ' / '}
-              {p.requested.usdc > 0 && `${p.requested.usdc.toLocaleString('en-US')} USDC`}
-            </>
-          )}
-        </p>
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs font-semibold text-muted-fg">Prop {p.id}</span>
+        <StatusBadge status={p.status} />
       </div>
-
-      {/* Vote bar */}
-      <div className="hidden w-24 shrink-0 sm:block">
+      <div className="text-[15px] font-semibold leading-snug text-fg">{p.title}</div>
+      <div className="text-[12.5px] text-muted-fg">
+        by {p.proposer} · {p.date}
+      </div>
+      <div className="mt-auto pt-1">
+        <div className="mb-1 text-[12.5px] text-muted-fg">Voting progress</div>
         <VoteBar
           forV={p.forVotes}
           against={p.againstVotes}
           abstain={p.abstainVotes}
           quorum={p.quorum}
-          height={5}
+          height={6}
         />
-        <p className="mt-1 text-center text-[10px] text-muted-fg">{total} votes</p>
+        <div className="mt-1 text-[12.5px] text-muted-fg">
+          {total} votes · {p.endsLabel}
+        </div>
       </div>
-
-      {/* Status */}
-      <div className="shrink-0">
-        <StatusBadge status={p.status} />
-      </div>
+      {hasReq && (
+        <div className="flex items-center justify-between border-t border-border pt-2">
+          <span className="text-[12.5px] text-muted-fg">Requested</span>
+          <span className="text-sm font-bold">
+            {p.requested.eth > 0 && `${p.requested.eth} ETH`}
+            {p.requested.eth > 0 && p.requested.usdc > 0 && ' · '}
+            {p.requested.usdc > 0 && `${p.requested.usdc.toLocaleString('en-US')} USDC`}
+          </span>
+        </div>
+      )}
     </Link>
   )
 }
