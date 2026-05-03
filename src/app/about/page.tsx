@@ -62,15 +62,7 @@ export default async function AboutPage() {
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <h2 className="mb-3 text-xl font-bold tracking-tight">About {daoConfig.name}</h2>
-        {/* Mission copy is per-fork — replace with your DAO's mission text. */}
-        <p className="mb-3 text-fg-2">{daoConfig.tagline}</p>
-        <p className="text-fg-2">
-          Edit this section in{' '}
-          <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[13px]">
-            src/app/about/page.tsx
-          </code>{' '}
-          to add your DAO&apos;s mission, vision, and links.
-        </p>
+        <p className="text-fg-2">{daoConfig.tagline}</p>
       </section>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">

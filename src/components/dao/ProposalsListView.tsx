@@ -72,7 +72,7 @@ export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] 
           ))}
         </select>
         <span className="text-[12.5px] text-muted-fg">
-          {filtered.length} of {proposals.length}
+          Showing {filtered.length} of {proposals.length}
         </span>
       </div>
 
