@@ -91,20 +91,11 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
         >
           {imageSrc ? (
             <>
-              {/* Blurred fill — same image scaled + blurred to cover letterbox gaps */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageSrc}
-                alt=""
-                aria-hidden
-                className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-80 blur-2xl"
-              />
-              {/* Sharp image on top */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imageSrc}
                 alt={tokenName}
-                className="absolute inset-0 z-10 h-full w-full object-contain transition-transform duration-700 group-hover:scale-[1.03]"
+                className="absolute inset-0 z-10 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
               />
             </>
           ) : (
