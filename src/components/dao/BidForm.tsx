@@ -14,6 +14,7 @@ import {
   useWriteContract,
 } from 'wagmi'
 
+import { useWeb3Ready } from '@/app/web3-providers'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 
@@ -31,7 +32,17 @@ type Props = {
   enableComment?: boolean
 }
 
-export function BidForm({
+export function BidForm(props: Props) {
+  const ready = useWeb3Ready()
+  if (!ready) return <BidFormSkeleton />
+  return <BidFormInner {...props} />
+}
+
+function BidFormSkeleton() {
+  return <div className="h-[120px] animate-pulse rounded-md bg-surface-2" />
+}
+
+function BidFormInner({
   tokenId,
   topBid,
   minIncrementPct = 1.02,

@@ -5,6 +5,8 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useSyncExternalStore } from 'react'
 import { type Address } from 'viem'
+
+import { useWeb3Ready } from '@/app/web3-providers'
 import {
   useAccount,
   useChainId,
@@ -48,7 +50,13 @@ const getNowServerSnapshot = () => 0
  * Calls auction.settleCurrentAndCreateNewAuction() — the standard Builder
  * flow that settles the current auction and seeds the next token.
  */
-export function SettleAuctionAction({ tokenId, onSettled }: Props) {
+export function SettleAuctionAction(props: Props) {
+  const ready = useWeb3Ready()
+  if (!ready) return null
+  return <SettleAuctionActionInner {...props} />
+}
+
+function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
   const { isConnected } = useAccount()
   const nowMs = useSyncExternalStore(subscribeNow, getNowSnapshot, getNowServerSnapshot)
   const connectedChainId = useChainId()

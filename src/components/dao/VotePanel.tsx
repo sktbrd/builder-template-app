@@ -13,6 +13,7 @@ import {
   useWriteContract,
 } from 'wagmi'
 
+import { useWeb3Ready } from '@/app/web3-providers'
 import {
   VotingPowerExplainer,
   type VotingPowerScenario,
@@ -38,7 +39,17 @@ type Props = {
   active?: boolean
 }
 
-export function VotePanel({
+export function VotePanel(props: Props) {
+  const ready = useWeb3Ready()
+  if (!ready) return <VotePanelSkeleton />
+  return <VotePanelInner {...props} />
+}
+
+function VotePanelSkeleton() {
+  return <div className="h-[200px] animate-pulse rounded-md bg-surface-2" />
+}
+
+function VotePanelInner({
   proposalIdHash,
   voteStart,
   initialChoice = null,

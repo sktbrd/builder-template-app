@@ -16,6 +16,7 @@ import {
   useWriteContract,
 } from 'wagmi'
 
+import { useWeb3Ready } from '@/app/web3-providers'
 import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
@@ -30,6 +31,16 @@ import {
 const EMPTY_TX: Tx = { target: '', valueEth: '0', calldata: '0x' }
 
 export function ProposalCreateForm() {
+  const ready = useWeb3Ready()
+  if (!ready) return <ProposalCreateFormSkeleton />
+  return <ProposalCreateFormInner />
+}
+
+function ProposalCreateFormSkeleton() {
+  return <div className="h-[400px] animate-pulse rounded-md bg-surface-2" />
+}
+
+function ProposalCreateFormInner() {
   const router = useRouter()
 
   const [title, setTitle] = useState('')

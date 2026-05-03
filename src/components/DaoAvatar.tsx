@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 
 import { DaoLogo } from '@/components/DaoLogo'
@@ -36,17 +37,14 @@ export function DaoAvatar({ image, size = 28, alt, fallbackColor, className }: P
       style={{ width: size, height: size }}
     >
       {showImage ? (
-        // External token artwork — using a plain <img> keeps next/image
-        // domain config out of the fork checklist. Tighten to next/image with
-        // remotePatterns once forks have a stable IPFS gateway choice.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={url}
           alt={alt}
           width={size}
           height={size}
           className="h-full w-full object-cover"
           onError={() => setErrored(true)}
+          unoptimized={!url.startsWith('https://gateway.pinata.cloud/')}
         />
       ) : (
         <DaoLogo style="stripes" color={fallbackColor} size={size} />

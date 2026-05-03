@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useSyncExternalStore } from 'react'
 
+import { useWeb3Ready } from '@/app/web3-providers'
 import { DaoAvatar } from '@/components/DaoAvatar'
 import { daoConfig } from '@/lib/dao.config'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,7 @@ export function Header() {
     getMountedSnapshot,
     getMountedServerSnapshot
   )
+  const web3Ready = useWeb3Ready()
 
   const chainName = CHAIN_NAMES[daoConfig.chainId] ?? `Chain ${daoConfig.chainId}`
 
@@ -104,7 +106,11 @@ export function Header() {
             )}
           </button>
           <div className="hidden md:block">
-            <ConnectButton showBalance={false} chainStatus="none" />
+            {web3Ready ? (
+              <ConnectButton showBalance={false} chainStatus="none" />
+            ) : (
+              <div className="h-9 w-[140px] rounded-full bg-surface-2" />
+            )}
           </div>
           <button
             type="button"
@@ -143,7 +149,11 @@ export function Header() {
               )
             })}
             <div className="mt-2 border-t border-border pt-3">
-              <ConnectButton showBalance={false} chainStatus="none" />
+              {web3Ready ? (
+                <ConnectButton showBalance={false} chainStatus="none" />
+              ) : (
+                <div className="h-9 w-full rounded-full bg-surface-2" />
+              )}
             </div>
           </nav>
         </div>
