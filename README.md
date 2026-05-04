@@ -6,9 +6,8 @@ community site with light + dark themes, real on-chain governance UI (vote / bid
 propose), treasury analytics, member directory, and Open Graph share images — out
 of the box.
 
-> 🎨 **Designed under [Milestone 1 of the Builder Community Site Template proposal](https://nouns.build/dao/base/0xe8af882f2f5c79580230710ac0e2344070099432/761)**.
-> See the [Scope map](#scope-map-template-vs-upstream) below for what lives in this
-> template versus what is proposed upstream into the `@buildeross/*` packages.
+> 🎨 **Built under [Builder DAO proposal #61](https://nouns.build/dao/base/0xe8af882f2f5c79580230710ac0e2344070099432/vote/61)** — three milestones cherry-picking production-tested patterns from [gnars.com](https://gnars.com) into a generic, fork-ready template (M1) plus two batches of upstream PRs into `@buildeross/*` (M2, M3).
+> See the [Scope map](#scope-map-template-vs-upstream) below for what lives in this template versus what is heading upstream.
 
 ## What you get
 
