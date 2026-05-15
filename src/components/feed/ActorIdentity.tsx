@@ -36,7 +36,6 @@ export function ActorIdentity({ address, size = 24, className }: ActorIdentityPr
         aria-hidden
       >
         {ensAvatar ? (
-          // eslint-disable-next-line @next/next/no-img-element -- ENS avatars
           // come from arbitrary hosts (ipfs gateways, arweave, http) — not
           // worth whitelisting them all in next.config.
           <img

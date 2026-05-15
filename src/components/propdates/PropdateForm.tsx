@@ -1,6 +1,10 @@
 'use client'
 
-import { EAS_CONTRACT_ADDRESS, easAbi, PROPDATE_SCHEMA_UID } from '@buildeross/constants/eas'
+import {
+  EAS_CONTRACT_ADDRESS,
+  easAbi,
+  PROPDATE_SCHEMA_UID,
+} from '@buildeross/constants/eas'
 import { type PropDate } from '@buildeross/sdk/subgraph'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
@@ -100,7 +104,16 @@ export function PropdateForm({ proposalIdHash, replyTo, onPosted, onClose }: Pro
     // `message` intentionally excluded — captured at mine time on purpose, and
     // adding it would re-run the effect when we clear it inside the timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMined, receipt, address, proposalIdHash, replyTo?.id, onPosted, onClose, resetWrite])
+  }, [
+    isMined,
+    receipt,
+    address,
+    proposalIdHash,
+    replyTo?.id,
+    onPosted,
+    onClose,
+    resetWrite,
+  ])
 
   const submit = () => {
     if (!message.trim()) return
@@ -263,7 +276,8 @@ export function PropdateForm({ proposalIdHash, replyTo, onPosted, onClose }: Pro
                 </>
               )}
               {phase === 'done' && 'Posted ✓'}
-              {(phase === 'idle' || phase === 'error') && (replyTo ? 'Send reply' : 'Post propdate')}
+              {(phase === 'idle' || phase === 'error') &&
+                (replyTo ? 'Send reply' : 'Post propdate')}
             </Button>
           )}
         </div>
