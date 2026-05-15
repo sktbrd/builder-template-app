@@ -4,9 +4,9 @@ import { ChevronLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { isAddress } from 'viem'
+import { getAddress, isAddress } from 'viem'
 
-import { CoinDetail } from '@/components/coins/CoinDetail'
+import { CoinDetailLoader } from '@/components/coins/CoinDetailLoader'
 import { daoConfig } from '@/lib/dao.config'
 
 export const revalidate = 30
@@ -36,8 +36,13 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
   if (!isAddress(address)) notFound()
   if (!isChainIdSupportedByCoining(daoConfig.chainId)) notFound()
 
-  const coin = await clankerTokenRequest(address, daoConfig.chainId)
-  if (!coin) notFound()
+  // Try server-side once. If the subgraph hasn't indexed this address yet
+  // (typical right after a deploy), pass `null` and let the client component
+  // poll until it does. We *don't* `notFound()` on null — for a valid address
+  // we trust the client loader to either succeed or surface an indexing
+  // status with an outbound link.
+  const initial = await clankerTokenRequest(address, daoConfig.chainId)
+  const checksummed = getAddress(address)
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,7 +55,7 @@ export default async function CoinDetailPage({ params }: { params: Params }) {
           All coins
         </Link>
       </div>
-      <CoinDetail coin={coin} />
+      <CoinDetailLoader address={checksummed} initial={initial} />
     </div>
   )
 }
