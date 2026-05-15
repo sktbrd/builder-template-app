@@ -14,11 +14,10 @@ export type FeedAvatarProps = {
 }
 
 /**
- * Round avatar that prefers the ENS / Basenames avatar and falls back to
- * a deterministic per-address gradient (Builder's `bgForAddress`).
- *
- * No image element when there's no ENS avatar — `bgForAddress` returns a
- * pure gradient string, which we paint directly on the wrapper.
+ * Round avatar with ENS / Basenames image when available, gradient fallback
+ * otherwise. Mirrors `@buildeross/ui` Avatar: `bgForAddress(addr, src)` paints
+ * the placeholder behind an `<img>` so the gradient still shows during load
+ * and if the image 404s.
  */
 export function FeedAvatar({ address, size = 24, className }: FeedAvatarProps) {
   const { ensAvatar } = useEnsData(address)
@@ -26,9 +25,27 @@ export function FeedAvatar({ address, size = 24, className }: FeedAvatarProps) {
 
   return (
     <span
-      className={cn('inline-block shrink-0 rounded-full bg-cover bg-center', className)}
+      className={cn(
+        'relative inline-block shrink-0 overflow-hidden rounded-full',
+        className
+      )}
       style={{ background, width: size, height: size }}
       aria-hidden
-    />
+    >
+      {ensAvatar ? (
+        // eslint-disable-next-line @next/next/no-img-element -- ENS avatars
+        // resolve to arbitrary URLs (ipfs gateways, arweave, http hosts);
+        // whitelisting every host in next.config is impractical.
+        <img
+          src={ensAvatar}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
+        />
+      ) : null}
+    </span>
   )
 }

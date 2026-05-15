@@ -6,7 +6,7 @@ import type { FeedItem } from '@buildeross/types'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatEther } from 'viem'
+import { formatEther, isAddressEqual, zeroAddress } from 'viem'
 
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import {
@@ -80,23 +80,33 @@ export function FeedView() {
   const grouped = useMemo(() => groupByDay(items), [items])
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setCategory(f.key)}
-            className={cn(
-              'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-              category === f.key
-                ? 'bg-surface-2 text-fg'
-                : 'text-muted-fg hover:bg-surface-2 hover:text-fg'
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
+            Feed
+          </h1>
+          <p className="mt-1 text-muted-fg">
+            Real-time activity from {daoConfig.name}.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setCategory(f.key)}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                category === f.key
+                  ? 'bg-surface-2 text-fg'
+                  : 'text-muted-fg hover:bg-surface-2 hover:text-fg'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -110,9 +120,9 @@ export function FeedView() {
           No activity in this category yet.
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           {grouped.map((group) => (
-            <section key={group.dayKey} className="space-y-3">
+            <section key={group.dayKey} className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <h2
                   className="text-xs font-semibold uppercase tracking-wider text-muted-fg"
@@ -151,7 +161,8 @@ function Card({
   category,
   children,
 }: {
-  actor: React.ReactNode
+  /** Omit for events with no meaningful actor (e.g. auctions settled with no bid). */
+  actor?: React.ReactNode
   time: string
   category: EventCategory
   children: React.ReactNode
@@ -162,7 +173,8 @@ function Card({
         <div className="flex min-w-0 items-center gap-2 truncate">
           {actor}
           <span className="text-xs text-muted-fg" suppressHydrationWarning>
-            · {time}
+            {actor ? '· ' : ''}
+            {time}
           </span>
         </div>
         <EventTypeChip category={category} />
@@ -222,27 +234,43 @@ function FeedCard({ item }: { item: FeedItem }) {
         </Card>
       )
 
-    case 'AUCTION_SETTLED':
+    case 'AUCTION_SETTLED': {
+      const noBids =
+        isAddressEqual(item.winner, zeroAddress) ||
+        BigInt(item.amount || '0') === BigInt(0)
       return (
         <Card
-          actor={<ActorIdentity address={item.winner} />}
+          actor={noBids ? undefined : <ActorIdentity address={item.winner} />}
           time={time}
           category="auction-settled"
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
-            <p className="text-sm leading-snug text-muted-fg">
-              won{' '}
-              <Link
-                href={`/auction/${item.tokenId}`}
-                className="font-semibold text-fg hover:text-accent-strong"
-              >
-                {item.tokenName || `#${item.tokenId}`}
-              </Link>{' '}
-              for <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong>
-            </p>
+            {noBids ? (
+              <p className="text-sm leading-snug text-muted-fg">
+                <Link
+                  href={`/auction/${item.tokenId}`}
+                  className="font-semibold text-fg hover:text-accent-strong"
+                >
+                  {item.tokenName || `#${item.tokenId}`}
+                </Link>{' '}
+                settled with no bids
+              </p>
+            ) : (
+              <p className="text-sm leading-snug text-muted-fg">
+                won{' '}
+                <Link
+                  href={`/auction/${item.tokenId}`}
+                  className="font-semibold text-fg hover:text-accent-strong"
+                >
+                  {item.tokenName || `#${item.tokenId}`}
+                </Link>{' '}
+                for <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong>
+              </p>
+            )}
           </BodyWithThumb>
         </Card>
       )
+    }
 
     case 'PROPOSAL_CREATED':
       return (

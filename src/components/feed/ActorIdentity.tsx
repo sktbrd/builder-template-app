@@ -31,10 +31,25 @@ export function ActorIdentity({ address, size = 24, className }: ActorIdentityPr
       )}
     >
       <span
-        className="inline-block shrink-0 rounded-full bg-cover bg-center"
+        className="relative inline-block shrink-0 overflow-hidden rounded-full"
         style={{ background, width: size, height: size }}
         aria-hidden
-      />
+      >
+        {ensAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element -- ENS avatars
+          // come from arbitrary hosts (ipfs gateways, arweave, http) — not
+          // worth whitelisting them all in next.config.
+          <img
+            src={ensAvatar}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+            }}
+          />
+        ) : null}
+      </span>
       <span className="truncate">{displayName || shortAddress(address)}</span>
     </span>
   )
