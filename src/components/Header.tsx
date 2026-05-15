@@ -33,6 +33,7 @@ const NAV_ITEMS = [
   },
   { href: '/treasury', label: 'Treasury', match: (p: string) => p === '/treasury' },
   { href: '/members', label: 'Members', match: (p: string) => p === '/members' },
+  { href: '/feed', label: 'Feed', match: (p: string) => p === '/feed' },
   { href: '/about', label: 'About', match: (p: string) => p === '/about' },
 ]
 
