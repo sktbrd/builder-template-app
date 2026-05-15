@@ -1,3 +1,4 @@
+import { isChainIdSupportedByEAS } from '@buildeross/utils/eas'
 import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -6,6 +7,8 @@ import { StatusBadge } from '@/components/dao/StatusBadge'
 import { VoteBar } from '@/components/dao/VoteBar'
 import { VotePanel } from '@/components/dao/VotePanel'
 import { Markdown } from '@/components/Markdown'
+import { PropdateThread } from '@/components/propdates/PropdateThread'
+import { daoConfig } from '@/lib/dao.config'
 import { getProposalByNumber } from '@/lib/dao-data'
 
 export const revalidate = 30
@@ -23,6 +26,7 @@ export default async function ProposalDetailPage({ params }: { params: Params })
   const { summary: p, description, transactions } = detail
   const totalCast = p.forVotes + p.againstVotes + p.abstainVotes
   const isVotable = p.status === 'active' || p.status === 'pending'
+  const showPropdates = isChainIdSupportedByEAS(daoConfig.chainId)
 
   return (
     <div className="flex flex-col gap-6">
@@ -117,6 +121,13 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             )}
             {/* Function-name + arg decoding lands with the upstream tx-decoder hook. */}
           </section>
+
+          {showPropdates ? (
+            <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+              <h3 className="mb-3 text-base font-bold">Propdates</h3>
+              <PropdateThread proposalIdHash={detail.proposalIdHash} />
+            </section>
+          ) : null}
         </div>
 
         <VotePanel
