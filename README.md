@@ -59,7 +59,8 @@ Edit `.env.local`:
 | `NEXT_PUBLIC_DAO_TOKEN_ADDRESS` | yes | Your DAO's token contract |
 | `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | yes | Free at [cloud.reown.com](https://cloud.reown.com) |
 | `NEXT_PUBLIC_ALCHEMY_API_KEY` | recommended | Faster RPC + enables ENS resolution on `/members` |
-| `PINATA_API_KEY` | only for proposal create | [Pinata](https://pinata.cloud) JWT for IPFS uploads |
+| `PINATA_API_KEY` | media uploads | [Pinata](https://pinata.cloud) scoped-key JWT — required for `/coins` (coin media + metadata) and future proposal/propdate attachments |
+| `NEXT_PUBLIC_PINATA_GATEWAY` | optional | Public gateway hostname override (e.g. `your-gateway.mypinata.cloud`) |
 
 Optional features (all off by default — flip the disable flag):
 
