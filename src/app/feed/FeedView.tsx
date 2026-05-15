@@ -8,8 +8,15 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatEther } from 'viem'
 
+import { ActorIdentity } from '@/components/feed/ActorIdentity'
+import {
+  EventTypeChip,
+  QuoteBlock,
+  VoteSupportBadge,
+  type EventCategory,
+} from '@/components/feed/primitives'
 import { daoConfig } from '@/lib/dao.config'
-import { cn } from '@/lib/utils'
+import { cn, resolveIpfs } from '@/lib/utils'
 
 const ALL_EVENT_TYPES = Object.values(FeedEventType)
 
@@ -35,7 +42,7 @@ const CATEGORY_TO_EVENT_TYPES: Record<CategoryKey, FeedEventType[] | undefined> 
   ],
 }
 
-const CATEGORIES: { key: CategoryKey; label: string }[] = [
+const FILTERS: { key: CategoryKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'proposals', label: 'Proposals' },
   { key: 'auctions', label: 'Auctions' },
@@ -75,19 +82,19 @@ export function FeedView() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap gap-1.5">
-        {CATEGORIES.map((c) => (
+        {FILTERS.map((f) => (
           <button
-            key={c.key}
+            key={f.key}
             type="button"
-            onClick={() => setCategory(c.key)}
+            onClick={() => setCategory(f.key)}
             className={cn(
               'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-              category === c.key
+              category === f.key
                 ? 'bg-surface-2 text-fg'
                 : 'text-muted-fg hover:bg-surface-2 hover:text-fg'
             )}
           >
-            {c.label}
+            {f.label}
           </button>
         ))}
       </div>
@@ -103,22 +110,22 @@ export function FeedView() {
           No activity in this category yet.
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {grouped.map((group) => (
-            <section key={group.dayKey} className="space-y-2">
+            <section key={group.dayKey} className="space-y-3">
               <div className="flex items-center gap-3">
                 <h2
-                  className="text-sm font-semibold text-fg"
+                  className="text-xs font-semibold uppercase tracking-wider text-muted-fg"
                   suppressHydrationWarning
                 >
                   {group.label}
                 </h2>
                 <span className="h-px flex-1 bg-border" />
               </div>
-              <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface">
+              <ul className="flex flex-col gap-3">
                 {group.items.map((item) => (
-                  <li key={item.id} className="px-4 py-3">
-                    <FeedRow item={item} />
+                  <li key={item.id}>
+                    <FeedCard item={item} />
                   </li>
                 ))}
               </ul>
@@ -136,277 +143,307 @@ export function FeedView() {
   )
 }
 
-function FeedRow({ item }: { item: FeedItem }) {
+// ── Card wrapper ──────────────────────────────────────────────
+
+function Card({
+  actor,
+  time,
+  category,
+  children,
+}: {
+  actor: React.ReactNode
+  time: string
+  category: EventCategory
+  children: React.ReactNode
+}) {
+  return (
+    <article className="rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-border-strong">
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2 truncate">
+          {actor}
+          <span className="text-xs text-muted-fg" suppressHydrationWarning>
+            · {time}
+          </span>
+        </div>
+        <EventTypeChip category={category} />
+      </header>
+      <div>{children}</div>
+    </article>
+  )
+}
+
+// ── Per-item renderer ─────────────────────────────────────────
+
+function FeedCard({ item }: { item: FeedItem }) {
   const time = relativeTimeAgo(item.timestamp * 1000)
 
   switch (item.type) {
     case 'AUCTION_BID_PLACED':
       return (
-        <Row
-          tone="accent"
-          tag="Bid"
-          who={short(item.bidder)}
-          what={
-            <>
-              bid <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
+        <Card
+          actor={<ActorIdentity address={item.bidder} />}
+          time={time}
+          category="auction-bid"
+        >
+          <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
+            <p className="text-sm leading-snug text-muted-fg">
+              bid{' '}
+              <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
-                className="hover:text-accent-strong"
+                className="font-semibold text-fg hover:text-accent-strong"
               >
                 {item.tokenName || `#${item.tokenId}`}
               </Link>
-              {item.bidComment ? (
-                <span className="mt-1 block text-xs text-muted-fg">
-                  &ldquo;{item.bidComment}&rdquo;
-                </span>
-              ) : null}
-            </>
-          }
-          time={time}
-        />
+            </p>
+            {item.bidComment ? <QuoteBlock>{item.bidComment}</QuoteBlock> : null}
+          </BodyWithThumb>
+        </Card>
       )
+
     case 'AUCTION_CREATED':
       return (
-        <Row
-          tone="accent"
-          tag="Auction"
-          who={item.tokenName || `#${item.tokenId}`}
-          what={
-            <>
-              auction started ·{' '}
+        <Card
+          actor={<ActorIdentity address={item.actor} />}
+          time={time}
+          category="auction"
+        >
+          <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
+            <p className="text-sm leading-snug text-muted-fg">
+              auction started for{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
-                className="hover:text-accent-strong"
+                className="font-semibold text-fg hover:text-accent-strong"
               >
-                view
+                {item.tokenName || `#${item.tokenId}`}
               </Link>
-            </>
-          }
-          time={time}
-        />
+            </p>
+          </BodyWithThumb>
+        </Card>
       )
+
     case 'AUCTION_SETTLED':
       return (
-        <Row
-          tone="success"
-          tag="Settled"
-          who={short(item.winner)}
-          what={
-            <>
+        <Card
+          actor={<ActorIdentity address={item.winner} />}
+          time={time}
+          category="auction-settled"
+        >
+          <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
+            <p className="text-sm leading-snug text-muted-fg">
               won{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
-                className="hover:text-accent-strong"
+                className="font-semibold text-fg hover:text-accent-strong"
               >
                 {item.tokenName || `#${item.tokenId}`}
               </Link>{' '}
               for <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong>
-            </>
-          }
-          time={time}
-        />
+            </p>
+          </BodyWithThumb>
+        </Card>
       )
+
     case 'PROPOSAL_CREATED':
       return (
-        <Row
-          tone="warning"
-          tag="Proposal"
-          who={short(item.proposer)}
-          what={
-            <>
-              created{' '}
-              <Link
-                href={`/proposals/${item.proposalNumber}`}
-                className="hover:text-accent-strong"
-              >
-                #{item.proposalNumber} {item.proposalTitle}
-              </Link>
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.proposer} />}
           time={time}
-        />
+          category="proposal"
+        >
+          <p className="text-sm leading-snug text-muted-fg">
+            created{' '}
+            <Link
+              href={`/proposals/${item.proposalNumber}`}
+              className="font-semibold text-fg hover:text-accent-strong"
+            >
+              #{item.proposalNumber} {item.proposalTitle}
+            </Link>
+          </p>
+        </Card>
       )
-    case 'PROPOSAL_VOTED': {
-      const supportLabel =
-        item.support === 'FOR'
-          ? 'voted for'
-          : item.support === 'AGAINST'
-            ? 'voted against'
-            : 'abstained on'
-      const tone =
-        item.support === 'FOR'
-          ? 'vote-for'
-          : item.support === 'AGAINST'
-            ? 'vote-against'
-            : 'vote-abstain'
+
+    case 'PROPOSAL_VOTED':
       return (
-        <Row
-          tone={tone}
-          tag="Vote"
-          who={short(item.voter)}
-          what={
-            <>
-              {supportLabel}{' '}
+        <Card
+          actor={<ActorIdentity address={item.voter} />}
+          time={time}
+          category="vote"
+        >
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <VoteSupportBadge support={item.support} />
+              <span className="text-sm text-muted-fg">on</span>
               <Link
                 href={`/proposals/${item.proposalNumber}`}
-                className="hover:text-accent-strong"
+                className="text-sm font-semibold text-fg hover:text-accent-strong"
               >
                 #{item.proposalNumber} {item.proposalTitle}
               </Link>
-              {item.reason ? (
-                <span className="mt-1 block text-xs text-muted-fg">
-                  &ldquo;{item.reason}&rdquo;
+              {item.weight ? (
+                <span className="text-xs text-muted-fg">
+                  · {formatVoteWeight(item.weight)}{' '}
+                  {Number(item.weight) === 1 ? 'vote' : 'votes'}
                 </span>
               ) : null}
-            </>
-          }
-          time={time}
-        />
+            </div>
+            {item.reason ? <QuoteBlock>{item.reason}</QuoteBlock> : null}
+          </div>
+        </Card>
       )
-    }
+
     case 'PROPOSAL_UPDATED':
       return (
-        <Row
-          tone="warning"
-          tag="Update"
-          who={short(item.proposer)}
-          what={
-            <>
-              posted an update on{' '}
-              <Link
-                href={`/proposals/${item.proposalNumber}`}
-                className="hover:text-accent-strong"
-              >
-                #{item.proposalNumber} {item.proposalTitle}
-              </Link>
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.proposer} />}
           time={time}
-        />
+          category="proposal"
+        >
+          <p className="text-sm leading-snug text-muted-fg">
+            posted an update on{' '}
+            <Link
+              href={`/proposals/${item.proposalNumber}`}
+              className="font-semibold text-fg hover:text-accent-strong"
+            >
+              #{item.proposalNumber} {item.proposalTitle}
+            </Link>
+          </p>
+          {item.message ? <QuoteBlock>{item.message}</QuoteBlock> : null}
+        </Card>
       )
+
     case 'PROPOSAL_EXECUTED':
       return (
-        <Row
-          tone="success"
-          tag="Executed"
-          who={short(item.proposer)}
-          what={
-            <>
-              proposal{' '}
-              <Link
-                href={`/proposals/${item.proposalNumber}`}
-                className="hover:text-accent-strong"
-              >
-                #{item.proposalNumber} {item.proposalTitle}
-              </Link>{' '}
-              executed
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.proposer} />}
           time={time}
-        />
+          category="executed"
+        >
+          <p className="text-sm leading-snug text-muted-fg">
+            proposal{' '}
+            <Link
+              href={`/proposals/${item.proposalNumber}`}
+              className="font-semibold text-fg hover:text-accent-strong"
+            >
+              #{item.proposalNumber} {item.proposalTitle}
+            </Link>{' '}
+            executed
+          </p>
+        </Card>
       )
+
     case 'CLANKER_TOKEN_CREATED':
       return (
-        <Row
-          tone="accent"
-          tag="Coin"
-          who={short(item.actor)}
-          what={
-            <>
-              launched <strong className="text-fg">${item.tokenSymbol}</strong>{' '}
-              {item.tokenName ? `(${item.tokenName})` : null}
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.actor} />}
           time={time}
-        />
+          category="coin"
+        >
+          <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
+            <p className="text-sm leading-snug text-muted-fg">
+              launched <strong className="text-fg">${item.tokenSymbol}</strong>{' '}
+              {item.tokenName ? `· ${item.tokenName}` : null}
+            </p>
+          </BodyWithThumb>
+        </Card>
       )
+
     case 'ZORA_COIN_CREATED':
       return (
-        <Row
-          tone="accent"
-          tag="Coin"
-          who={short(item.actor)}
-          what={
-            <>
-              launched <strong className="text-fg">${item.coinSymbol}</strong>{' '}
-              {item.coinName ? `(${item.coinName})` : null}
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.actor} />}
           time={time}
-        />
+          category="coin"
+        >
+          <p className="text-sm leading-snug text-muted-fg">
+            launched <strong className="text-fg">${item.coinSymbol}</strong>{' '}
+            {item.coinName ? `· ${item.coinName}` : null}
+          </p>
+        </Card>
       )
+
     case 'ZORA_DROP_CREATED':
       return (
-        <Row
-          tone="accent"
-          tag="Drop"
-          who={short(item.dropCreator)}
-          what={
-            <>
-              created drop <strong className="text-fg">{item.dropName}</strong>
-            </>
-          }
+        <Card
+          actor={<ActorIdentity address={item.dropCreator} />}
           time={time}
-        />
+          category="coin"
+        >
+          <BodyWithThumb image={item.dropImageURI} name={item.dropName}>
+            <p className="text-sm leading-snug text-muted-fg">
+              created drop <strong className="text-fg">{item.dropName}</strong>
+            </p>
+          </BodyWithThumb>
+        </Card>
       )
+
     default:
       return null
   }
 }
 
-function Row({
-  tone,
-  tag,
-  who,
-  what,
-  time,
+// ── Body with optional left thumbnail ─────────────────────────
+
+function BodyWithThumb({
+  image,
+  name,
+  children,
 }: {
-  tone: 'accent' | 'success' | 'warning' | 'vote-for' | 'vote-against' | 'vote-abstain'
-  tag: string
-  who: string
-  what: React.ReactNode
-  time: string
+  image?: string | null
+  name?: string | null
+  children: React.ReactNode
 }) {
-  const dotClass = {
-    accent: 'bg-accent',
-    success: 'bg-success',
-    warning: 'bg-warning',
-    'vote-for': 'bg-vote-for',
-    'vote-against': 'bg-vote-against',
-    'vote-abstain': 'bg-vote-abstain',
-  }[tone]
+  const src = image ? safeImageSrc(image) : null
 
   return (
     <div className="flex items-start gap-3">
-      <span className={cn('mt-[7px] h-2 w-2 shrink-0 rounded-full', dotClass)} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm leading-snug">
-          <span className="font-semibold text-fg">{who}</span>{' '}
-          <span className="text-muted-fg">{what}</span>
-        </p>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-fg">
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            {tag}
-          </span>
-          <span suppressHydrationWarning>{time}</span>
-        </p>
-      </div>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- subgraph URLs;
+        // template doesn't configure remotePatterns and many feed images are
+        // direct render endpoints (nouns.build/api/renderer) that don't need
+        // optimization. Plain <img> avoids whitelisting every CDN.
+        <img
+          src={src}
+          alt={name ?? ''}
+          className="h-16 w-16 shrink-0 rounded-lg border border-border bg-surface-2 object-cover"
+          loading="lazy"
+        />
+      ) : null}
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }
 
+function safeImageSrc(src: string): string | null {
+  if (!src) return null
+  if (src.startsWith('ipfs://')) return resolveIpfs(src)
+  if (src.startsWith('http://') || src.startsWith('https://')) return src
+  return null
+}
+
+// ── Skeleton ──────────────────────────────────────────────────
+
 function FeedSkeleton() {
   return (
-    <div className="space-y-2">
-      {Array.from({ length: 6 }).map((_, i) => (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-4"
+          className="rounded-xl border border-border bg-surface px-4 py-3"
         >
-          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-surface-2" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3 w-3/4 rounded bg-surface-2" />
-            <div className="h-2.5 w-1/3 rounded bg-surface-2" />
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="h-6 w-6 rounded-full bg-surface-2" />
+              <span className="h-3 w-32 rounded bg-surface-2" />
+            </div>
+            <span className="h-4 w-16 rounded-full bg-surface-2" />
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="h-16 w-16 shrink-0 rounded-lg bg-surface-2" />
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-3 w-3/4 rounded bg-surface-2" />
+              <div className="h-3 w-1/2 rounded bg-surface-2" />
+            </div>
           </div>
         </div>
       ))}
@@ -414,18 +451,21 @@ function FeedSkeleton() {
   )
 }
 
-function short(addr: string): string {
-  if (!addr || addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
-}
+// ── Utilities ─────────────────────────────────────────────────
 
 function formatBidEth(amountWei: string): string {
   try {
-    const eth = formatEther(BigInt(amountWei))
-    return trimDec(eth, 4)
+    return trimDec(formatEther(BigInt(amountWei)), 4)
   } catch {
     return amountWei
   }
+}
+
+function formatVoteWeight(weight: string): string {
+  const n = Number(weight)
+  if (isNaN(n)) return weight
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
+  return Math.round(n).toString()
 }
 
 function trimDec(value: string, max: number): string {
