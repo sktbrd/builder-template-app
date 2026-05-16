@@ -1,11 +1,12 @@
 'use client'
 
+import { isChainIdSupportedByCoining } from '@buildeross/utils'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Menu, Moon, Sun, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { useWeb3Ready } from '@/app/web3-providers'
 import { DaoAvatar } from '@/components/DaoAvatar'
@@ -19,7 +20,13 @@ const CHAIN_NAMES: Record<number, string> = {
   7777777: 'Zora',
 }
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string
+  label: string
+  match: (p: string) => boolean
+}
+
+const BASE_NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', match: (p: string) => p === '/' },
   {
     href: '/auction/latest',
@@ -36,6 +43,12 @@ const NAV_ITEMS = [
   { href: '/feed', label: 'Feed', match: (p: string) => p === '/feed' },
   { href: '/about', label: 'About', match: (p: string) => p === '/about' },
 ]
+
+const COINS_NAV_ITEM: NavItem = {
+  href: '/coins',
+  label: 'Coins',
+  match: (p: string) => p === '/coins' || p.startsWith('/coins/'),
+}
 
 const subscribeMounted = () => () => {}
 const getMountedSnapshot = () => true
@@ -54,6 +67,22 @@ export function Header() {
 
   const chainName = CHAIN_NAMES[daoConfig.chainId] ?? `Chain ${daoConfig.chainId}`
 
+  // Inject /coins between Treasury and Members when the chain supports Clanker
+  // and the feature flag is on. Keeps the surface invisible on chains where
+  // the route would 404 anyway (Ethereum, Optimism, Zora, …).
+  const navItems = useMemo<NavItem[]>(() => {
+    const coinsEnabled =
+      daoConfig.features.coins && isChainIdSupportedByCoining(daoConfig.chainId)
+    if (!coinsEnabled) return BASE_NAV_ITEMS
+    const treasuryIdx = BASE_NAV_ITEMS.findIndex((i) => i.href === '/treasury')
+    if (treasuryIdx === -1) return [...BASE_NAV_ITEMS, COINS_NAV_ITEM]
+    return [
+      ...BASE_NAV_ITEMS.slice(0, treasuryIdx + 1),
+      COINS_NAV_ITEM,
+      ...BASE_NAV_ITEMS.slice(treasuryIdx + 1),
+    ]
+  }, [])
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/80 backdrop-blur-md backdrop-saturate-150">
       <div className="mx-auto flex max-w-[1180px] items-center gap-6 px-6 py-3">
@@ -70,7 +99,7 @@ export function Header() {
         </Link>
 
         <nav className="ml-auto hidden items-center gap-1 md:flex">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = item.match(pathname)
             return (
               <Link
@@ -132,7 +161,7 @@ export function Header() {
             onClick={() => setMobileOpen(false)}
           />
           <nav className="fixed right-4 top-[68px] z-50 flex min-w-[200px] flex-col gap-1 rounded-lg border border-border bg-surface p-3 shadow-lg">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const active = item.match(pathname)
               return (
                 <Link

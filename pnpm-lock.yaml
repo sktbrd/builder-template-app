@@ -41,6 +41,12 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.3
         version: 5.90.5(react@19.2.5)
+      '@zoralabs/coins-sdk':
+        specifier: ^0.4.3
+        version: 0.4.9(abitype@1.2.3(typescript@5.9.3)(zod@4.1.12))(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))
+      '@zoralabs/protocol-deployments':
+        specifier: ^0.7.2
+        version: 0.7.5
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

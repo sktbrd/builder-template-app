@@ -41,6 +41,9 @@ export type DaoFeatures = {
   bidComments: boolean
   /** Surface "voting closes in / auction ending" banners. */
   timeBasedAlerts: boolean
+  /** Expose /coins (Clanker direct-deploy + list + detail). Auto-hidden on
+   * chains that don't support Clanker — leave true for the default Base setup. */
+  coins: boolean
 }
 
 export type DaoSocials = Partial<{
@@ -119,6 +122,7 @@ export const daoConfig: DaoConfig = {
     membersDirectory: true,
     bidComments: true,
     timeBasedAlerts: true,
+    coins: true,
   },
 
   // ── Socials ──────────────────────────────────────
