@@ -10,10 +10,10 @@ import { formatEther, isAddressEqual, zeroAddress } from 'viem'
 
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import {
+  type EventCategory,
   EventTypeChip,
   QuoteBlock,
   VoteSupportBadge,
-  type EventCategory,
 } from '@/components/feed/primitives'
 import { daoConfig } from '@/lib/dao.config'
 import { cn, resolveIpfs } from '@/lib/utils'
@@ -86,9 +86,7 @@ export function FeedView() {
           <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
             Feed
           </h1>
-          <p className="mt-1 text-muted-fg">
-            Real-time activity from {daoConfig.name}.
-          </p>
+          <p className="mt-1 text-muted-fg">Real-time activity from {daoConfig.name}.</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
@@ -199,8 +197,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             <p className="text-sm leading-snug text-muted-fg">
-              bid{' '}
-              <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
+              bid <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
                 className="font-semibold text-fg hover:text-accent-strong"
@@ -293,11 +290,7 @@ function FeedCard({ item }: { item: FeedItem }) {
 
     case 'PROPOSAL_VOTED':
       return (
-        <Card
-          actor={<ActorIdentity address={item.voter} />}
-          time={time}
-          category="vote"
-        >
+        <Card actor={<ActorIdentity address={item.voter} />} time={time} category="vote">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <VoteSupportBadge support={item.support} />
@@ -362,11 +355,7 @@ function FeedCard({ item }: { item: FeedItem }) {
 
     case 'CLANKER_TOKEN_CREATED':
       return (
-        <Card
-          actor={<ActorIdentity address={item.actor} />}
-          time={time}
-          category="coin"
-        >
+        <Card actor={<ActorIdentity address={item.actor} />} time={time} category="coin">
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             <p className="text-sm leading-snug text-muted-fg">
               launched <strong className="text-fg">${item.tokenSymbol}</strong>{' '}
@@ -378,11 +367,7 @@ function FeedCard({ item }: { item: FeedItem }) {
 
     case 'ZORA_COIN_CREATED':
       return (
-        <Card
-          actor={<ActorIdentity address={item.actor} />}
-          time={time}
-          category="coin"
-        >
+        <Card actor={<ActorIdentity address={item.actor} />} time={time} category="coin">
           <p className="text-sm leading-snug text-muted-fg">
             launched <strong className="text-fg">${item.coinSymbol}</strong>{' '}
             {item.coinName ? `· ${item.coinName}` : null}
@@ -426,7 +411,6 @@ function BodyWithThumb({
   return (
     <div className="flex items-start gap-3">
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- subgraph URLs;
         // template doesn't configure remotePatterns and many feed images are
         // direct render endpoints (nouns.build/api/renderer) that don't need
         // optimization. Plain <img> avoids whitelisting every CDN.
@@ -455,10 +439,7 @@ function FeedSkeleton() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-xl border border-border bg-surface px-4 py-3"
-        >
+        <div key={i} className="rounded-xl border border-border bg-surface px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="h-6 w-6 rounded-full bg-surface-2" />

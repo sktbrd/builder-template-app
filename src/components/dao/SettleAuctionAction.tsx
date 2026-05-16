@@ -5,8 +5,6 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useSyncExternalStore } from 'react'
 import { type Address } from 'viem'
-
-import { useWeb3Ready } from '@/app/web3-providers'
 import {
   useAccount,
   useChainId,
@@ -16,6 +14,7 @@ import {
   useWriteContract,
 } from 'wagmi'
 
+import { useWeb3Ready } from '@/app/web3-providers'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 

@@ -11,7 +11,11 @@ const tokenLabel = 'HackerTestDAO'
 
 const now = Math.floor(Date.now() / 1000)
 
-const states: { title: string; description: string; props: Parameters<typeof AuctionHero>[0] }[] = [
+const states: {
+  title: string
+  description: string
+  props: Parameters<typeof AuctionHero>[0]
+}[] = [
   {
     title: 'No active auction',
     description: 'auction = null — empty state',
