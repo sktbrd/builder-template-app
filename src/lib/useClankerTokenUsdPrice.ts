@@ -71,13 +71,21 @@ export function useClankerTokenUsdPrice(
     | Address
     | undefined
 
+  // Snapshot every field we need *before* doing any conditional logic. The
+  // earlier version used non-null assertions inside the SWR key/fetcher,
+  // which crashed in dev under React strict mode when `clankerToken` was
+  // re-checked between the `enabled` ternary and the array literal.
+  const tokenAddress = clankerToken?.tokenAddress as Address | undefined
+  const poolId = clankerToken?.poolId as `0x${string}` | undefined
+  const pairedToken = clankerToken?.pairedToken as Address | undefined
+
   const pairedIsWeth =
-    !!clankerToken &&
-    !!wethAddress &&
-    isAddressEqual(clankerToken.pairedToken as Address, wethAddress)
+    !!pairedToken && !!wethAddress && isAddressEqual(pairedToken, wethAddress)
 
   const enabled =
-    !!clankerToken &&
+    !!tokenAddress &&
+    !!poolId &&
+    !!pairedToken &&
     !!publicClient &&
     !!stateViewAddress &&
     !!wethAddress &&
@@ -85,23 +93,19 @@ export function useClankerTokenUsdPrice(
     pairedIsWeth
 
   const { data, error, isLoading } = useSWR(
-    enabled
-      ? ([
-          'clanker-token-usd',
-          daoConfig.chainId,
-          clankerToken!.tokenAddress,
-          ethUsdPrice,
-        ] as const)
-      : null,
-    async ([, , tokenAddress, eth]) => {
-      const [sqrtPriceX96] = await publicClient!.readContract({
-        address: stateViewAddress!,
+    enabled ? (['clanker-token-usd', daoConfig.chainId, tokenAddress, ethUsdPrice] as const) : null,
+    async ([, , token, eth]) => {
+      // Re-check defensively — SWR can occasionally call the fetcher with a
+      // stale key after the inputs changed.
+      if (!publicClient || !stateViewAddress || !poolId || !pairedToken) return null
+      const [sqrtPriceX96] = await publicClient.readContract({
+        address: stateViewAddress,
         abi: STATE_VIEW_ABI,
         functionName: 'getSlot0',
-        args: [clankerToken!.poolId as `0x${string}`],
+        args: [poolId],
       })
-      const normalized = getAddress(tokenAddress)
-      const paired = getAddress(clankerToken!.pairedToken as string)
+      const normalized = getAddress(token)
+      const paired = getAddress(pairedToken)
       const isToken0 = normalized.toLowerCase() < paired.toLowerCase()
       const inPaired = priceFromSqrtPriceX96(sqrtPriceX96, isToken0)
       if (inPaired === null) return null
@@ -117,12 +121,12 @@ export function useClankerTokenUsdPrice(
   if (!clankerToken) {
     return { priceUsd: null, isLoading: false, error: null }
   }
-  if (clankerToken && !pairedIsWeth) {
+  if (!pairedIsWeth) {
     return {
       priceUsd: null,
       isLoading: false,
       error: new Error(
-        `Clanker token paired with non-WETH currency (${clankerToken.pairedToken}). Inline pricing not yet supported on this template — port the upstream recursive coinPriceService if you need it.`
+        `Clanker token paired with non-WETH currency (${pairedToken ?? 'unknown'}). Inline pricing not yet supported on this template — port the upstream recursive coinPriceService if you need it.`
       ),
     }
   }
