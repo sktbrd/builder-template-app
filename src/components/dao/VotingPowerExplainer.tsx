@@ -2,17 +2,29 @@ import { ArrowUpRight, Check, Hourglass, Info } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-export type VotingPowerScenario = 'none' | 'delegated' | 'incoming' | 'eligible'
+export type VotingPowerScenario =
+  | 'none'
+  | 'delegated'
+  | 'incoming'
+  | 'eligible'
+  | 'pending'
 
 type Props = {
   scenario: VotingPowerScenario
   /** Number of votes the connected wallet has at the snapshot. */
   votingPower?: number
+  /** Unix seconds — used by the `pending` scenario to show "opens in X". */
+  voteStart?: number
   className?: string
 }
 
-export function VotingPowerExplainer({ scenario, votingPower = 0, className }: Props) {
-  const c = render(scenario, votingPower)
+export function VotingPowerExplainer({
+  scenario,
+  votingPower = 0,
+  voteStart,
+  className,
+}: Props) {
+  const c = render(scenario, votingPower, voteStart)
   return (
     <div
       className={cn(
@@ -31,8 +43,16 @@ export function VotingPowerExplainer({ scenario, votingPower = 0, className }: P
   )
 }
 
-function render(scenario: VotingPowerScenario, votingPower: number) {
+function render(scenario: VotingPowerScenario, votingPower: number, voteStart?: number) {
   switch (scenario) {
+    case 'pending':
+      return {
+        icon: <Hourglass className="h-4 w-4" />,
+        title: 'Voting opens soon',
+        body: voteStart
+          ? `Voting opens ${formatOpensIn(voteStart)}. Your voting power is locked in at that moment.`
+          : 'Voting hasn’t opened yet. Your voting power is locked in when it does.',
+      }
     case 'none':
       return {
         icon: <Info className="h-4 w-4" />,
@@ -62,4 +82,16 @@ function render(scenario: VotingPowerScenario, votingPower: number) {
             : 'Eligible to vote on this proposal.',
       }
   }
+}
+
+function formatOpensIn(voteStart: number): string {
+  const diff = voteStart - Math.floor(Date.now() / 1000)
+  if (diff <= 0) return 'now'
+  if (diff < 60) return `in ${diff}s`
+  const m = Math.floor(diff / 60)
+  if (m < 60) return `in ${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `in ${h}h ${m % 60}m`
+  const d = Math.floor(h / 24)
+  return `in ${d}d ${h % 24}h`
 }
