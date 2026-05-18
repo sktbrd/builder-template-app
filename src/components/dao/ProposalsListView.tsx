@@ -11,11 +11,15 @@ import type { ProposalStatus } from '@/lib/types'
 
 const STATUS_OPTIONS: Array<{ value: ProposalStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
+  { value: 'active', label: 'Active' },
+  { value: 'succeeded', label: 'Succeeded' },
+  { value: 'queued', label: 'Queued' },
   { value: 'executed', label: 'Executed' },
   { value: 'defeated', label: 'Defeated' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'vetoed', label: 'Vetoed' },
 ]
 
 export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] }) {

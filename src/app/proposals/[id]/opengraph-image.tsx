@@ -10,11 +10,15 @@ export const contentType = OG_CONTENT_TYPE
 export const revalidate = 60
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  active: { bg: 'rgba(22,163,74,0.18)', fg: '#22c55e' },
-  pending: { bg: 'rgba(22,163,74,0.18)', fg: '#22c55e' },
-  executed: { bg: 'rgba(37,99,235,0.18)', fg: '#60a5fa' },
+  pending: { bg: 'rgba(234,88,12,0.18)', fg: '#fb923c' },
+  active: { bg: 'rgba(37,99,235,0.18)', fg: '#60a5fa' },
+  succeeded: { bg: 'rgba(22,163,74,0.18)', fg: '#22c55e' },
+  queued: { bg: 'rgba(37,99,235,0.12)', fg: '#93c5fd' },
+  executed: { bg: 'rgba(22,163,74,0.22)', fg: '#22c55e' },
   defeated: { bg: 'rgba(220,38,38,0.18)', fg: '#f87171' },
   cancelled: { bg: 'rgba(120,120,128,0.20)', fg: '#a1a1aa' },
+  expired: { bg: 'rgba(120,120,128,0.20)', fg: '#a1a1aa' },
+  vetoed: { bg: 'rgba(220,38,38,0.18)', fg: '#f87171' },
 }
 
 type Params = Promise<{ id: string }>
@@ -27,7 +31,7 @@ export default async function ProposalOGImage({ params }: { params: Params }) {
 
   let title = `Proposal #${proposalNumber}`
   let proposer = ''
-  let status: keyof typeof STATUS_COLORS = 'cancelled'
+  let status: keyof typeof STATUS_COLORS = 'pending'
   let forVotes = 0
   let againstVotes = 0
   let abstainVotes = 0
@@ -56,7 +60,7 @@ export default async function ProposalOGImage({ params }: { params: Params }) {
   const abstainPct = (abstainVotes / total) * 100
   const quorumPct = Math.min(100, (quorum / total) * 100)
   const empty = forVotes + againstVotes + abstainVotes === 0
-  const sStyle = STATUS_COLORS[status] ?? STATUS_COLORS.cancelled
+  const sStyle = STATUS_COLORS[status] ?? STATUS_COLORS.pending
 
   return new ImageResponse(
     (
