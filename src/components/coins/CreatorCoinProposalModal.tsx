@@ -23,6 +23,7 @@ import {
 import { type MediaSelection, MediaUploader } from '@/components/coins/MediaUploader'
 import { Button } from '@/components/ui/button'
 import {
+  buildCreatorCoinProposalPreview,
   buildCreatorCoinProposalTx,
   type CreatorCoinProposalTx,
 } from '@/lib/creatorCoinProposal'
@@ -62,7 +63,10 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   const [media, setMedia] = useState<MediaSelection>(null)
   const [devBuyEth, setDevBuyEth] = useState('')
 
-  // Proposal text (auto-suggested, user-editable).
+  // Proposal text — user overrides. The displayed value falls back to the
+  // live preview (derived from the coin fields above) when these are empty
+  // OR when the user hasn't typed in them yet. Once they start typing, their
+  // text is treated as an override and auto-sync stops.
   const [proposalTitle, setProposalTitle] = useState('')
   const [proposalBody, setProposalBody] = useState('')
   const [titleTouched, setTitleTouched] = useState(false)
@@ -185,6 +189,25 @@ function ModalContent({ onClose }: { onClose: () => void }) {
       !!wethAddress,
     [name, symbol, coinDescription, media, wethAddress]
   )
+
+  // Live preview, recomputed whenever the coin fields above change. Sections
+  // we don't have data for are omitted (no "(none)" placeholders, no empty
+  // headings). When the user starts typing in the title/body fields the
+  // `*Touched` flags flip on and we stop overwriting their text.
+  const livePreview = useMemo(
+    () =>
+      buildCreatorCoinProposalPreview({
+        name,
+        symbol,
+        description: coinDescription,
+        treasury: daoConfig.addresses.treasury as Address,
+        devBuyEth: devBuyEth.trim() ? Number(devBuyEth) : undefined,
+      }),
+    [name, symbol, coinDescription, devBuyEth]
+  )
+
+  const displayedTitle = titleTouched ? proposalTitle : livePreview.title
+  const displayedBody = bodyTouched ? proposalBody : livePreview.description
 
   async function submit() {
     if (!valid || !address || !ethUsdPrice || !wethAddress) return
@@ -367,28 +390,28 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   Proposal preview (editable)
                 </div>
                 <input
-                  value={proposalTitle}
+                  value={displayedTitle}
                   onChange={(e) => {
                     setProposalTitle(e.target.value)
                     setTitleTouched(true)
                   }}
-                  placeholder={`Deploy ${name || 'NAME'} (${symbol || 'SYM'}) creator coin`}
+                  placeholder="Type a coin name above to see the title fill in here"
                   disabled={disabled}
                   className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60"
                 />
                 <textarea
-                  value={proposalBody}
+                  value={displayedBody}
                   onChange={(e) => {
                     setProposalBody(e.target.value)
                     setBodyTouched(true)
                   }}
-                  rows={6}
-                  placeholder="(auto-generated from your coin fields when you click Submit — you can edit afterwards)"
+                  rows={8}
+                  placeholder="Fill the coin fields above to populate the description"
                   disabled={disabled}
                   className="mt-2 w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-[12px] outline-none focus:border-accent disabled:opacity-60"
                 />
                 <p className="mt-2 text-[11.5px] text-muted-fg">
-                  Leave blank to use the auto-generated text. Anything you type here
+                  Live-filled from your coin fields. Anything you type here
                   overrides it.
                 </p>
               </div>

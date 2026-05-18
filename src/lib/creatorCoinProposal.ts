@@ -106,50 +106,91 @@ export async function buildCreatorCoinProposalTx(
     args: tx.args as any,
   })
 
+  const preview = buildCreatorCoinProposalPreview({
+    name: input.name,
+    symbol: input.symbol,
+    description: input.description,
+    treasury: input.treasury,
+    devBuyEth: input.devBuyEth,
+    expectedAddress: tx.expectedAddress as Address | undefined,
+  })
+
   return {
     target: tx.address as Address,
     value: (tx.value ?? BigInt(0)) as bigint,
     calldata,
     expectedAddress: tx.expectedAddress as Address | undefined,
-    suggestedTitle: `Deploy ${input.name} (${input.symbol}) creator coin`,
-    suggestedDescription: buildSuggestedDescription({
-      name: input.name,
-      symbol: input.symbol,
-      description: input.description,
-      treasury: input.treasury,
-      devBuyEth: input.devBuyEth,
-      expectedAddress: tx.expectedAddress as Address | undefined,
-    }),
+    suggestedTitle: preview.title,
+    suggestedDescription: preview.description,
   }
 }
 
-function buildSuggestedDescription(args: {
-  name: string
-  symbol: string
-  description: string
-  treasury: Address
+/**
+ * Builds the proposal title + description from whatever subset of fields the
+ * user has filled. Used in two places:
+ * - The modal's live preview (no `expectedAddress` yet — we don't run the
+ *   SDK until submit). The user can edit the result before submitting.
+ * - `buildCreatorCoinProposalTx` post-SDK, which appends the predicted
+ *   address section.
+ *
+ * Empty fields are simply skipped (no `(none)` placeholders, no empty
+ * sections). The result is always valid markdown.
+ */
+export type CreatorCoinPreviewArgs = {
+  name?: string
+  symbol?: string
+  description?: string
+  treasury?: Address
   devBuyEth?: number
   expectedAddress?: Address
-}): string {
+}
+
+export function buildCreatorCoinProposalPreview(args: CreatorCoinPreviewArgs): {
+  title: string
+  description: string
+} {
+  const name = args.name?.trim() ?? ''
+  const symbol = args.symbol?.trim() ?? ''
+  const description = args.description?.trim() ?? ''
+
+  const title =
+    name || symbol ? `Deploy ${name || 'NAME'} (${symbol || 'SYM'}) creator coin` : ''
+
   const lines: string[] = []
-  lines.push(`## Deploy ${args.name} ($${args.symbol}) creator coin`)
-  lines.push('')
-  lines.push(args.description)
-  lines.push('')
-  lines.push('## Why')
-  lines.push(
-    `This proposal deploys ${daoConfig.name}'s creator coin via [Clanker](https://clanker.world). Once live, anyone can deploy Zora content coins paired with this token — every trade routes through it, so the DAO captures pool fees + paired-token demand.`
-  )
-  lines.push('')
-  lines.push('## Mechanics')
-  lines.push(`- **Token admin:** \`${args.treasury}\` (DAO treasury)`)
-  lines.push(`- **Rewards recipient:** DAO treasury (100% of paired-token fees)`)
-  lines.push(`- **Paired token:** WETH on ${chainName(daoConfig.chainId)}`)
-  lines.push('- **Fee config:** StaticBasic (1% on every swap)')
-  lines.push(`- **Target FDV:** ~$${DEFAULT_CLANKER_TARGET_FDV.toLocaleString()}`)
-  if (args.devBuyEth && args.devBuyEth > 0) {
-    lines.push(`- **Initial purchase:** ${args.devBuyEth} ETH from treasury`)
+  if (name || symbol) {
+    lines.push(`## Deploy ${name || 'NAME'} ($${symbol || 'SYM'}) creator coin`)
+    lines.push('')
   }
+  if (description) {
+    lines.push(description)
+    lines.push('')
+  }
+
+  // The "Why" section only depends on the DAO name, so we always include it
+  // once any coin field has been filled — gives the proposer some structure
+  // to start from rather than a blank box.
+  if (name || symbol || description) {
+    lines.push('## Why')
+    lines.push(
+      `This proposal deploys ${daoConfig.name}'s creator coin via [Clanker](https://clanker.world). Once live, anyone can deploy Zora content coins paired with this token — every trade routes through it, so the DAO captures pool fees + paired-token demand.`
+    )
+    lines.push('')
+  }
+
+  // Mechanics are static defaults plus a treasury address — render only when
+  // we have at least the treasury so the user doesn't see `${undefined}`.
+  if (args.treasury && (name || symbol || description)) {
+    lines.push('## Mechanics')
+    lines.push(`- **Token admin:** \`${args.treasury}\` (DAO treasury)`)
+    lines.push(`- **Rewards recipient:** DAO treasury (100% of paired-token fees)`)
+    lines.push(`- **Paired token:** WETH on ${chainName(daoConfig.chainId)}`)
+    lines.push('- **Fee config:** StaticBasic (1% on every swap)')
+    lines.push(`- **Target FDV:** ~$${DEFAULT_CLANKER_TARGET_FDV.toLocaleString()}`)
+    if (args.devBuyEth && args.devBuyEth > 0) {
+      lines.push(`- **Initial purchase:** ${args.devBuyEth} ETH from treasury`)
+    }
+  }
+
   if (args.expectedAddress) {
     lines.push('')
     lines.push(`## Predicted address`)
@@ -159,7 +200,8 @@ function buildSuggestedDescription(args: {
       `After execution, the coin will be viewable at https://clanker.world/clanker/${args.expectedAddress}`
     )
   }
-  return lines.join('\n')
+
+  return { title, description: lines.join('\n').trim() }
 }
 
 function chainName(id: number): string {
