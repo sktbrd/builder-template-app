@@ -25,6 +25,7 @@ import {
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
+import { CreatorCoinProposalModal } from '@/components/coins/CreatorCoinProposalModal'
 import { type MediaSelection, MediaUploader } from '@/components/coins/MediaUploader'
 import { Button } from '@/components/ui/button'
 import { buildContentCoinDeployTx } from '@/lib/contentCoin'
@@ -433,30 +434,32 @@ function CoinCreateFormInner() {
 }
 
 function NoCreatorCoinBlocker() {
+  const [modalOpen, setModalOpen] = useState(false)
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-dashed border-border bg-surface-2 px-6 py-10 text-center">
-      <h3 className="text-base font-bold">
-        {daoConfig.name} doesn&apos;t have a creator coin yet
-      </h3>
-      <p className="text-sm text-muted-fg">
-        Content coins on this surface pair with the DAO&apos;s clanker creator coin (so
-        the DAO gets paired-token rewards on every trade). The DAO needs to deploy one
-        first — via a proposal — before anyone can create a content coin here.
-      </p>
-      <div className="mx-auto flex flex-wrap items-center justify-center gap-2">
-        <Link href="/proposals/new">
-          <Button type="button" size="sm">
-            Open new proposal
+    <>
+      <div className="flex flex-col gap-4 rounded-xl border border-dashed border-border bg-surface-2 px-6 py-10 text-center">
+        <h3 className="text-base font-bold">
+          {daoConfig.name} doesn&apos;t have a creator coin yet
+        </h3>
+        <p className="text-sm text-muted-fg">
+          Content coins on this surface pair with the DAO&apos;s clanker creator coin (so
+          the DAO gets paired-token rewards on every trade). The DAO needs to deploy one
+          first — via a proposal — before anyone can create a content coin here.
+        </p>
+        <div className="mx-auto flex flex-wrap items-center justify-center gap-2">
+          <Button type="button" size="sm" onClick={() => setModalOpen(true)}>
+            Propose a creator coin
           </Button>
-        </Link>
-        <a href="https://docs.nouns.build/" target="_blank" rel="noopener noreferrer">
-          <Button type="button" variant="ghost" size="sm">
-            <ExternalLink className="h-4 w-4" />
-            Docs
-          </Button>
-        </a>
+          <a href="https://docs.nouns.build/" target="_blank" rel="noopener noreferrer">
+            <Button type="button" variant="ghost" size="sm">
+              <ExternalLink className="h-4 w-4" />
+              Docs
+            </Button>
+          </a>
+        </div>
       </div>
-    </div>
+      <CreatorCoinProposalModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </>
   )
 }
 

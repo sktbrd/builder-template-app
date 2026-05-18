@@ -93,7 +93,9 @@ export function useClankerTokenUsdPrice(
     pairedIsWeth
 
   const { data, error, isLoading } = useSWR(
-    enabled ? (['clanker-token-usd', daoConfig.chainId, tokenAddress, ethUsdPrice] as const) : null,
+    enabled
+      ? (['clanker-token-usd', daoConfig.chainId, tokenAddress, ethUsdPrice] as const)
+      : null,
     async ([, , token, eth]) => {
       // Re-check defensively — SWR can occasionally call the fetcher with a
       // stale key after the inputs changed.
