@@ -8,9 +8,10 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { type Address } from 'viem'
+import { type Address, formatEther, parseEther } from 'viem'
 import {
   useAccount,
+  useBalance,
   useChainId,
   usePublicClient,
   useReadContracts,
@@ -109,6 +110,23 @@ function ModalContent({ onClose }: { onClose: () => void }) {
     isLoading: priceLoading,
     error: priceError,
   } = useEthUsdPrice()
+
+  // Treasury ETH balance — surfaced under "Initial purchase" so the proposer
+  // can see what the DAO can afford to spend on deploy.
+  const { data: treasuryBalance } = useBalance({
+    address: daoConfig.addresses.treasury as Address,
+    chainId: daoConfig.chainId,
+  })
+
+  const devBuyTooLarge = useMemo(() => {
+    const raw = devBuyEth.trim()
+    if (!raw || !treasuryBalance) return false
+    try {
+      return parseEther(raw) > treasuryBalance.value
+    } catch {
+      return false
+    }
+  }, [devBuyEth, treasuryBalance])
 
   const {
     writeContract,
@@ -316,7 +334,11 @@ function ModalContent({ onClose }: { onClose: () => void }) {
 
               <Field
                 label="Initial purchase from treasury (optional)"
-                hint="ETH amount the treasury spends on deploy"
+                hint={
+                  treasuryBalance
+                    ? `Treasury: ${formatTreasury(treasuryBalance.value)} ETH`
+                    : 'ETH from treasury on deploy'
+                }
               >
                 <input
                   type="text"
@@ -325,8 +347,19 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setDevBuyEth(e.target.value.replace(/[^\d.]/g, ''))}
                   placeholder="0"
                   disabled={disabled}
-                  className="w-full rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-sm outline-none focus:border-accent disabled:opacity-60"
+                  className={
+                    'w-full rounded-md border bg-surface px-3 py-2.5 font-mono text-sm outline-none focus:border-accent disabled:opacity-60 ' +
+                    (devBuyTooLarge
+                      ? 'border-destructive focus:border-destructive'
+                      : 'border-border')
+                  }
                 />
+                {devBuyTooLarge && treasuryBalance && (
+                  <p className="mt-1 text-[11.5px] text-destructive">
+                    Exceeds treasury balance ({formatTreasury(treasuryBalance.value)} ETH
+                    available).
+                  </p>
+                )}
               </Field>
 
               <div className="rounded-md border border-dashed border-border bg-surface-2 px-3 py-2.5">
@@ -423,6 +456,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                     !ethUsdPrice ||
                     priceLoading ||
                     !!priceError ||
+                    devBuyTooLarge ||
                     disabled ||
                     phase === 'error'
                   }
@@ -466,6 +500,14 @@ function ModalContent({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   )
+}
+
+function formatTreasury(wei: bigint): string {
+  const eth = parseFloat(formatEther(wei))
+  if (!Number.isFinite(eth)) return '—'
+  if (eth >= 1) return eth.toFixed(2)
+  if (eth >= 0.001) return eth.toFixed(4)
+  return eth.toExponential(2)
 }
 
 function Field({
