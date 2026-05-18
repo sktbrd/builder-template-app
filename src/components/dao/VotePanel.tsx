@@ -69,6 +69,11 @@ function VotePanelInner({
   // current token balance (to distinguish "delegated away" from "no tokens").
   const nowSec = Math.floor(Date.now() / 1000)
   const snapshotInPast = voteStart > 0 && voteStart <= nowSec
+  // `pending` covers the gap between proposal creation and voteStart: the
+  // governor reverts on getPastVotes for a future timestamp, so we can't infer
+  // a real scenario — render a "voting opens in X" callout instead of the
+  // misleading "you held 0 tokens at the snapshot block" fallback.
+  const pending = voteStart > 0 && voteStart > nowSec
 
   const { data: powerReads } = useReadContracts({
     contracts:
@@ -99,7 +104,8 @@ function VotePanelInner({
     powerReads?.[1]?.status === 'success' ? Number(powerReads[1].result as bigint) : 0
 
   let scenario: VotingPowerScenario = 'none'
-  if (!isConnected) scenario = 'none'
+  if (pending) scenario = 'pending'
+  else if (!isConnected) scenario = 'none'
   else if (votingPower > 0) scenario = 'eligible'
   else if (tokenBalance > 0) scenario = 'delegated'
   else scenario = 'none'
@@ -154,10 +160,32 @@ function VotePanelInner({
                 ? 'error'
                 : 'idle'
 
+  if (pending) {
+    return (
+      <aside className="sticky top-20 flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px]">
+        <h3 className="text-base font-bold">Cast your vote</h3>
+        <VotingPowerExplainer
+          scenario="pending"
+          votingPower={votingPower}
+          voteStart={voteStart}
+        />
+        {address && (
+          <div className="text-[12.5px] text-muted-fg">
+            Voting as <strong className="font-mono">{short(address)}</strong>
+          </div>
+        )}
+      </aside>
+    )
+  }
+
   return (
     <aside className="sticky top-20 flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px]">
       <h3 className="text-base font-bold">Cast your vote</h3>
-      <VotingPowerExplainer scenario={scenario} votingPower={votingPower} />
+      <VotingPowerExplainer
+        scenario={scenario}
+        votingPower={votingPower}
+        voteStart={voteStart}
+      />
 
       <div className="grid grid-cols-3 gap-2">
         <ChoiceBtn

@@ -67,17 +67,17 @@ async function safeFetch<T>(
 }
 
 /**
- * Heuristic state from the subgraph fragment alone — no on-chain reads.
- * Used to avoid governor.state() per proposal which rate-limits the
- * default public RPC at scale. Public RPC = good enough; Alchemy if
- * provided makes the precise on-chain version reliable, but we only
- * need that for vote-eligibility / state-transition edge cases.
+ * State inferred from the subgraph fragment — no on-chain reads.
+ * Builder's subgraph exposes voteStart / voteEnd / expiresAt as unix
+ * seconds, so we can distinguish Pending vs Active vs Queued without
+ * hitting governor.state() and rate-limiting the public RPC.
  */
 function inferProposalState(p: {
   executedAt?: unknown
   vetoTransactionHash?: unknown
   cancelTransactionHash?: unknown
   expiresAt?: unknown
+  voteStart?: unknown
   voteEnd?: unknown
   forVotes: number
   againstVotes: number
@@ -87,44 +87,51 @@ function inferProposalState(p: {
   if (p.executedAt) return ProposalState.Executed
   if (p.vetoTransactionHash) return ProposalState.Vetoed
   if (p.cancelTransactionHash) return ProposalState.Canceled
+
   const now = Math.floor(Date.now() / 1000)
   const expires = p.expiresAt ? Number(p.expiresAt) : null
   if (expires && now > expires) return ProposalState.Expired
-  // voteEnd is a block number, not a timestamp — we can't compare directly.
-  // Use timeCreated + a 7-day fallback heuristic to decide active vs pending.
-  const created = p.timeCreated ? Number(p.timeCreated) : 0
-  const ageDays = (now - created) / (60 * 60 * 24)
-  const totalCast = p.forVotes + p.againstVotes
+
+  const voteStart = p.voteStart ? Number(p.voteStart) : 0
+  const voteEnd = p.voteEnd ? Number(p.voteEnd) : 0
+
+  // Voting hasn't opened yet.
+  if (voteStart > 0 && now < voteStart) return ProposalState.Pending
+  // Voting is in progress.
+  if (voteEnd > 0 && now < voteEnd) return ProposalState.Active
+
+  // Voting closed — outcome from tallies. expiresAt being set implies the
+  // proposal has been queued (governor populates it on queue).
   const quorum = Number(p.quorumVotes ?? 0)
-  // If voting is over (more than 7 days old by Builder default) and we have
-  // votes, decide succeeded vs defeated; else mark pending.
-  if (ageDays > 7) {
-    if (p.forVotes > p.againstVotes && p.forVotes >= quorum)
-      return ProposalState.Succeeded
-    if (totalCast > 0) return ProposalState.Defeated
-    return ProposalState.Defeated
+  if (p.forVotes > p.againstVotes && p.forVotes >= quorum) {
+    return expires ? ProposalState.Queued : ProposalState.Succeeded
   }
-  return ProposalState.Active
+  return ProposalState.Defeated
 }
 
-/** Map onchain ProposalState → the 5-state palette the UI cards.  */
+/** Map onchain ProposalState → the 9-state palette used by Builder/Gnars. */
 function mapProposalState(state: ProposalState): ProposalStatus {
   switch (state) {
+    case ProposalState.Pending:
+      return 'pending'
     case ProposalState.Active:
       return 'active'
-    case ProposalState.Pending:
-    case ProposalState.Succeeded:
-    case ProposalState.Queued:
-      return 'pending'
+    case ProposalState.Canceled:
+      return 'cancelled'
     case ProposalState.Defeated:
       return 'defeated'
+    case ProposalState.Succeeded:
+      return 'succeeded'
+    case ProposalState.Queued:
+      return 'queued'
+    case ProposalState.Expired:
+      return 'expired'
     case ProposalState.Executed:
       return 'executed'
-    case ProposalState.Canceled:
-    case ProposalState.Expired:
     case ProposalState.Vetoed:
+      return 'vetoed'
     default:
-      return 'cancelled'
+      return 'pending'
   }
 }
 
@@ -365,8 +372,14 @@ function relativeLabel(status: ProposalStatus, createdMs: number) {
   const now = Date.now()
   const ageMs = now - createdMs
   const days = Math.floor(ageMs / (1000 * 60 * 60 * 24))
-  if (status === 'active' || status === 'pending') {
+  if (status === 'pending') {
+    return 'Voting opens soon'
+  }
+  if (status === 'active') {
     return days <= 0 ? 'Active now' : `Started ${days}d ago`
+  }
+  if (status === 'queued') {
+    return 'Awaiting execution'
   }
   if (days < 1) return 'today'
   if (days === 1) return '1 day ago'

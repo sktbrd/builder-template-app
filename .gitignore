@@ -47,3 +47,6 @@ next-env.d.ts
 # generated icon
 /public/icon.png
 .env*.local
+
+# claude code agent worktrees (multi-GB local clones)
+.claude/worktrees/

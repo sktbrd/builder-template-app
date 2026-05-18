@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     'node_modules/**',
     'dist/**',
+    // Agent-isolation worktrees keep a multi-GB full clone of the repo,
+    // including their own `.next/` cache. Without this, `eslint --fix .`
+    // spends 30+ minutes trying to lint the SSR bundle dumps.
+    '.claude/worktrees/**',
   ]),
   {
     plugins: {

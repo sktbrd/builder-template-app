@@ -33,7 +33,6 @@ export function FeedAvatar({ address, size = 24, className }: FeedAvatarProps) {
       aria-hidden
     >
       {ensAvatar ? (
-        // eslint-disable-next-line @next/next/no-img-element -- ENS avatars
         // resolve to arbitrary URLs (ipfs gateways, arweave, http hosts);
         // whitelisting every host in next.config is impractical.
         <img

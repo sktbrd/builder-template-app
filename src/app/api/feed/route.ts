@@ -72,10 +72,7 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
     for (const a of addrs) {
       if (!isAddress(a, { strict: false })) {
-        return NextResponse.json(
-          { error: `Invalid DAO address: ${a}` },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: `Invalid DAO address: ${a}` }, { status: 400 })
       }
     }
     daos = addrs.map((a) => a.toLowerCase() as AddressType)
@@ -85,10 +82,7 @@ export async function GET(req: NextRequest) {
   const actorRaw = search.get('actor')
   if (actorRaw) {
     if (!isAddress(actorRaw, { strict: false })) {
-      return NextResponse.json(
-        { error: 'Invalid actor address' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid actor address' }, { status: 400 })
     }
     actor = actorRaw.toLowerCase() as AddressType
   }
@@ -102,10 +96,7 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
     for (const t of types) {
       if (!VALID_EVENT_TYPES.has(t as FeedEventType)) {
-        return NextResponse.json(
-          { error: `Invalid event type: ${t}` },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: `Invalid event type: ${t}` }, { status: 400 })
       }
     }
     eventTypes = types as FeedEventType[]

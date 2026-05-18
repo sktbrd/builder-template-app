@@ -2,30 +2,50 @@ import type { ProposalStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const STYLES: Record<ProposalStatus, { color: string; bg: string; label: string }> = {
-  active: {
-    color: 'text-success',
-    bg: 'bg-success/15',
-    label: 'Active',
-  },
   pending: {
-    color: 'text-success',
-    bg: 'bg-success/15',
+    color: 'text-warning',
+    bg: 'bg-warning/15',
     label: 'Pending',
   },
-  executed: {
+  active: {
     color: 'text-accent-strong',
     bg: 'bg-accent/15',
-    label: 'Executed',
+    label: 'Active',
+  },
+  cancelled: {
+    color: 'text-muted-fg',
+    bg: 'bg-surface-2',
+    label: 'Cancelled',
   },
   defeated: {
     color: 'text-destructive',
     bg: 'bg-destructive/15',
     label: 'Defeated',
   },
-  cancelled: {
+  succeeded: {
+    color: 'text-success',
+    bg: 'bg-success/15',
+    label: 'Succeeded',
+  },
+  queued: {
+    color: 'text-accent-strong',
+    bg: 'bg-accent/10',
+    label: 'Queued',
+  },
+  expired: {
     color: 'text-muted-fg',
     bg: 'bg-surface-2',
-    label: 'Cancelled',
+    label: 'Expired',
+  },
+  executed: {
+    color: 'text-success',
+    bg: 'bg-success/20',
+    label: 'Executed',
+  },
+  vetoed: {
+    color: 'text-destructive',
+    bg: 'bg-destructive/15',
+    label: 'Vetoed',
   },
 }
 

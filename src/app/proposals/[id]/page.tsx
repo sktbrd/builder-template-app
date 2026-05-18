@@ -25,7 +25,10 @@ export default async function ProposalDetailPage({ params }: { params: Params })
 
   const { summary: p, description, transactions } = detail
   const totalCast = p.forVotes + p.againstVotes + p.abstainVotes
-  const isVotable = p.status === 'active' || p.status === 'pending'
+  // Render the vote panel for both pending and active. Pending shows a
+  // "voting opens in X" callout; active enables the choice form + submit.
+  const showVotePanel = p.status === 'active' || p.status === 'pending'
+  const isActive = p.status === 'active'
   const showPropdates = isChainIdSupportedByEAS(daoConfig.chainId)
 
   return (
@@ -130,11 +133,13 @@ export default async function ProposalDetailPage({ params }: { params: Params })
           ) : null}
         </div>
 
-        <VotePanel
-          proposalIdHash={detail.proposalIdHash}
-          voteStart={detail.voteStart}
-          active={isVotable}
-        />
+        {showVotePanel && (
+          <VotePanel
+            proposalIdHash={detail.proposalIdHash}
+            voteStart={detail.voteStart}
+            active={isActive}
+          />
+        )}
       </div>
     </div>
   )

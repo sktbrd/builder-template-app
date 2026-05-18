@@ -41,10 +41,20 @@ export function parseWriteError(err: unknown): string {
   return msg.split('\n')[0]
 }
 
-// Builder UI convention: first line is the title, rest is the body.
+/**
+ * Builder subgraph protocol (`nouns-builder/apps/subgraph/src/governor.ts`):
+ * the `description` arg to `governor.propose(...)` is a JSON object the
+ * indexer parses out into separate `title` / `description` fields. The
+ * fallback (anything that isn't valid JSON-with-`title`) gets split on
+ * `&&` and otherwise dumps the whole string into `title`, leaving the
+ * description empty — that's the bug this format avoids.
+ *
+ * Mirrors `apps/web/src/.../ReviewProposalForm.tsx`'s `JSON.stringify({...})`.
+ */
 export function composeDescription(title: string, body: string): string {
-  const t = title.trim()
-  const b = body.trim()
-  if (!t) return b
-  return `# ${t}\n\n${b}`
+  return JSON.stringify({
+    version: 1,
+    title: title.trim(),
+    description: body.trim(),
+  })
 }
