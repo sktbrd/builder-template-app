@@ -677,6 +677,9 @@ export type ProposalDetail = {
   summary: ProposalSummary
   /** bytes32 onchain proposal id — used to call governor.castVote(...). */
   proposalIdHash: `0x${string}`
+  /** keccak256(description) precomputed by the subgraph. Needed to call
+   * governor.execute(...). */
+  descriptionHash: `0x${string}`
   description: string
   proposerFull: string
   snapshotBlockNumber: number
@@ -684,6 +687,20 @@ export type ProposalDetail = {
   voteEnd: number
   transactions: ProposalTransaction[]
   voteCount: number
+  /** Onchain votes cast on this proposal. Already returned by the
+   * `proposals(...)` query — we just surface them now. */
+  votes: ProposalDetailVote[]
+}
+
+export type ProposalDetailVote = {
+  voter: string
+  voterShort: string
+  /** ENS, when we have one. */
+  voterEns: string | null
+  /** 0 = against, 1 = for, 2 = abstain. */
+  support: 'for' | 'against' | 'abstain'
+  weight: number
+  reason: string | null
 }
 
 export async function getProposalByNumber(
@@ -743,17 +760,61 @@ export async function getProposalByNumber(
     }
   })
 
+  // The `proposals(where, first:1)` query already returns `votes` nested on
+  // each proposal (see sdk.generated.js — `...ProposalVote` is part of the
+  // doc), but the typed return doesn't include them. Bypass the cast and
+  // pull them off the raw response.
+  const rawVotes = (fragment as unknown as { votes?: Array<RawProposalVote> }).votes ?? []
+
+  const votersForEns = rawVotes.slice(0, 20).map((v) => String(v.voter))
+  const ensForVotes = await resolveEnsNames(votersForEns)
+
+  const votes: ProposalDetailVote[] = rawVotes
+    .slice()
+    // Subgraph returns votes in insertion order; we want most recent first.
+    // ProposalVote fragment doesn't expose a timestamp, so reverse is the
+    // best we can do without a separate per-vote query.
+    .reverse()
+    .map((v) => ({
+      voter: String(v.voter),
+      voterShort: short(String(v.voter)),
+      voterEns: ensForVotes.get(String(v.voter).toLowerCase()) ?? null,
+      support: mapVoteSupport(v.support),
+      weight: Number(v.weight ?? 0),
+      reason: v.reason ?? null,
+    }))
+
   return {
     summary: formatProposal(proposalLike),
     proposalIdHash: String(fragment.proposalId) as `0x${string}`,
+    descriptionHash: String(fragment.descriptionHash) as `0x${string}`,
     description: fragment.description ?? '',
     proposerFull: fragment.proposer,
     snapshotBlockNumber: Number(fragment.snapshotBlockNumber ?? 0),
     voteStart: Number(fragment.voteStart ?? 0),
     voteEnd: Number(fragment.voteEnd ?? 0),
     transactions,
-    voteCount: 0, // votes count needs a separate query; surfaced in vote panel later
+    voteCount: votes.length,
+    votes,
   }
+}
+
+type RawProposalVote = {
+  voter: string
+  support: number | string | 'AGAINST' | 'FOR' | 'ABSTAIN'
+  weight: number | string | null | undefined
+  reason: string | null | undefined
+}
+
+function mapVoteSupport(
+  support: RawProposalVote['support']
+): 'for' | 'against' | 'abstain' {
+  // The subgraph enum can come back either as the integer (0/1/2) or the
+  // string label. Handle both rather than assume.
+  const s = String(support).toUpperCase()
+  if (s === '1' || s === 'FOR') return 'for'
+  if (s === '2' || s === 'ABSTAIN') return 'abstain'
+  return 'against'
 }
 
 // ── About page ─────────────────────────────────────────────

@@ -50,3 +50,6 @@ next-env.d.ts
 
 # claude code agent worktrees (multi-GB local clones)
 .claude/worktrees/
+
+# session-local running notes
+implementation-notes.md

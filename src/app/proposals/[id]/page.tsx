@@ -3,6 +3,9 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { DecodedTransactions } from '@/components/dao/DecodedTransactions'
+import { ProposalActions } from '@/components/dao/ProposalActions'
+import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
 import { VoteBar } from '@/components/dao/VoteBar'
 import { VotePanel } from '@/components/dao/VotePanel'
@@ -93,36 +96,22 @@ export default async function ProposalDetailPage({ params }: { params: Params })
                 {transactions.length}
               </span>
             </h3>
-            {transactions.length === 0 ? (
-              <div className="text-sm text-muted-fg">
-                (No transactions on this proposal.)
-              </div>
-            ) : (
-              <ul className="flex flex-col gap-2.5">
-                {transactions.map((t, i) => (
-                  <li
-                    key={i}
-                    className="grid grid-cols-1 gap-3 rounded-md bg-surface-2 px-4 py-3 sm:grid-cols-[1fr_1fr_120px]"
-                  >
-                    <div>
-                      <div className="text-[12.5px] text-muted-fg">Target</div>
-                      <div className="font-mono text-xs">{t.targetShort}</div>
-                    </div>
-                    <div>
-                      <div className="text-[12.5px] text-muted-fg">Calldata</div>
-                      <div className="font-mono text-xs">{t.calldataPreview}</div>
-                    </div>
-                    <div>
-                      <div className="text-[12.5px] text-muted-fg">Value</div>
-                      <div className="text-sm font-bold">
-                        {trimDecimals(t.valueEth, 4)} ETH
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* Function-name + arg decoding lands with the upstream tx-decoder hook. */}
+            <DecodedTransactions
+              chainId={daoConfig.chainId}
+              targets={transactions.map((t) => t.target)}
+              calldatas={transactions.map((t) => t.calldata)}
+              values={transactions.map((t) => t.valueWei.toString())}
+            />
+          </section>
+
+          <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+            <h3 className="mb-3 text-base font-bold">
+              Votes
+              <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
+                {detail.votes.length}
+              </span>
+            </h3>
+            <ProposalVotesList votes={detail.votes} />
           </section>
 
           {showPropdates ? (
@@ -133,21 +122,17 @@ export default async function ProposalDetailPage({ params }: { params: Params })
           ) : null}
         </div>
 
-        {showVotePanel && (
-          <VotePanel
-            proposalIdHash={detail.proposalIdHash}
-            voteStart={detail.voteStart}
-            active={isActive}
-          />
-        )}
+        <div className="flex flex-col gap-4">
+          {showVotePanel && (
+            <VotePanel
+              proposalIdHash={detail.proposalIdHash}
+              voteStart={detail.voteStart}
+              active={isActive}
+            />
+          )}
+          <ProposalActions detail={detail} />
+        </div>
       </div>
     </div>
   )
-}
-
-function trimDecimals(value: string, max: number): string {
-  if (!value) return value
-  if (!value.includes('.')) return value
-  const [intPart, decPart] = value.split('.')
-  return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
