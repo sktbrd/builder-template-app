@@ -4,7 +4,7 @@ import { governorAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type Address, type Hex } from 'viem'
+import { type Address, type Hex, zeroAddress } from 'viem'
 import {
   useAccount,
   useChainId,
@@ -18,6 +18,7 @@ import { useWeb3Ready } from '@/app/web3-providers'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import type { ProposalDetail } from '@/lib/dao-data'
+import type { ProposalStatus } from '@/lib/types'
 
 type Props = {
   detail: ProposalDetail
@@ -33,23 +34,75 @@ function Skeleton() {
   return <div className="h-[160px] animate-pulse rounded-md bg-surface-2" />
 }
 
+// State/action matrix:
+//
+//   state       | queue | execute | cancel (proposer) | veto (vetoer) |
+//   ------------+-------+---------+-------------------+---------------+
+//   pending     |       |         |        ✓          |       ✓       |
+//   active      |       |         |        ✓          |       ✓       |
+//   succeeded   |   ✓   |         |        ✓          |       ✓       |
+//   queued      |       |    ✓    |        ✓ *        |       ✓       |
+//   defeated    |       |         |                   |               |
+//   expired     |       |         |                   |               |
+//   executed    |       |         |                   |               |
+//   cancelled   |       |         |                   |               |
+//   vetoed      |       |         |                   |               |
+//
+// * the governor contract permits cancel up until Executed; we keep it
+// visible through Queued so a proposer can yank a queued proposal.
+const QUEUE_STATES: ReadonlySet<ProposalStatus> = new Set(['succeeded'])
+const EXECUTE_STATES: ReadonlySet<ProposalStatus> = new Set(['queued'])
+const CANCEL_STATES: ReadonlySet<ProposalStatus> = new Set([
+  'pending',
+  'active',
+  'succeeded',
+  'queued',
+])
+const VETO_STATES: ReadonlySet<ProposalStatus> = new Set([
+  'pending',
+  'active',
+  'succeeded',
+  'queued',
+])
+
 function ProposalActionsInner({ detail }: Props) {
   const status = detail.summary.status
+  const { address } = useAccount()
 
-  const showQueue = status === 'succeeded'
-  const showExecute = status === 'queued'
-  // Cancel surfaces while the proposal can still be pulled by its proposer
-  // — Builder governor allows cancel while pending/active/succeeded.
-  // (Once queued/executed/cancelled/vetoed/defeated/expired we hide it.)
-  const showCancel = status === 'pending' || status === 'active' || status === 'succeeded'
+  // Vetoer is set at DAO deploy time and may be `0x0` (burned). Only read
+  // when we'd otherwise render a veto button, to keep the page lighter.
+  const vetoStateEligible = VETO_STATES.has(status)
+  const { data: vetoer } = useReadContract({
+    address: daoConfig.addresses.governor as Address,
+    abi: governorAbi,
+    functionName: 'vetoer',
+    chainId: daoConfig.chainId,
+    query: { enabled: vetoStateEligible },
+  })
 
-  if (!showQueue && !showExecute && !showCancel) return null
+  const isProposer =
+    !!address && address.toLowerCase() === detail.proposerFull.toLowerCase()
+  const isVetoer =
+    !!address &&
+    !!vetoer &&
+    (vetoer as string).toLowerCase() !== zeroAddress &&
+    address.toLowerCase() === (vetoer as string).toLowerCase()
+
+  const showQueue = QUEUE_STATES.has(status)
+  const showExecute = EXECUTE_STATES.has(status)
+  const showCancel = CANCEL_STATES.has(status) && isProposer
+  const showVeto = vetoStateEligible && isVetoer
+
+  // Skip the aside entirely if nothing applies. Avoids the empty-card bleed
+  // for non-proposer non-vetoer viewers on pending/active proposals.
+  if (!showQueue && !showExecute && !showCancel && !showVeto) return null
 
   return (
     <aside className="flex flex-col gap-4 rounded-xl border border-border bg-surface px-6 py-[22px]">
       {showQueue && <QueueAction detail={detail} />}
       {showExecute && <ExecuteAction detail={detail} />}
       {showCancel && <CancelAction detail={detail} />}
+      {showVeto && <VetoAction detail={detail} />}
     </aside>
   )
 }
@@ -85,7 +138,7 @@ function ExecuteAction({ detail }: { detail: ProposalDetail }) {
 
   // The timelock delay is set when queue() runs; we read it back from
   // proposalEta(...) to know when execute() will actually succeed.
-  const { data: eta } = useReadContract({
+  const { data: eta, isLoading: etaLoading } = useReadContract({
     address: daoConfig.addresses.governor as Address,
     abi: governorAbi,
     functionName: 'proposalEta',
@@ -93,17 +146,22 @@ function ExecuteAction({ detail }: { detail: ProposalDetail }) {
     chainId: daoConfig.chainId,
   })
 
-  const etaSec = useMemo(() => (eta ? Number(eta as bigint) : 0), [eta])
-  const ready = etaSec === 0 || etaSec <= now
-  const remaining = etaSec > 0 ? Math.max(0, etaSec - now) : 0
+  const etaSec = useMemo(() => (eta !== undefined ? Number(eta as bigint) : null), [eta])
+  // Wait for the read to resolve before enabling the button — a missing eta
+  // (read still in flight) would otherwise look "ready" and the tx would
+  // revert from the governor side.
+  const ready = etaSec !== null && etaSec > 0 && etaSec <= now
+  const remaining = etaSec && etaSec > now ? etaSec - now : 0
 
   return (
     <ActionShell
       title="Execute proposal"
       blurb={
-        ready
-          ? 'Timelock elapsed. Execute the proposal to run its transactions.'
-          : `Available in ${formatDuration(remaining)} once the timelock elapses.`
+        etaLoading || etaSec === null
+          ? 'Checking timelock…'
+          : ready
+            ? 'Timelock elapsed. Execute the proposal to run its transactions.'
+            : `Available in ${formatDuration(remaining)} once the timelock elapses.`
       }
       phase={phase}
       error={error}
@@ -132,18 +190,12 @@ function ExecuteAction({ detail }: { detail: ProposalDetail }) {
 // ── Cancel ─────────────────────────────────────────────────────
 
 function CancelAction({ detail }: { detail: ProposalDetail }) {
-  const { address } = useAccount()
-  const isProposer =
-    !!address && address.toLowerCase() === detail.proposerFull.toLowerCase()
-
   const { phase, run, error } = useGovernorWrite()
-
-  if (!isProposer) return null
 
   return (
     <ActionShell
       title="Cancel proposal"
-      blurb="As the proposer, you can withdraw this proposal before it's queued."
+      blurb="As the proposer, you can withdraw this proposal at any time before execution."
       tone="destructive"
       phase={phase}
       error={error}
@@ -152,6 +204,30 @@ function CancelAction({ detail }: { detail: ProposalDetail }) {
       onClick={() =>
         run({
           functionName: 'cancel',
+          args: [detail.proposalIdHash],
+        })
+      }
+    />
+  )
+}
+
+// ── Veto ───────────────────────────────────────────────────────
+
+function VetoAction({ detail }: { detail: ProposalDetail }) {
+  const { phase, run, error } = useGovernorWrite()
+
+  return (
+    <ActionShell
+      title="Veto proposal"
+      blurb="As the DAO vetoer, you can override this proposal before execution."
+      tone="destructive"
+      phase={phase}
+      error={error}
+      idleLabel="Veto proposal"
+      busyLabel="Vetoing…"
+      onClick={() =>
+        run({
+          functionName: 'veto',
           args: [detail.proposalIdHash],
         })
       }

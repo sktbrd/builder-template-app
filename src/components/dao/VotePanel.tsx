@@ -1,5 +1,6 @@
 'use client'
 
+import { useEnsName } from '@buildeross/hooks/useEnsName'
 import { governorAbi, tokenAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
@@ -59,6 +60,7 @@ function VotePanelInner({
   const [reason, setReason] = useState('')
 
   const { address, isConnected } = useAccount()
+  const { ensName } = useEnsName(address)
   const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
@@ -171,7 +173,10 @@ function VotePanelInner({
         />
         {address && (
           <div className="text-[12.5px] text-muted-fg">
-            Voting as <strong className="font-mono">{short(address)}</strong>
+            Voting as{' '}
+            <strong className={ensName ? 'font-semibold' : 'font-mono'}>
+              {ensName ?? short(address)}
+            </strong>
           </div>
         )}
       </aside>
@@ -270,7 +275,10 @@ function VotePanelInner({
 
       {address && (
         <div className="text-[12.5px] text-muted-fg">
-          Voting as <strong className="font-mono">{short(address)}</strong>
+          Voting as{' '}
+          <strong className={ensName ? 'font-semibold' : 'font-mono'}>
+            {ensName ?? short(address)}
+          </strong>
           {votingPower > 0 && (
             <>
               {' '}

@@ -682,6 +682,8 @@ export type ProposalDetail = {
   descriptionHash: `0x${string}`
   description: string
   proposerFull: string
+  /** Reverse-resolved ENS / basename for the proposer, when one exists. */
+  proposerEns: string | null
   snapshotBlockNumber: number
   voteStart: number
   voteEnd: number
@@ -766,8 +768,11 @@ export async function getProposalByNumber(
   // pull them off the raw response.
   const rawVotes = (fragment as unknown as { votes?: Array<RawProposalVote> }).votes ?? []
 
-  const votersForEns = rawVotes.slice(0, 20).map((v) => String(v.voter))
-  const ensForVotes = await resolveEnsNames(votersForEns)
+  // Resolve ENS for the proposer + the top 20 voters in one batched call.
+  const proposerLc = String(fragment.proposer).toLowerCase()
+  const voterAddrs = rawVotes.slice(0, 20).map((v) => String(v.voter))
+  const ensMap = await resolveEnsNames([fragment.proposer, ...voterAddrs])
+  const proposerEns = ensMap.get(proposerLc) ?? null
 
   const votes: ProposalDetailVote[] = rawVotes
     .slice()
@@ -778,7 +783,7 @@ export async function getProposalByNumber(
     .map((v) => ({
       voter: String(v.voter),
       voterShort: short(String(v.voter)),
-      voterEns: ensForVotes.get(String(v.voter).toLowerCase()) ?? null,
+      voterEns: ensMap.get(String(v.voter).toLowerCase()) ?? null,
       support: mapVoteSupport(v.support),
       weight: Number(v.weight ?? 0),
       reason: v.reason ?? null,
@@ -790,6 +795,7 @@ export async function getProposalByNumber(
     descriptionHash: String(fragment.descriptionHash) as `0x${string}`,
     description: fragment.description ?? '',
     proposerFull: fragment.proposer,
+    proposerEns,
     snapshotBlockNumber: Number(fragment.snapshotBlockNumber ?? 0),
     voteStart: Number(fragment.voteStart ?? 0),
     voteEnd: Number(fragment.voteEnd ?? 0),

@@ -60,8 +60,11 @@ export default async function ProposalDetailPage({ params }: { params: Params })
               {p.title}
             </h1>
             <div className="mt-2 text-[12.5px] text-muted-fg">
-              Proposed by <strong className="font-semibold">{p.proposer}</strong> ·{' '}
-              {p.date}
+              Proposed by{' '}
+              <strong className="font-semibold">
+                {detail.proposerEns ?? p.proposer}
+              </strong>{' '}
+              · {p.date}
             </div>
           </div>
 
