@@ -986,6 +986,295 @@ export async function getMembersPageData(): Promise<MembersPageData> {
   }
 }
 
+// ── Member detail page ────────────────────────────────────
+
+export type MemberDetailToken = {
+  tokenId: number
+  mintedAt: number
+}
+
+export type MemberDetailVote = {
+  proposalNumber: number
+  proposalTitle: string
+  proposalStatus: ProposalStatus
+  support: 'for' | 'against' | 'abstain'
+  weight: number
+  reason: string | null
+  timestamp: number
+}
+
+export type MemberDetailProposal = {
+  proposalNumber: number
+  title: string
+  status: ProposalStatus
+  date: string
+}
+
+export type MemberDetailDelegator = {
+  addr: string
+  addrShort: string
+  ens: string | null
+  tokenCount: number
+}
+
+export type MemberDetail = {
+  address: string
+  addressShort: string
+  ens: string | null
+  /** Tokens this address physically owns (count + the token ids/mints). */
+  tokensHeld: number
+  tokens: MemberDetailToken[]
+  /** Live voting power (sum of own + delegated-in). 0 if not a `daoVoter`. */
+  votingPower: number
+  /** Delegate target. Equal to `address` when self-delegated. null if owner record missing. */
+  delegate: string | null
+  delegateShort: string | null
+  delegateEns: string | null
+  delegators: MemberDetailDelegator[]
+  votesCast: MemberDetailVote[]
+  proposalsAuthored: MemberDetailProposal[]
+  /** First mint timestamp the member is associated with (own + delegated), unix seconds; 0 if none. */
+  joinedAt: number
+  /** Active = voted on any of the last 5 proposals (same heuristic as members list). */
+  active: boolean
+}
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+export async function getMemberDetail(rawAddress: string): Promise<MemberDetail | null> {
+  if (!rawAddress || !/^0x[0-9a-fA-F]{40}$/.test(rawAddress)) return null
+  const address = rawAddress.toLowerCase() as `0x${string}`
+  if (address === ZERO_ADDRESS) return null
+
+  const ownerId = `${tokenAddressLc}:${address}`
+  const voterId = `${tokenAddressLc}:${address}`
+
+  const [membership, votesResp, authoredResp, delegatorsResp, recentProposalsResp] =
+    await Promise.all([
+      safeFetch(
+        'memberDetail.membership',
+        () => SubgraphSDK.connect(chainId).daoMembership({ ownerId, voterId }),
+        { daotokenOwner: null, daovoter: null } as Awaited<
+          ReturnType<ReturnType<typeof SubgraphSDK.connect>['daoMembership']>
+        >
+      ),
+      safeFetch(
+        'memberDetail.votes',
+        () => fetchVotesByVoter(address),
+        [] as RawMemberVote[]
+      ),
+      safeFetch(
+        'memberDetail.authored',
+        () =>
+          SubgraphSDK.connect(chainId).proposals({
+            where: { dao: tokenAddressLc, proposer: address } as never,
+            first: 50,
+          }),
+        { proposals: [] } as Awaited<
+          ReturnType<ReturnType<typeof SubgraphSDK.connect>['proposals']>
+        >
+      ),
+      safeFetch(
+        'memberDetail.delegators',
+        () =>
+          SubgraphSDK.connect(chainId).daoMembersList({
+            where: {
+              dao: tokenAddressLc,
+              delegate: address,
+              owner_not: address,
+            } as never,
+            orderBy: 'daoTokenCount' as never,
+            orderDirection: OrderDirection.Desc,
+            first: 50,
+          }),
+        { daotokenOwners: [] } as Awaited<
+          ReturnType<ReturnType<typeof SubgraphSDK.connect>['daoMembersList']>
+        >
+      ),
+      safeFetch(
+        'memberDetail.recentProposals',
+        () =>
+          SubgraphSDK.connect(chainId).proposals({
+            where: { dao: tokenAddressLc } as never,
+            first: 5,
+          }) as Promise<{
+            proposals: Array<{ votes: Array<{ voter: string }> }>
+          }>,
+        { proposals: [] as Array<{ votes: Array<{ voter: string }> }> }
+      ),
+    ])
+
+  const owner = membership.daotokenOwner
+  const voter = membership.daovoter
+  const hasNoFootprint =
+    !owner &&
+    !voter &&
+    votesResp.length === 0 &&
+    authoredResp.proposals.length === 0 &&
+    delegatorsResp.daotokenOwners.length === 0
+  if (hasNoFootprint) return null
+
+  // ENS for owner + delegate + top delegators (cap 20).
+  const delegateAddr = owner?.delegate ? String(owner.delegate).toLowerCase() : null
+  const topDelegators = delegatorsResp.daotokenOwners.slice(0, 18)
+  const ensTargets = [
+    address,
+    ...(delegateAddr && delegateAddr !== address ? [delegateAddr] : []),
+    ...topDelegators.map((d) => String(d.owner)),
+  ]
+  const ensMap = await resolveEnsNames(ensTargets)
+
+  const tokens: MemberDetailToken[] = (owner?.daoTokens ?? [])
+    .map((t) => ({ tokenId: Number(t.tokenId), mintedAt: Number(t.mintedAt ?? 0) }))
+    .sort((a, b) => a.tokenId - b.tokenId)
+
+  const joinedAt = tokens.reduce<number>(
+    (min, t) => (min === 0 || (t.mintedAt > 0 && t.mintedAt < min) ? t.mintedAt : min),
+    0
+  )
+
+  const votesCast: MemberDetailVote[] = votesResp.map((v) => {
+    const propStatus = inferProposalState(v.proposal)
+    return {
+      proposalNumber: Number(v.proposal.proposalNumber),
+      proposalTitle: v.proposal.title ?? `Proposal ${v.proposal.proposalNumber}`,
+      proposalStatus: mapProposalState(propStatus),
+      support: mapVoteSupport(v.support),
+      weight: Number(v.weight ?? 0),
+      reason: v.reason && v.reason.trim().length > 0 ? v.reason : null,
+      timestamp: Number(v.timestamp ?? 0),
+    }
+  })
+
+  const proposalsAuthored: MemberDetailProposal[] = authoredResp.proposals.map((p) => {
+    const state = inferProposalState(p)
+    return {
+      proposalNumber: Number(p.proposalNumber),
+      title: p.title ?? `Proposal ${p.proposalNumber}`,
+      status: mapProposalState(state),
+      date: new Date(Number(p.timeCreated) * 1000).toLocaleDateString(undefined, {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      }),
+    }
+  })
+
+  const delegators: MemberDetailDelegator[] = delegatorsResp.daotokenOwners.map((d) => {
+    const addr = String(d.owner)
+    return {
+      addr,
+      addrShort: short(addr),
+      ens: ensMap.get(addr.toLowerCase()) ?? null,
+      tokenCount: d.daoTokenCount ?? 0,
+    }
+  })
+
+  // Active heuristic — voted on any of the last 5 proposals.
+  const activeSet = new Set<string>()
+  for (const p of recentProposalsResp.proposals) {
+    for (const v of p.votes ?? []) activeSet.add(String(v.voter).toLowerCase())
+  }
+
+  return {
+    address,
+    addressShort: short(address),
+    ens: ensMap.get(address) ?? null,
+    tokensHeld: owner?.daoTokenCount ?? tokens.length,
+    tokens,
+    votingPower: voter?.daoTokenCount ?? 0,
+    delegate: delegateAddr,
+    delegateShort: delegateAddr ? short(delegateAddr) : null,
+    delegateEns:
+      delegateAddr && delegateAddr !== address
+        ? (ensMap.get(delegateAddr) ?? null)
+        : null,
+    delegators,
+    votesCast,
+    proposalsAuthored,
+    joinedAt,
+    active: activeSet.has(address),
+  }
+}
+
+type RawMemberVote = {
+  support: number | string
+  weight: number | string | null
+  reason: string | null
+  timestamp: number | string
+  proposal: {
+    proposalNumber: number | string
+    title: string | null
+    executedAt: unknown
+    vetoTransactionHash: unknown
+    cancelTransactionHash: unknown
+    expiresAt: unknown
+    voteStart: unknown
+    voteEnd: unknown
+    forVotes: number
+    againstVotes: number
+    quorumVotes: unknown
+    timeCreated: unknown
+  }
+}
+
+/**
+ * Fetch a member's vote history with the proposal context inlined.
+ *
+ * The generated SDK only exposes `userProposalVote` (capped at `first: 1`),
+ * so we send a raw POST to the same subgraph endpoint. Filter is
+ * `voter == address` scoped to this DAO via the nested `proposal_.dao` filter.
+ */
+async function fetchVotesByVoter(voter: `0x${string}`): Promise<RawMemberVote[]> {
+  const { PUBLIC_SUBGRAPH_URL } = await import('@buildeross/constants')
+  const url = PUBLIC_SUBGRAPH_URL.get(chainId)
+  if (!url) return []
+  const query = `
+    query MemberVotes($voter: Bytes!, $dao: String!, $first: Int!) {
+      proposalVotes(
+        where: { voter: $voter, proposal_: { dao: $dao } }
+        orderBy: timestamp
+        orderDirection: desc
+        first: $first
+      ) {
+        support
+        weight
+        reason
+        timestamp
+        proposal {
+          proposalNumber
+          title
+          executedAt
+          vetoTransactionHash
+          cancelTransactionHash
+          expiresAt
+          voteStart
+          voteEnd
+          forVotes
+          againstVotes
+          quorumVotes
+          timeCreated
+        }
+      }
+    }
+  `
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      variables: { voter, dao: tokenAddressLc, first: 50 },
+    }),
+  })
+  if (!resp.ok) throw new Error(`subgraph ${resp.status}`)
+  const json = (await resp.json()) as {
+    data?: { proposalVotes?: RawMemberVote[] }
+    errors?: unknown
+  }
+  if (json.errors) throw new Error(JSON.stringify(json.errors))
+  return json.data?.proposalVotes ?? []
+}
+
 const ENS_LOOKUP_TIMEOUT_MS = 6000
 
 /**

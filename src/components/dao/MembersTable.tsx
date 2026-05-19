@@ -1,13 +1,17 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 
 export type MembersTableRow = {
   ens: string | null
+  /** Truncated address, displayed in the table cell. */
   addr: string
+  /** Full 0x address, used to link to /members/[address]. */
+  addrFull: string
   votes: number
   pct: number
   joined: string
@@ -92,20 +96,25 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
           </thead>
           <tbody>
             {filtered.map((m, i) => (
-              <tr key={m.addr} className="hover:bg-surface-2">
+              <tr key={m.addrFull} className="hover:bg-surface-2">
                 <Td>
-                  <div className="flex items-center gap-3">
+                  <Link
+                    href={`/members/${m.addrFull}`}
+                    className="flex items-center gap-3 group"
+                  >
                     <span
                       className="h-7 w-7 shrink-0 rounded-full"
                       style={{ background: `oklch(0.7 0.15 ${(i * 50) % 360})` }}
                     />
                     <div>
                       <div>
-                        <strong className="font-semibold">{m.ens ?? '—'}</strong>
+                        <strong className="font-semibold group-hover:underline">
+                          {m.ens ?? '—'}
+                        </strong>
                       </div>
                       <div className="font-mono text-xs text-muted-fg">{m.addr}</div>
                     </div>
-                  </div>
+                  </Link>
                 </Td>
                 <Td>
                   <strong className="font-semibold">{m.votes}</strong>

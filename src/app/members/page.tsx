@@ -16,6 +16,7 @@ export default async function MembersPage() {
       members={data.members.map((m) => ({
         ens: m.ens,
         addr: m.addrShort,
+        addrFull: m.addr,
         votes: m.votes,
         pct: m.pct,
         joined: m.joined,
