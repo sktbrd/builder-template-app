@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ProposalSummary } from '@/lib/dao-data'
 
 import { StatusBadge } from './StatusBadge'
+import { TreasuryInsufficientBadge } from './TreasuryInsufficientBadge'
 import { VoteBar } from './VoteBar'
 import { WalletPill } from './WalletPill'
 
@@ -34,6 +35,7 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
               {p.requested.usdc > 0 && `${p.requested.usdc.toLocaleString('en-US')} USDC`}
             </span>
           )}
+          {p.treasuryInsufficient && <TreasuryInsufficientBadge />}
         </div>
       </div>
 
