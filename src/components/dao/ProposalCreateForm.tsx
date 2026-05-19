@@ -1,12 +1,12 @@
 'use client'
 
-import { governorAbi, tokenAbi } from '@buildeross/sdk/contract'
+import { erc20Abi, governorAbi, tokenAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { ChevronLeft, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { type Address, isAddress, parseEther } from 'viem'
+import { type Address, parseEther } from 'viem'
 import {
   useAccount,
   useChainId,
@@ -21,14 +21,24 @@ import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import {
-  composeDescription,
-  isHex,
-  parseWriteError,
-  type Tx,
-  validate,
-} from '@/lib/proposal-validation'
+  emptyDraft,
+  encodeDraft,
+  tokenKey,
+  type TokenMetaMap,
+  type TxDraft,
+  type TxKind,
+  uniqueErc20Tokens,
+  validateDraft,
+} from '@/lib/proposal-tx'
+import { composeDescription, parseWriteError } from '@/lib/proposal-validation'
 
-const EMPTY_TX: Tx = { target: '', valueEth: '0', calldata: '0x' }
+import { DraftForm } from './ProposalCreate/DraftForm'
+import { Review } from './ProposalCreate/Review'
+import { SummaryCard } from './ProposalCreate/SummaryCard'
+import { TypeCard } from './ProposalCreate/TypeCard'
+import { type WizardStep, WizardTabs } from './ProposalCreate/WizardTabs'
+
+const KINDS: TxKind[] = ['eth', 'erc20', 'custom']
 
 export function ProposalCreateForm() {
   const ready = useWeb3Ready()
@@ -40,12 +50,19 @@ function ProposalCreateFormSkeleton() {
   return <div className="h-[400px] animate-pulse rounded-md bg-surface-2" />
 }
 
+type EditorState =
+  | { mode: 'list' }
+  | { mode: 'new'; draft: TxDraft }
+  | { mode: 'edit'; index: number; draft: TxDraft }
+
 function ProposalCreateFormInner() {
   const router = useRouter()
 
+  const [step, setStep] = useState<WizardStep>('details')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [txs, setTxs] = useState<Tx[]>([{ ...EMPTY_TX }])
+  const [drafts, setDrafts] = useState<TxDraft[]>([])
+  const [editor, setEditor] = useState<EditorState>({ mode: 'list' })
   const [showPreview, setShowPreview] = useState(false)
 
   const { address, isConnected } = useAccount()
@@ -55,7 +72,7 @@ function ProposalCreateFormInner() {
 
   const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
 
-  // Eligibility: governor.proposalThreshold + token.balanceOf(account).
+  // ── Eligibility (token balance vs governor proposalThreshold)
   const { data: eligibilityReads } = useReadContracts({
     contracts: address
       ? [
@@ -86,11 +103,79 @@ function ProposalCreateFormInner() {
       ? Number(eligibilityReads[1].result as bigint)
       : 0
 
-  // proposalThreshold is "minimum tokens > threshold" by Builder convention,
-  // so eligibility is balance > threshold (strict gt, not gte). We keep gte
-  // as a friendlier UX — invalid proposes will revert anyway.
   const eligible = isConnected && myBalance > proposalThreshold
 
+  // ── Token metadata for ERC-20 drafts: treasury list is free, custom tokens
+  //    read decimals + symbol on-chain via wagmi.
+  const treasuryMeta = useMemo<TokenMetaMap>(() => {
+    const m: TokenMetaMap = {}
+    for (const t of daoConfig.treasuryTokens) {
+      m[tokenKey(t.address)] = { decimals: t.decimals, symbol: t.symbol }
+    }
+    return m
+  }, [])
+
+  const draftsForMeta = useMemo(() => {
+    const all: TxDraft[] = [...drafts]
+    if (editor.mode !== 'list') all.push(editor.draft)
+    return all
+  }, [drafts, editor])
+
+  const customTokens = useMemo(() => {
+    const treasurySet = new Set(daoConfig.treasuryTokens.map((t) => tokenKey(t.address)))
+    return uniqueErc20Tokens(draftsForMeta).filter((a) => !treasurySet.has(tokenKey(a)))
+  }, [draftsForMeta])
+
+  const tokenReadContracts = useMemo(
+    () =>
+      customTokens.flatMap((addr) => [
+        {
+          address: addr,
+          abi: erc20Abi,
+          functionName: 'decimals' as const,
+          chainId: daoConfig.chainId,
+        },
+        {
+          address: addr,
+          abi: erc20Abi,
+          functionName: 'symbol' as const,
+          chainId: daoConfig.chainId,
+        },
+      ]),
+    [customTokens]
+  )
+
+  const { data: tokenReads } = useReadContracts({
+    contracts: tokenReadContracts,
+    query: { enabled: tokenReadContracts.length > 0 },
+  })
+
+  const tokenMeta = useMemo<TokenMetaMap>(() => {
+    const m: TokenMetaMap = { ...treasuryMeta }
+    customTokens.forEach((addr, i) => {
+      const dec = tokenReads?.[i * 2]
+      const sym = tokenReads?.[i * 2 + 1]
+      if (dec?.status === 'success') {
+        const decimals = Number(dec.result as number | bigint)
+        const symbol = sym?.status === 'success' ? (sym.result as string) : undefined
+        m[tokenKey(addr)] = { decimals, symbol }
+      }
+    })
+    return m
+  }, [treasuryMeta, customTokens, tokenReads])
+
+  // ── Step-readiness rules
+  const detailsValid = title.trim().length > 0 && description.trim().length > 0
+  const transactionsValid =
+    drafts.length > 0 && drafts.every((d) => validateDraft(d, tokenMeta).length === 0)
+
+  const unlocked: Record<WizardStep, boolean> = {
+    details: true,
+    transactions: detailsValid,
+    preview: detailsValid && transactionsValid,
+  }
+
+  // ── Submit
   const {
     writeContract,
     data: txHash,
@@ -103,9 +188,6 @@ function ProposalCreateFormInner() {
     error: mineError,
   } = useWaitForTransactionReceipt({ hash: txHash })
 
-  // After successful submission, send the user back to /proposals — the
-  // new proposalNumber isn't in the receipt directly (it lives in the
-  // ProposalCreated event); the list will auto-revalidate within 60s.
   useEffect(() => {
     if (!isMined) return
     const t = setTimeout(() => {
@@ -113,11 +195,6 @@ function ProposalCreateFormInner() {
     }, 1600)
     return () => clearTimeout(t)
   }, [isMined, router])
-
-  const validation = useMemo(
-    () => validate(title, description, txs),
-    [title, description, txs]
-  )
 
   const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
     !isConnected
@@ -135,15 +212,19 @@ function ProposalCreateFormInner() {
                 : 'idle'
 
   const submit = () => {
-    if (!validation.ok) return
+    if (!detailsValid || !transactionsValid) return
+    const encoded = drafts.map((d) => encodeDraft(d, tokenMeta))
+    if (encoded.some((e) => e === null)) return
     let valuesWei: bigint[]
     try {
-      valuesWei = txs.map((t) => (t.valueEth.trim() ? parseEther(t.valueEth) : BigInt(0)))
+      valuesWei = encoded.map((e) =>
+        e!.valueEth.trim() ? parseEther(e!.valueEth) : BigInt(0)
+      )
     } catch {
       return
     }
-    const targets = txs.map((t) => t.target as Address)
-    const calldatas = txs.map((t) => (t.calldata?.trim() || '0x') as `0x${string}`)
+    const targets = encoded.map((e) => e!.target as Address)
+    const calldatas = encoded.map((e) => (e!.calldata?.trim() || '0x') as `0x${string}`)
     const fullDescription = composeDescription(title, description)
 
     writeContract({
@@ -154,11 +235,31 @@ function ProposalCreateFormInner() {
     })
   }
 
-  const updateTx = (i: number, patch: Partial<Tx>) =>
-    setTxs((prev) => prev.map((t, j) => (i === j ? { ...t, ...patch } : t)))
-  const addTx = () => setTxs((prev) => [...prev, { ...EMPTY_TX }])
-  const removeTx = (i: number) =>
-    setTxs((prev) => (prev.length === 1 ? prev : prev.filter((_, j) => i !== j)))
+  // ── Editor helpers
+  const openNew = (kind: TxKind) => setEditor({ mode: 'new', draft: emptyDraft(kind) })
+  const openEdit = (i: number) => setEditor({ mode: 'edit', index: i, draft: drafts[i] })
+  const cancelEdit = () => setEditor({ mode: 'list' })
+  const saveEdit = () => {
+    if (editor.mode === 'new') {
+      setDrafts((prev) => [...prev, editor.draft])
+    } else if (editor.mode === 'edit') {
+      setDrafts((prev) => prev.map((d, j) => (j === editor.index ? editor.draft : d)))
+    }
+    setEditor({ mode: 'list' })
+  }
+  const removeDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i))
+  const setEditorDraft = (next: TxDraft) =>
+    setEditor((cur) => (cur.mode === 'list' ? cur : { ...cur, draft: next }))
+
+  // ── Navigation
+  const goNext = () => {
+    if (step === 'details' && unlocked.transactions) setStep('transactions')
+    else if (step === 'transactions' && unlocked.preview) setStep('preview')
+  }
+  const goBack = () => {
+    if (step === 'transactions') setStep('details')
+    else if (step === 'preview') setStep('transactions')
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -181,7 +282,6 @@ function ProposalCreateFormInner() {
         </p>
       </div>
 
-      {/* Eligibility banner */}
       <EligibilityBanner
         connected={isConnected}
         eligible={eligible}
@@ -189,27 +289,97 @@ function ProposalCreateFormInner() {
         threshold={proposalThreshold}
       />
 
-      {/* Title */}
+      <WizardTabs current={step} onChange={setStep} unlocked={unlocked} />
+
+      {step === 'details' && (
+        <DetailsStep
+          title={title}
+          description={description}
+          showPreview={showPreview}
+          onTitleChange={setTitle}
+          onDescriptionChange={setDescription}
+          onTogglePreview={setShowPreview}
+        />
+      )}
+
+      {step === 'transactions' && (
+        <TransactionsStep
+          drafts={drafts}
+          tokenMeta={tokenMeta}
+          editor={editor}
+          onOpenNew={openNew}
+          onOpenEdit={openEdit}
+          onCancelEdit={cancelEdit}
+          onSaveEdit={saveEdit}
+          onRemove={removeDraft}
+          onEditorChange={setEditorDraft}
+        />
+      )}
+
+      {step === 'preview' && (
+        <PreviewStep
+          title={title}
+          description={description}
+          drafts={drafts}
+          tokenMeta={tokenMeta}
+        />
+      )}
+
+      <StepFooter
+        step={step}
+        unlocked={unlocked}
+        editing={editor.mode !== 'list'}
+        eligible={eligible}
+        phase={phase}
+        isSwitching={isSwitching}
+        onBack={goBack}
+        onNext={goNext}
+        onConnect={() => openConnectModal?.()}
+        onSwitch={() => switchChain({ chainId: daoConfig.chainId })}
+        onSubmit={submit}
+        writeError={writeError}
+        mineError={mineError}
+      />
+    </div>
+  )
+}
+
+function DetailsStep({
+  title,
+  description,
+  showPreview,
+  onTitleChange,
+  onDescriptionChange,
+  onTogglePreview,
+}: {
+  title: string
+  description: string
+  showPreview: boolean
+  onTitleChange: (s: string) => void
+  onDescriptionChange: (s: string) => void
+  onTogglePreview: (b: boolean) => void
+}) {
+  return (
+    <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <label className="block text-base font-bold">Title</label>
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => onTitleChange(e.target.value)}
           placeholder="A short, action-oriented title"
           className="mt-3 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
           maxLength={200}
         />
       </div>
 
-      {/* Description */}
       <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="flex items-center justify-between gap-3">
           <label className="block text-base font-bold">Description</label>
           <div className="flex gap-1 rounded-md border border-border bg-surface-2 p-0.5">
             <button
               type="button"
-              onClick={() => setShowPreview(false)}
+              onClick={() => onTogglePreview(false)}
               className={
                 !showPreview
                   ? 'rounded-sm bg-surface px-2.5 py-1 text-[12px] font-semibold text-fg shadow-sm'
@@ -220,7 +390,7 @@ function ProposalCreateFormInner() {
             </button>
             <button
               type="button"
-              onClick={() => setShowPreview(true)}
+              onClick={() => onTogglePreview(true)}
               className={
                 showPreview
                   ? 'rounded-sm bg-surface px-2.5 py-1 text-[12px] font-semibold text-fg shadow-sm'
@@ -243,107 +413,184 @@ function ProposalCreateFormInner() {
           <textarea
             rows={10}
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => onDescriptionChange(e.target.value)}
             placeholder="Markdown supported — headings, lists, links, code, tables…"
             className="mt-3 w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-[13px] outline-none focus:border-accent"
           />
         )}
       </div>
+    </div>
+  )
+}
 
-      {/* Transactions */}
+function TransactionsStep({
+  drafts,
+  tokenMeta,
+  editor,
+  onOpenNew,
+  onOpenEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onRemove,
+  onEditorChange,
+}: {
+  drafts: TxDraft[]
+  tokenMeta: TokenMetaMap
+  editor: EditorState
+  onOpenNew: (kind: TxKind) => void
+  onOpenEdit: (i: number) => void
+  onCancelEdit: () => void
+  onSaveEdit: () => void
+  onRemove: (i: number) => void
+  onEditorChange: (next: TxDraft) => void
+}) {
+  if (editor.mode !== 'list') {
+    return (
       <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold">Transactions</h3>
-            <p className="mt-0.5 text-[12.5px] text-muted-fg">
-              Each call the proposal executes on success. Use empty calldata (0x) and a
-              non-zero value to send ETH.
-            </p>
-          </div>
-          <Button variant="secondary" onClick={addTx} className="self-start">
-            <Plus className="h-4 w-4" />
-            Add transaction
-          </Button>
-        </div>
-        <ul className="mt-4 flex flex-col gap-2.5">
-          {txs.map((tx, i) => (
-            <li
-              key={i}
-              className="rounded-md border border-border bg-surface-2 px-4 py-3"
-            >
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px_auto]">
-                <Field label="Target address">
-                  <input
-                    type="text"
-                    value={tx.target}
-                    onChange={(e) => updateTx(i, { target: e.target.value })}
-                    placeholder="0x…"
-                    className={textInputClass(
-                      tx.target.length > 0 && !isAddress(tx.target)
-                    )}
-                  />
-                </Field>
-                <Field label="Value (ETH)">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={tx.valueEth}
-                    onChange={(e) => updateTx(i, { valueEth: e.target.value })}
-                    placeholder="0"
-                    className={textInputClass(false)}
-                  />
-                </Field>
-                <button
-                  type="button"
-                  onClick={() => removeTx(i)}
-                  disabled={txs.length === 1}
-                  aria-label="Remove transaction"
-                  className="self-end rounded-md border border-border bg-surface px-3 py-2 text-muted-fg hover:bg-surface-3 disabled:opacity-40"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-              <Field label="Calldata (hex)">
-                <input
-                  type="text"
-                  value={tx.calldata}
-                  onChange={(e) => updateTx(i, { calldata: e.target.value })}
-                  placeholder="0x"
-                  className={textInputClass(!!tx.calldata && !isHex(tx.calldata))}
-                />
-              </Field>
-            </li>
+        <DraftForm
+          draft={editor.draft}
+          onChange={onEditorChange}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+          tokenMeta={tokenMeta}
+          saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Add to queue'}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+        <h3 className="text-base font-bold">Add a transaction</h3>
+        <p className="mt-1 text-[12.5px] text-muted-fg">
+          Each call the proposal executes if it passes. Pick a type to start.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {KINDS.map((k) => (
+            <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
           ))}
-        </ul>
+        </div>
       </div>
 
-      {/* Validation summary + submit */}
-      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-        {validation.errors.length > 0 && (
-          <ul className="mb-3 list-disc pl-5 text-[13px] text-warning">
-            {validation.errors.map((e, i) => (
-              <li key={i}>{e}</li>
+      {drafts.length > 0 && (
+        <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <h3 className="text-base font-bold">
+            Queue{' '}
+            <span className="ml-1 text-[12.5px] font-normal text-muted-fg">
+              {drafts.length}
+            </span>
+          </h3>
+          <ul className="mt-3 flex flex-col gap-2">
+            {drafts.map((d, i) => (
+              <li key={i}>
+                <SummaryCard
+                  draft={d}
+                  index={i}
+                  tokenMeta={tokenMeta}
+                  onEdit={() => onOpenEdit(i)}
+                  onRemove={() => onRemove(i)}
+                />
+              </li>
             ))}
           </ul>
-        )}
-        {phase === 'connect' ? (
-          <Button onClick={() => openConnectModal?.()} className="w-full">
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PreviewStep({
+  title,
+  description,
+  drafts,
+  tokenMeta,
+}: {
+  title: string
+  description: string
+  drafts: TxDraft[]
+  tokenMeta: TokenMetaMap
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <Review
+        title={title}
+        description={description}
+        drafts={drafts}
+        tokenMeta={tokenMeta}
+      />
+    </div>
+  )
+}
+
+function StepFooter({
+  step,
+  unlocked,
+  editing,
+  eligible,
+  phase,
+  isSwitching,
+  onBack,
+  onNext,
+  onConnect,
+  onSwitch,
+  onSubmit,
+  writeError,
+  mineError,
+}: {
+  step: WizardStep
+  unlocked: Record<WizardStep, boolean>
+  editing: boolean
+  eligible: boolean
+  phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle'
+  isSwitching: boolean
+  onBack: () => void
+  onNext: () => void
+  onConnect: () => void
+  onSwitch: () => void
+  onSubmit: () => void
+  writeError: unknown
+  mineError: unknown
+}) {
+  // While editing a transaction the focused form owns its own Save/Cancel.
+  if (step === 'transactions' && editing) return null
+
+  const isPreview = step === 'preview'
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          variant="outline"
+          onClick={onBack}
+          disabled={step === 'details'}
+          className="w-full sm:w-auto"
+        >
+          Back
+        </Button>
+
+        {!isPreview ? (
+          <Button
+            onClick={onNext}
+            disabled={!unlocked[step === 'details' ? 'transactions' : 'preview']}
+            className="w-full sm:w-auto"
+          >
+            {step === 'details' ? 'Next: Transactions' : 'Next: Preview'}
+          </Button>
+        ) : phase === 'connect' ? (
+          <Button onClick={onConnect} className="w-full sm:w-auto">
             Connect wallet to propose
           </Button>
         ) : phase === 'switch' ? (
-          <Button
-            onClick={() => switchChain({ chainId: daoConfig.chainId })}
-            className="w-full"
-            disabled={isSwitching}
-          >
+          <Button onClick={onSwitch} className="w-full sm:w-auto" disabled={isSwitching}>
             {isSwitching && <Loader2 className="h-4 w-4 animate-spin" />}
             Switch network
           </Button>
         ) : (
           <Button
-            onClick={submit}
-            disabled={!validation.ok || !eligible || phase === 'sign' || phase === 'mine'}
-            className="w-full"
+            onClick={onSubmit}
+            disabled={!eligible || phase === 'sign' || phase === 'mine'}
+            className="w-full sm:w-auto"
           >
             {phase === 'sign' && (
               <>
@@ -361,12 +608,12 @@ function ProposalCreateFormInner() {
             {(phase === 'idle' || phase === 'error') && 'Submit proposal'}
           </Button>
         )}
-        {phase === 'error' && (
-          <div className="mt-2 text-[12.5px] text-destructive">
-            {parseWriteError(writeError ?? mineError)}
-          </div>
-        )}
       </div>
+      {isPreview && phase === 'error' && (
+        <div className="mt-2 text-[12.5px] text-destructive">
+          {parseWriteError(writeError ?? mineError)}
+        </div>
+      )}
     </div>
   )
 }
@@ -405,20 +652,4 @@ function EligibilityBanner({
       {threshold + 1}+.
     </div>
   )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="mt-2 block">
-      <span className="block text-[12.5px] text-muted-fg">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
-  )
-}
-
-function textInputClass(error: boolean): string {
-  return [
-    'w-full rounded-md border bg-surface px-3 py-2 font-mono text-xs outline-none',
-    error ? 'border-warning focus:border-warning' : 'border-border focus:border-accent',
-  ].join(' ')
 }
