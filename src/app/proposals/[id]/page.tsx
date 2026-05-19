@@ -7,6 +7,7 @@ import { DecodedTransactions } from '@/components/dao/DecodedTransactions'
 import { ProposalActions } from '@/components/dao/ProposalActions'
 import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
+import { TreasuryInsufficientBadge } from '@/components/dao/TreasuryInsufficientBadge'
 import { VoteBar } from '@/components/dao/VoteBar'
 import { VotePanel } from '@/components/dao/VotePanel'
 import { WalletPill } from '@/components/dao/WalletPill'
@@ -55,6 +56,7 @@ export default async function ProposalDetailPage({ params }: { params: Params })
                 Prop {p.id}
               </span>
               <StatusBadge status={p.status} />
+              {p.treasuryInsufficient && <TreasuryInsufficientBadge withLabel />}
               <span className="text-[12.5px] text-muted-fg">{p.endsLabel}</span>
             </div>
             <h1 className="mt-2 font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">

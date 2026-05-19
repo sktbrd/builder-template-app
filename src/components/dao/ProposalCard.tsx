@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { ProposalSummary } from '@/lib/dao-data'
 
 import { StatusBadge } from './StatusBadge'
+import { TreasuryInsufficientBadge } from './TreasuryInsufficientBadge'
 import { VoteBar } from './VoteBar'
 import { WalletPill } from './WalletPill'
 
@@ -39,13 +40,16 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
         </div>
       </div>
       {hasReq && (
-        <div className="flex items-center justify-between border-t border-border pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
           <span className="text-[12.5px] text-muted-fg">Requested</span>
-          <span className="text-sm font-bold">
-            {p.requested.eth > 0 && `${p.requested.eth} ETH`}
-            {p.requested.eth > 0 && p.requested.usdc > 0 && ' · '}
-            {p.requested.usdc > 0 && `${p.requested.usdc.toLocaleString('en-US')} USDC`}
-          </span>
+          <div className="flex items-center gap-2">
+            {p.treasuryInsufficient && <TreasuryInsufficientBadge />}
+            <span className="text-sm font-bold">
+              {p.requested.eth > 0 && `${p.requested.eth} ETH`}
+              {p.requested.eth > 0 && p.requested.usdc > 0 && ' · '}
+              {p.requested.usdc > 0 && `${p.requested.usdc.toLocaleString('en-US')} USDC`}
+            </span>
+          </div>
         </div>
       )}
     </Link>

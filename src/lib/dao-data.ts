@@ -151,6 +151,13 @@ export type ProposalSummary = {
   quorum: number
   endsLabel: string
   requested: { eth: number; usdc: number }
+  /**
+   * True when the proposal's requested ETH or any tracked ERC-20 transfer
+   * exceeds the treasury's current balance. Only computed for proposals that
+   * could still execute (pending / active / succeeded / queued); resolved
+   * proposals (executed / defeated / vetoed / expired / cancelled) are false.
+   */
+  treasuryInsufficient: boolean
 }
 
 export type DashboardActivityItem = {
@@ -265,9 +272,15 @@ export async function getDashboardData(): Promise<DashboardData> {
   const recentProposers = Array.from(
     new Set(proposalsResp.proposals.map((p) => p.proposer))
   )
-  const recentProposerEns = await resolveEnsNames(recentProposers)
+  const [recentProposerEns, treasuryBalances] = await Promise.all([
+    resolveEnsNames(recentProposers),
+    fetchTreasuryBalances(),
+  ])
   const recentProposals: ProposalSummary[] = proposalsResp.proposals.map((p) =>
-    formatProposal(p, recentProposerEns.get(String(p.proposer).toLowerCase()) ?? null)
+    formatProposal(p, {
+      proposerEns: recentProposerEns.get(String(p.proposer).toLowerCase()) ?? null,
+      treasury: treasuryBalances,
+    })
   )
 
   const auctionRevenueByMonth = bucketAuctionRevenueByMonth(
@@ -350,7 +363,13 @@ function trimDec(value: string, max: number): string {
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
 
-function formatProposal(p: Proposal, proposerEns: string | null = null): ProposalSummary {
+type FormatProposalOptions = {
+  proposerEns?: string | null
+  /** Treasury holdings — ETH wei + per-token (lowercase addr) raw amounts. */
+  treasury?: TreasuryBalances
+}
+
+function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): ProposalSummary {
   const status = mapProposalState(p.state)
   const created = Number(p.timeCreated) * 1000
   const date = new Date(created).toLocaleDateString(undefined, {
@@ -358,22 +377,191 @@ function formatProposal(p: Proposal, proposerEns: string | null = null): Proposa
     day: '2-digit',
     year: 'numeric',
   })
+
+  const decoded = decodeRequestedAmounts(
+    p.targets ?? [],
+    splitCalldatas(p.calldatas as unknown as string | string[] | null | undefined),
+    p.values ?? []
+  )
+  const requested = formatRequestedForCard(decoded)
+  const treasuryInsufficient =
+    opts.treasury && isLiveStatus(status)
+      ? isInsufficientVsTreasury(decoded, opts.treasury)
+      : false
+
   return {
     id: Number(p.proposalNumber),
     proposalNumber: Number(p.proposalNumber),
     title: p.title ?? `Proposal ${p.proposalNumber}`,
     status,
     proposer: p.proposer,
-    proposerEns,
+    proposerEns: opts.proposerEns ?? null,
     date,
     forVotes: Number(p.forVotes ?? 0),
     againstVotes: Number(p.againstVotes ?? 0),
     abstainVotes: Number(p.abstainVotes ?? 0),
     quorum: Number(p.quorumVotes ?? 0),
     endsLabel: relativeLabel(status, created),
-    requested: { eth: 0, usdc: 0 }, // requested-amount decode lands with the
-    // upstream tx-decoder hook (not on the dashboard surface for now)
+    requested,
+    treasuryInsufficient,
   }
+}
+
+// ── Requested-amount decode + treasury-insufficient check ──
+
+type DecodedRequested = {
+  ethWei: bigint
+  /** lowercase token addr → raw amount (in token's base units) */
+  byToken: Map<string, bigint>
+}
+
+export type TreasuryBalances = {
+  ethWei: bigint
+  /** lowercase token addr → raw balance */
+  byToken: Map<string, bigint>
+}
+
+const ERC20_TRANSFER_SELECTOR = '0xa9059cbb' // transfer(address,uint256)
+
+/**
+ * `Proposal.calldatas` ships in two shapes depending on the read path:
+ *  - `getProposals(...)` (list helper) already pre-splits to `string[]`.
+ *  - `SubgraphSDK.connect(...).proposals(...)` returns the raw colon-separated
+ *    string straight from the subgraph.
+ *
+ * The TS types claim `Maybe<string>` in both cases, but the array shape is
+ * load-bearing at runtime — accept both and normalize.
+ */
+function splitCalldatas(raw: string | string[] | null | undefined): string[] {
+  if (!raw) return []
+  const parts = Array.isArray(raw) ? raw : raw.split(':')
+  return parts.filter(Boolean).map((c) => (c.startsWith('0x') ? c : `0x${c}`))
+}
+
+function decodeRequestedAmounts(
+  targets: readonly string[],
+  calldatas: readonly string[],
+  values: readonly string[]
+): DecodedRequested {
+  let ethWei = BigInt(0)
+  const byToken = new Map<string, bigint>()
+
+  const len = Math.max(targets.length, calldatas.length, values.length)
+  for (let i = 0; i < len; i++) {
+    const v = values[i]
+    if (v) {
+      try {
+        ethWei += BigInt(v)
+      } catch {
+        // ignore malformed
+      }
+    }
+    const cd = calldatas[i]
+    const tgt = targets[i]
+    if (cd && tgt && cd.toLowerCase().startsWith(ERC20_TRANSFER_SELECTOR)) {
+      // Standard ERC-20 transfer: 4-byte selector + 32-byte recipient + 32-byte
+      // amount. In hex chars that's 2 (0x) + 8 + 64 + 64 = 138.
+      if (cd.length >= 138) {
+        const amountHex = `0x${cd.slice(74, 138)}`
+        try {
+          const amount = BigInt(amountHex)
+          const key = tgt.toLowerCase()
+          byToken.set(key, (byToken.get(key) ?? BigInt(0)) + amount)
+        } catch {
+          // ignore unparseable amount
+        }
+      }
+    }
+  }
+
+  return { ethWei, byToken }
+}
+
+function formatRequestedForCard(d: DecodedRequested): { eth: number; usdc: number } {
+  const eth = Number(formatEther(d.ethWei))
+  // Sum stablecoin requests across configured treasury tokens whose symbol
+  // matches "USDC". Other ERC-20 requests don't show on the card (they still
+  // contribute to the insufficient check).
+  let usdcRaw = BigInt(0)
+  let usdcDecimals = 6
+  for (const t of daoConfig.treasuryTokens) {
+    if (t.symbol === 'USDC') {
+      const raw = d.byToken.get(t.address.toLowerCase()) ?? BigInt(0)
+      usdcRaw += raw
+      usdcDecimals = t.decimals
+    }
+  }
+  const base = BigInt(10) ** BigInt(usdcDecimals)
+  const usdc = Number(usdcRaw / base)
+  return { eth, usdc }
+}
+
+function isInsufficientVsTreasury(
+  requested: DecodedRequested,
+  treasury: TreasuryBalances
+): boolean {
+  if (requested.ethWei > treasury.ethWei) return true
+  for (const [addr, amount] of requested.byToken) {
+    const balance = treasury.byToken.get(addr) ?? BigInt(0)
+    if (amount > balance) return true
+  }
+  return false
+}
+
+/** Only proposals that could still execute get checked. */
+function isLiveStatus(status: ProposalStatus): boolean {
+  return (
+    status === 'pending' ||
+    status === 'active' ||
+    status === 'succeeded' ||
+    status === 'queued'
+  )
+}
+
+/**
+ * Reads the treasury's ETH balance + ERC-20 balances for every token listed in
+ * `daoConfig.treasuryTokens`. Used by the "insufficient treasury" badge logic.
+ * Returns zero balances if `publicClient` is unavailable.
+ */
+async function fetchTreasuryBalances(): Promise<TreasuryBalances> {
+  const byToken = new Map<string, bigint>()
+  if (!publicClient) return { ethWei: BigInt(0), byToken }
+
+  const tokens = daoConfig.treasuryTokens
+  const [ethWei, balances] = await Promise.all([
+    safeFetch(
+      'treasuryBalances.eth',
+      () =>
+        publicClient.getBalance({
+          address: daoConfig.addresses.treasury as `0x${string}`,
+        }),
+      BigInt(0)
+    ),
+    tokens.length === 0
+      ? Promise.resolve([] as Array<{ status: 'success' | 'failure'; result?: unknown }>)
+      : safeFetch(
+          'treasuryBalances.tokens',
+          () =>
+            publicClient.multicall({
+              contracts: tokens.map((t) => ({
+                address: t.address,
+                abi: erc20Abi,
+                functionName: 'balanceOf',
+                args: [daoConfig.addresses.treasury as `0x${string}`],
+              })),
+              allowFailure: true,
+            }),
+          [] as Array<{ status: 'success' | 'failure'; result?: unknown }>
+        ),
+  ])
+
+  balances.forEach((r, i) => {
+    const raw =
+      r?.status === 'success' && typeof r.result === 'bigint' ? r.result : BigInt(0)
+    byToken.set(tokens[i].address.toLowerCase(), raw)
+  })
+
+  return { ethWei, byToken }
 }
 
 function relativeLabel(status: ProposalStatus, createdMs: number) {
@@ -668,9 +856,15 @@ export async function getAllProposals(limit = 50): Promise<ProposalSummary[]> {
     { proposals: [] as Proposal[] }
   )
   const proposers = Array.from(new Set(resp.proposals.map((p) => p.proposer)))
-  const ensMap = await resolveEnsNames(proposers)
+  const [ensMap, treasuryBalances] = await Promise.all([
+    resolveEnsNames(proposers),
+    fetchTreasuryBalances(),
+  ])
   return resp.proposals.map((p) =>
-    formatProposal(p, ensMap.get(String(p.proposer).toLowerCase()) ?? null)
+    formatProposal(p, {
+      proposerEns: ensMap.get(String(p.proposer).toLowerCase()) ?? null,
+      treasury: treasuryBalances,
+    })
   )
 }
 
@@ -738,16 +932,8 @@ export async function getProposalByNumber(
   const fragment = resp.proposals[0]
   if (!fragment) return null
 
-  // Calldatas come back as a single concatenated string in the fragment;
-  // formatAndFetchState normally splits them. We replicate the split here:
-  // builder packs each call as 0x-prefixed hex, separated by ":".
-  const splitCalldatas = (raw: string | null | undefined): string[] => {
-    if (!raw) return []
-    return raw
-      .split(':')
-      .filter(Boolean)
-      .map((c) => (c.startsWith('0x') ? c : `0x${c}`))
-  }
+  // `Proposal.calldatas` is a single colon-separated string per Builder's
+  // encoding; the module-level `splitCalldatas` rebuilds the array form.
   const calldatasArr = splitCalldatas(fragment.calldatas)
   const targetsArr = fragment.targets ?? []
   const valuesArr = fragment.values ?? []
@@ -781,9 +967,14 @@ export async function getProposalByNumber(
   const rawVotes = (fragment as unknown as { votes?: Array<RawProposalVote> }).votes ?? []
 
   // Resolve ENS for the proposer + the top 20 voters in one batched call.
+  // Treasury balances are fetched in parallel for the insufficient-treasury
+  // badge on the summary.
   const proposerLc = String(fragment.proposer).toLowerCase()
   const voterAddrs = rawVotes.slice(0, 20).map((v) => String(v.voter))
-  const ensMap = await resolveEnsNames([fragment.proposer, ...voterAddrs])
+  const [ensMap, treasuryBalances] = await Promise.all([
+    resolveEnsNames([fragment.proposer, ...voterAddrs]),
+    fetchTreasuryBalances(),
+  ])
   const proposerEns = ensMap.get(proposerLc) ?? null
 
   const votes: ProposalDetailVote[] = rawVotes
@@ -802,7 +993,10 @@ export async function getProposalByNumber(
     }))
 
   return {
-    summary: formatProposal(proposalLike, proposerEns),
+    summary: formatProposal(proposalLike, {
+      proposerEns,
+      treasury: treasuryBalances,
+    }),
     proposalIdHash: String(fragment.proposalId) as `0x${string}`,
     descriptionHash: String(fragment.descriptionHash) as `0x${string}`,
     description: fragment.description ?? '',
