@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { AddressChip } from '@/components/dao/AddressChip'
+import { WalletPill } from '@/components/dao/WalletPill'
 import { DaoAvatar } from '@/components/DaoAvatar'
 import { daoConfig } from '@/lib/dao.config'
 import { getAboutPageData } from '@/lib/dao-data'
@@ -73,13 +73,22 @@ export default async function AboutPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {data.founders.map((f, i) => (
-              <FounderCard
+            {data.founders.map((f) => (
+              <div
                 key={f.wallet}
-                addr={f.walletShort}
-                share={`${f.ownershipPct}%`}
-                hue={(160 + i * 50) % 360}
-              />
+                className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-4 py-3.5"
+              >
+                <WalletPill
+                  address={f.wallet}
+                  ens={f.ens}
+                  showAvatar
+                  size="md"
+                  className="min-w-0 flex-1"
+                />
+                <div className="shrink-0 text-[12.5px] text-muted-fg">
+                  {f.ownershipPct}% share
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -96,7 +105,14 @@ export default async function AboutPage() {
               className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2 px-3.5 py-3"
             >
               <span className="font-semibold">{c.label}</span>
-              <AddressChip addr={truncate(c.addr)} />
+              <WalletPill
+                address={c.addr}
+                link={false}
+                showCopy
+                showExplorer
+                chainId={daoConfig.chainId}
+                size="sm"
+              />
             </li>
           ))}
         </ul>
@@ -114,28 +130,8 @@ function KvBlock({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function FounderCard({ addr, share, hue }: { addr: string; share: string; hue: number }) {
-  return (
-    <div className="flex items-center gap-3 rounded-md bg-surface-2 px-4 py-3.5">
-      <span
-        className="h-10 w-10 shrink-0 rounded-full"
-        style={{ background: `oklch(0.85 0.12 ${hue})` }}
-      />
-      <div>
-        <div className="font-mono text-xs">{addr}</div>
-        <div className="text-[12.5px] text-muted-fg">{share} share</div>
-      </div>
-    </div>
-  )
-}
-
 function trimDecimals(value: string, max: number): string {
   if (!value || !value.includes('.')) return value
   const [intPart, decPart] = value.split('.')
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
-}
-
-function truncate(addr: string) {
-  if (addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }

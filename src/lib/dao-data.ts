@@ -140,7 +140,10 @@ export type ProposalSummary = {
   proposalNumber: number
   title: string
   status: ProposalStatus
+  /** Full 0x address of the proposer. */
   proposer: string
+  /** Reverse-resolved ENS / basename, when one exists. */
+  proposerEns: string | null
   date: string
   forVotes: number
   againstVotes: number
@@ -259,8 +262,12 @@ export async function getDashboardData(): Promise<DashboardData> {
       }
     : null
 
+  const recentProposers = Array.from(
+    new Set(proposalsResp.proposals.map((p) => p.proposer))
+  )
+  const recentProposerEns = await resolveEnsNames(recentProposers)
   const recentProposals: ProposalSummary[] = proposalsResp.proposals.map((p) =>
-    formatProposal(p)
+    formatProposal(p, recentProposerEns.get(String(p.proposer).toLowerCase()) ?? null)
   )
 
   const auctionRevenueByMonth = bucketAuctionRevenueByMonth(
@@ -343,7 +350,7 @@ function trimDec(value: string, max: number): string {
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
 
-function formatProposal(p: Proposal): ProposalSummary {
+function formatProposal(p: Proposal, proposerEns: string | null = null): ProposalSummary {
   const status = mapProposalState(p.state)
   const created = Number(p.timeCreated) * 1000
   const date = new Date(created).toLocaleDateString(undefined, {
@@ -356,7 +363,8 @@ function formatProposal(p: Proposal): ProposalSummary {
     proposalNumber: Number(p.proposalNumber),
     title: p.title ?? `Proposal ${p.proposalNumber}`,
     status,
-    proposer: short(p.proposer),
+    proposer: p.proposer,
+    proposerEns,
     date,
     forVotes: Number(p.forVotes ?? 0),
     againstVotes: Number(p.againstVotes ?? 0),
@@ -659,7 +667,11 @@ export async function getAllProposals(limit = 50): Promise<ProposalSummary[]> {
     () => getProposals(chainId, tokenAddressLc, limit, 0),
     { proposals: [] as Proposal[] }
   )
-  return resp.proposals.map((p) => formatProposal(p))
+  const proposers = Array.from(new Set(resp.proposals.map((p) => p.proposer)))
+  const ensMap = await resolveEnsNames(proposers)
+  return resp.proposals.map((p) =>
+    formatProposal(p, ensMap.get(String(p.proposer).toLowerCase()) ?? null)
+  )
 }
 
 // ── Proposal detail page ───────────────────────────────────
@@ -790,7 +802,7 @@ export async function getProposalByNumber(
     }))
 
   return {
-    summary: formatProposal(proposalLike),
+    summary: formatProposal(proposalLike, proposerEns),
     proposalIdHash: String(fragment.proposalId) as `0x${string}`,
     descriptionHash: String(fragment.descriptionHash) as `0x${string}`,
     description: fragment.description ?? '',
@@ -828,6 +840,8 @@ function mapVoteSupport(
 export type AboutFounder = {
   wallet: string
   walletShort: string
+  /** Reverse-resolved ENS / basename, when one exists. */
+  ens: string | null
   ownershipPct: number
   vestExpiry: number
 }
@@ -874,6 +888,7 @@ export async function getAboutPageData(): Promise<AboutPageData> {
         return result.map((f) => ({
           wallet: f.wallet,
           walletShort: short(f.wallet),
+          ens: null as string | null,
           ownershipPct: f.ownershipPct,
           vestExpiry: Number(f.vestExpiry),
         }))
@@ -882,11 +897,17 @@ export async function getAboutPageData(): Promise<AboutPageData> {
     ),
   ])
 
+  const founderEnsMap = await resolveEnsNames(founders.map((f) => f.wallet))
+  const foundersWithEns = founders.map((f) => ({
+    ...f,
+    ens: founderEnsMap.get(f.wallet.toLowerCase()) ?? null,
+  }))
+
   return {
     treasuryEth: formatEther(treasuryWei),
     ownerCount: info?.dao?.ownerCount ?? 0,
     totalSupply: info?.dao?.totalSupply ?? 0,
-    founders,
+    founders: foundersWithEns,
   }
 }
 

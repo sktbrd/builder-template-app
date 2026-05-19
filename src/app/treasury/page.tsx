@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
-import { AddressChip } from '@/components/dao/AddressChip'
 import { AnalyticsBarChart } from '@/components/dao/AnalyticsBarChart'
 import { KpiCard } from '@/components/dao/KpiCard'
+import { WalletPill } from '@/components/dao/WalletPill'
 import { daoConfig } from '@/lib/dao.config'
 import { getTreasuryPageData } from '@/lib/dao-data'
 
@@ -30,7 +30,14 @@ export default async function TreasuryPage() {
             Overview of the {daoConfig.name} treasury holdings and financial position.
           </p>
         </div>
-        <AddressChip addr={truncate(data.treasuryAddress)} />
+        <WalletPill
+          address={data.treasuryAddress}
+          link={false}
+          showCopy
+          showExplorer
+          chainId={daoConfig.chainId}
+          size="sm"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -231,11 +238,6 @@ function lastTwelveMonthLabels(): string[] {
     out.push(['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'][dd.getMonth()])
   }
   return out
-}
-
-function truncate(addr: string) {
-  if (addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 function resolveIpfs(uri: string): string {
