@@ -19,6 +19,7 @@ import {
   VotingPowerExplainer,
   type VotingPowerScenario,
 } from '@/components/dao/VotingPowerExplainer'
+import { WalletPill } from '@/components/dao/WalletPill'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import { cn } from '@/lib/utils'
@@ -172,11 +173,9 @@ function VotePanelInner({
           voteStart={voteStart}
         />
         {address && (
-          <div className="text-[12.5px] text-muted-fg">
-            Voting as{' '}
-            <strong className={ensName ? 'font-semibold' : 'font-mono'}>
-              {ensName ?? short(address)}
-            </strong>
+          <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
+            <span>Voting as</span>
+            <WalletPill address={address} ens={ensName} link={false} size="xs" />
           </div>
         )}
       </aside>
@@ -274,15 +273,12 @@ function VotePanelInner({
       )}
 
       {address && (
-        <div className="text-[12.5px] text-muted-fg">
-          Voting as{' '}
-          <strong className={ensName ? 'font-semibold' : 'font-mono'}>
-            {ensName ?? short(address)}
-          </strong>
+        <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
+          <span>Voting as</span>
+          <WalletPill address={address} ens={ensName} link={false} size="xs" />
           {votingPower > 0 && (
             <>
-              {' '}
-              ·{' '}
+              <span>·</span>
               <strong className="font-semibold">
                 {votingPower} {votingPower === 1 ? 'vote' : 'votes'}
               </strong>
@@ -324,11 +320,6 @@ function ChoiceBtn({
       {label}
     </button>
   )
-}
-
-function short(addr: string) {
-  if (!addr || addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 function chainNameOf(id: number): string {

@@ -9,6 +9,7 @@ import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
 import { VoteBar } from '@/components/dao/VoteBar'
 import { VotePanel } from '@/components/dao/VotePanel'
+import { WalletPill } from '@/components/dao/WalletPill'
 import { Markdown } from '@/components/Markdown'
 import { PropdateThread } from '@/components/propdates/PropdateThread'
 import { daoConfig } from '@/lib/dao.config'
@@ -59,12 +60,14 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             <h1 className="mt-2 font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
               {p.title}
             </h1>
-            <div className="mt-2 text-[12.5px] text-muted-fg">
-              Proposed by{' '}
-              <strong className="font-semibold">
-                {detail.proposerEns ?? p.proposer}
-              </strong>{' '}
-              · {p.date}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
+              <span>Proposed by</span>
+              <WalletPill
+                address={detail.proposerFull}
+                ens={detail.proposerEns}
+                size="xs"
+              />
+              <span>· {p.date}</span>
             </div>
           </div>
 
