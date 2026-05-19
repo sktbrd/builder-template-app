@@ -991,6 +991,10 @@ export async function getMembersPageData(): Promise<MembersPageData> {
 export type MemberDetailToken = {
   tokenId: number
   mintedAt: number
+  /** Subgraph-stored token image URI (ipfs:// or http://). null when the
+   * subgraph hasn't indexed it yet. */
+  image: string | null
+  name: string | null
 }
 
 export type MemberDetailVote = {
@@ -1124,9 +1128,43 @@ export async function getMemberDetail(rawAddress: string): Promise<MemberDetail 
   ]
   const ensMap = await resolveEnsNames(ensTargets)
 
-  const tokens: MemberDetailToken[] = (owner?.daoTokens ?? [])
+  const rawTokens = (owner?.daoTokens ?? [])
     .map((t) => ({ tokenId: Number(t.tokenId), mintedAt: Number(t.mintedAt ?? 0) }))
     .sort((a, b) => a.tokenId - b.tokenId)
+
+  // Pull the Token entities for the held tokenIds so we can render artwork.
+  // Capped at 200 to keep the query payload bounded for whale wallets.
+  const TOKENS_IMAGE_CAP = 200
+  const imageById = new Map<number, { image: string | null; name: string | null }>()
+  if (rawTokens.length > 0) {
+    const tokenIds = rawTokens.slice(0, TOKENS_IMAGE_CAP).map((t) => t.tokenId)
+    const tokensResp = await safeFetch(
+      'memberDetail.tokenImages',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: {
+            tokenContract: tokenAddressLc,
+            tokenId_in: tokenIds.map((id) => BigInt(id).toString()) as never,
+          } as never,
+          first: TOKENS_IMAGE_CAP,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    )
+    for (const t of tokensResp.tokens) {
+      imageById.set(Number(t.tokenId), {
+        image: t.image ?? null,
+        name: t.name ?? null,
+      })
+    }
+  }
+
+  const tokens: MemberDetailToken[] = rawTokens.map((t) => ({
+    ...t,
+    image: imageById.get(t.tokenId)?.image ?? null,
+    name: imageById.get(t.tokenId)?.name ?? null,
+  }))
 
   const joinedAt = tokens.reduce<number>(
     (min, t) => (min === 0 || (t.mintedAt > 0 && t.mintedAt < min) ? t.mintedAt : min),

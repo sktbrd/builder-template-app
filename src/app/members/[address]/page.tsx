@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/dao/StatusBadge'
 import { WalletPill } from '@/components/dao/WalletPill'
 import { daoConfig } from '@/lib/dao.config'
 import { getMemberDetail } from '@/lib/dao-data'
+import { resolveIpfs } from '@/lib/utils'
 
 export const revalidate = 60
 
@@ -253,21 +254,38 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
               {detail.tokens.length}
             </span>
           </h3>
-          <div className="flex flex-wrap gap-2">
+          <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {detail.tokens.map((t) => (
-              <span
-                key={t.tokenId}
-                className="inline-flex items-center rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-xs text-fg"
-                title={
-                  t.mintedAt
-                    ? `Minted ${new Date(t.mintedAt * 1000).toLocaleDateString()}`
-                    : undefined
-                }
-              >
-                #{t.tokenId}
-              </span>
+              <li key={t.tokenId}>
+                <Link
+                  href={`/auction/${t.tokenId}`}
+                  className="group relative block aspect-square overflow-hidden rounded-md border border-border bg-surface-2"
+                  title={
+                    t.mintedAt
+                      ? `${t.name ?? `#${t.tokenId}`} · minted ${new Date(t.mintedAt * 1000).toLocaleDateString()}`
+                      : (t.name ?? `#${t.tokenId}`)
+                  }
+                >
+                  {t.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={resolveIpfs(t.image)}
+                      alt={t.name ?? `Token #${t.tokenId}`}
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center font-mono text-xs text-muted-fg">
+                      #{t.tokenId}
+                    </div>
+                  )}
+                  <span className="absolute bottom-1.5 left-1.5 rounded-full border border-white/15 bg-black/55 px-2 py-0.5 font-mono text-[10.5px] font-semibold text-white backdrop-blur-md">
+                    #{t.tokenId}
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
     </div>
