@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import {
+  assertPinataApiRequest,
   generateUploadJWT,
   PinataConfigError,
   PinataRequestError,
@@ -9,8 +10,9 @@ import {
 
 export const runtime = 'nodejs'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    assertPinataApiRequest(req)
     const result = await generateUploadJWT()
     return NextResponse.json(result, {
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },

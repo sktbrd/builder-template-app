@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import {
+  assertPinataApiRequest,
   PinataConfigError,
   PinataRequestError,
   PinataUpstreamError,
@@ -11,6 +12,7 @@ export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    assertPinataApiRequest(req)
     const body = (await req.json().catch(() => ({}))) as {
       cid?: string
       name?: string

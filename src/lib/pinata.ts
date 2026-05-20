@@ -9,6 +9,11 @@ import { pinataOptions, type UploadType } from '@buildeross/ipfs-service'
 
 const PINATA_BASE_URL = 'https://api.pinata.cloud'
 const PINATA_UPLOAD_URL = 'https://uploads.pinata.cloud'
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 30
+
+type RateBucket = { count: number; resetAt: number }
+const rateBuckets = new Map<string, RateBucket>()
 
 const UPLOAD_JWT_KEY_RESTRICTIONS = {
   keyName: 'Signed Upload JWT',
@@ -82,11 +87,55 @@ export class PinataUpstreamError extends Error {
   }
 }
 
+export function assertPinataApiRequest(req: Request) {
+  assertSameOrigin(req)
+  assertRateLimit(req)
+}
+
+function assertSameOrigin(req: Request) {
+  const origin = req.headers.get('origin')
+  if (!origin) {
+    throw new PinataRequestError('Missing Origin header', 403)
+  }
+
+  const expected = new URL(req.url)
+  const actual = new URL(origin)
+  if (actual.host !== expected.host || actual.protocol !== expected.protocol) {
+    throw new PinataRequestError('Invalid Origin header', 403)
+  }
+}
+
+function assertRateLimit(req: Request) {
+  const now = Date.now()
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  const path = new URL(req.url).pathname
+  const key = `${ip}:${path}`
+  const bucket = rateBuckets.get(key)
+
+  if (!bucket || now > bucket.resetAt) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return
+  }
+
+  bucket.count += 1
+  if (bucket.count > RATE_LIMIT_MAX) {
+    throw new PinataRequestError('Too many upload requests', 429)
+  }
+}
+
 export async function pinJsonToIPFS(
   data: unknown
 ): Promise<{ cid: string; status: string }> {
   if (!data || typeof data !== 'object') {
     throw new PinataRequestError('Invalid or missing JSON data')
+  }
+
+  const serialized = JSON.stringify(data)
+  if (serialized.length > 100_000) {
+    throw new PinataRequestError('JSON payload is too large')
   }
 
   const pinRes = await fetchWithTimeout(`${PINATA_BASE_URL}/pinning/pinJSONToIPFS`, {
@@ -121,6 +170,9 @@ export async function pinCidToIPFS(options: {
   const { cid, name, group_id } = options
 
   if (!cid) throw new PinataRequestError('CID is required')
+  if (!/^[a-zA-Z0-9]+$/.test(cid) || cid.length > 100) {
+    throw new PinataRequestError('Invalid CID')
+  }
   if (name && name.length > 32) {
     throw new PinataRequestError('Name is too long (max 32 characters)')
   }
