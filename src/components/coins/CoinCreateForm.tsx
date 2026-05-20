@@ -122,6 +122,7 @@ function CoinCreateFormInner() {
     data: txHash,
     isPending: isWriting,
     error: writeError,
+    reset: resetWrite,
   } = useWriteContract()
   const {
     data: receipt,
@@ -181,12 +182,14 @@ function CoinCreateFormInner() {
 
   async function submit() {
     if (!valid || !address || !latestClankerToken || !publicClient) return
+    resetWrite()
+    setPrepError(null)
+
     if (!clankerTokenPriceUsd) {
       setPrepError('Waiting on clanker token price — try again in a moment.')
       return
     }
 
-    setPrepError(null)
     setIsPreparing(true)
 
     try {
@@ -273,7 +276,6 @@ function CoinCreateFormInner() {
     !valid ||
     !accepted ||
     disabled ||
-    phase === 'error' ||
     priceLoading ||
     !!priceError ||
     !clankerTokenPriceUsd

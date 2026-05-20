@@ -123,20 +123,22 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   })
 
   const devBuyTooLarge = useMemo(() => {
-    const raw = devBuyEth.trim()
-    if (!raw || !treasuryBalance) return false
-    try {
-      return parseEther(raw) > treasuryBalance.value
-    } catch {
-      return false
-    }
+    const parsed = parseOptionalEth(devBuyEth)
+    if (!parsed || !treasuryBalance) return false
+    return parsed > treasuryBalance.value
   }, [devBuyEth, treasuryBalance])
+  const devBuyInvalid = devBuyEth.trim() !== '' && parseOptionalEth(devBuyEth) === null
+  const devBuyNumber = useMemo(() => {
+    const parsed = parseOptionalEth(devBuyEth)
+    return parsed ? Number(formatEther(parsed)) : undefined
+  }, [devBuyEth])
 
   const {
     writeContract,
     data: txHash,
     isPending: isWriting,
     error: writeError,
+    reset: resetWrite,
   } = useWriteContract()
   const {
     isLoading: isMining,
@@ -201,9 +203,9 @@ function ModalContent({ onClose }: { onClose: () => void }) {
         symbol,
         description: coinDescription,
         treasury: daoConfig.addresses.treasury as Address,
-        devBuyEth: devBuyEth.trim() ? Number(devBuyEth) : undefined,
+        devBuyEth: devBuyNumber,
       }),
-    [name, symbol, coinDescription, devBuyEth]
+    [name, symbol, coinDescription, devBuyNumber]
   )
 
   const displayedTitle = titleTouched ? proposalTitle : livePreview.title
@@ -211,14 +213,24 @@ function ModalContent({ onClose }: { onClose: () => void }) {
 
   async function submit() {
     if (!valid || !address || !ethUsdPrice || !wethAddress) return
+    resetWrite()
+    setPrepError(null)
+
     if (!eligible) {
       setPrepError(
         `Not eligible to propose — you hold ${myBalance} ${myBalance === 1 ? 'token' : 'tokens'} (threshold ${proposalThreshold + 1}+).`
       )
       return
     }
+    if (devBuyInvalid) {
+      setPrepError('Initial purchase must be a valid ETH amount.')
+      return
+    }
+    if (devBuyTooLarge || (devBuyNumber !== undefined && !treasuryBalance)) {
+      setPrepError('Initial purchase cannot exceed the loaded treasury balance.')
+      return
+    }
 
-    setPrepError(null)
     setIsPreparing(true)
 
     try {
@@ -235,7 +247,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
           symbol: symbol.trim().toUpperCase(),
           description: coinDescription.trim(),
           image: upload.uri,
-          devBuyEth: devBuyEth.trim() ? Number(devBuyEth) : undefined,
+          devBuyEth: devBuyNumber,
         },
         { publicClient: publicClient ?? undefined }
       )
@@ -367,16 +379,21 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   type="text"
                   inputMode="decimal"
                   value={devBuyEth}
-                  onChange={(e) => setDevBuyEth(e.target.value.replace(/[^\d.]/g, ''))}
+                  onChange={(e) => setDevBuyEth(e.target.value.trim())}
                   placeholder="0"
                   disabled={disabled}
                   className={
                     'w-full rounded-md border bg-surface px-3 py-2.5 font-mono text-sm outline-none focus:border-accent disabled:opacity-60 ' +
-                    (devBuyTooLarge
+                    (devBuyTooLarge || devBuyInvalid
                       ? 'border-destructive focus:border-destructive'
                       : 'border-border')
                   }
                 />
+                {devBuyInvalid && (
+                  <p className="mt-1 text-[11.5px] text-destructive">
+                    Enter a valid ETH amount.
+                  </p>
+                )}
                 {devBuyTooLarge && treasuryBalance && (
                   <p className="mt-1 text-[11.5px] text-destructive">
                     Exceeds treasury balance ({formatTreasury(treasuryBalance.value)} ETH
@@ -411,8 +428,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   className="mt-2 w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-[12px] outline-none focus:border-accent disabled:opacity-60"
                 />
                 <p className="mt-2 text-[11.5px] text-muted-fg">
-                  Live-filled from your coin fields. Anything you type here
-                  overrides it.
+                  Live-filled from your coin fields. Anything you type here overrides it.
                 </p>
               </div>
 
@@ -479,9 +495,10 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                     !ethUsdPrice ||
                     priceLoading ||
                     !!priceError ||
+                    devBuyInvalid ||
                     devBuyTooLarge ||
                     disabled ||
-                    phase === 'error'
+                    (devBuyNumber !== undefined && !treasuryBalance)
                   }
                   className="w-full"
                 >
@@ -531,6 +548,16 @@ function formatTreasury(wei: bigint): string {
   if (eth >= 1) return eth.toFixed(2)
   if (eth >= 0.001) return eth.toFixed(4)
   return eth.toExponential(2)
+}
+
+function parseOptionalEth(value: string): bigint | null {
+  const raw = value.trim()
+  if (!raw) return null
+  try {
+    return parseEther(raw)
+  } catch {
+    return null
+  }
 }
 
 function Field({
