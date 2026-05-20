@@ -30,14 +30,16 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
 
   const filtered = useMemo(() => {
     const ql = q.toLowerCase()
-    return members.filter((m) => ((m.ens ?? '') + m.addr).toLowerCase().includes(ql))
+    return members.filter((m) =>
+      ((m.ens ?? '') + m.addr + m.addrFull).toLowerCase().includes(ql)
+    )
   }, [members, q])
 
   const exportCsv = () => {
     const header = ['ens', 'address', 'votes', 'vote_pct', 'joined', 'active']
     const rows = filtered.map((m) => [
       m.ens ?? '',
-      m.addr,
+      m.addrFull,
       m.votes,
       m.pct,
       m.joined,

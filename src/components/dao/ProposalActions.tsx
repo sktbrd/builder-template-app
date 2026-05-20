@@ -1,6 +1,7 @@
 'use client'
 
 import { governorAbi } from '@buildeross/sdk/contract'
+import { ProposalState } from '@buildeross/types'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -66,8 +67,21 @@ const VETO_STATES: ReadonlySet<ProposalStatus> = new Set([
 ])
 
 function ProposalActionsInner({ detail }: Props) {
-  const status = detail.summary.status
   const { address } = useAccount()
+
+  // Action buttons should follow the governor's live state, not only the
+  // server-rendered/subgraph status. The subgraph can lag after queue/execute,
+  // which would otherwise leave users with buttons that immediately revert.
+  const { data: liveState } = useReadContract({
+    address: daoConfig.addresses.governor as Address,
+    abi: governorAbi,
+    functionName: 'state',
+    args: [detail.proposalIdHash],
+    chainId: daoConfig.chainId,
+    query: { refetchInterval: 15_000 },
+  })
+
+  const status = mapLiveProposalState(liveState) ?? detail.summary.status
 
   // Vetoer is set at DAO deploy time and may be `0x0` (burned). Only read
   // when we'd otherwise render a veto button, to keep the page lighter.
@@ -411,6 +425,32 @@ function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60)
   if (m >= 1) return `${m}m`
   return `${sec}s`
+}
+
+function mapLiveProposalState(state: unknown): ProposalStatus | null {
+  if (state === undefined || state === null) return null
+  switch (Number(state)) {
+    case ProposalState.Pending:
+      return 'pending'
+    case ProposalState.Active:
+      return 'active'
+    case ProposalState.Canceled:
+      return 'cancelled'
+    case ProposalState.Defeated:
+      return 'defeated'
+    case ProposalState.Succeeded:
+      return 'succeeded'
+    case ProposalState.Queued:
+      return 'queued'
+    case ProposalState.Expired:
+      return 'expired'
+    case ProposalState.Executed:
+      return 'executed'
+    case ProposalState.Vetoed:
+      return 'vetoed'
+    default:
+      return null
+  }
 }
 
 // Tiny re-tick so the "Available in 2h" copy updates without a hard refresh.

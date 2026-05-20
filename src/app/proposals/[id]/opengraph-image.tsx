@@ -25,11 +25,12 @@ type Params = Promise<{ id: string }>
 
 export default async function ProposalOGImage({ params }: { params: Params }) {
   const { id } = await params
-  const proposalNumber = parseInt(id, 10)
+  const isValidProposalNumber = /^\d+$/.test(id)
+  const proposalNumber = isValidProposalNumber ? parseInt(id, 10) : null
   const c = ogColors()
   const logoUrl = resolveIpfs(daoConfig.image)
 
-  let title = `Proposal #${proposalNumber}`
+  let title = proposalNumber === null ? 'Proposal' : `Proposal #${proposalNumber}`
   let proposer = ''
   let status: keyof typeof STATUS_COLORS = 'pending'
   let forVotes = 0
@@ -37,7 +38,7 @@ export default async function ProposalOGImage({ params }: { params: Params }) {
   let abstainVotes = 0
   let quorum = 0
 
-  if (Number.isFinite(proposalNumber) && proposalNumber >= 0) {
+  if (proposalNumber !== null && Number.isFinite(proposalNumber) && proposalNumber >= 0) {
     try {
       const detail = await getProposalByNumber(proposalNumber)
       if (detail) {

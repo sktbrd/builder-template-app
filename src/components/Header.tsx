@@ -39,7 +39,11 @@ const BASE_NAV_ITEMS: NavItem[] = [
     match: (p: string) => p === '/proposals' || p.startsWith('/proposals/'),
   },
   { href: '/treasury', label: 'Treasury', match: (p: string) => p === '/treasury' },
-  { href: '/members', label: 'Members', match: (p: string) => p === '/members' },
+  {
+    href: '/members',
+    label: 'Members',
+    match: (p: string) => p === '/members' || p.startsWith('/members/'),
+  },
   { href: '/feed', label: 'Feed', match: (p: string) => p === '/feed' },
   { href: '/about', label: 'About', match: (p: string) => p === '/about' },
 ]

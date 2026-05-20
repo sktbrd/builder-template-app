@@ -22,6 +22,8 @@ type Params = Promise<{ id: string }>
 
 export default async function ProposalDetailPage({ params }: { params: Params }) {
   const { id } = await params
+  if (!/^\d+$/.test(id)) notFound()
+
   const proposalNumber = parseInt(id, 10)
   if (!Number.isFinite(proposalNumber) || proposalNumber < 0) notFound()
 
