@@ -1,6 +1,7 @@
 'use client'
 
 import { NATIVE_TOKEN_ADDRESS } from '@buildeross/constants/addresses'
+import { ETHERSCAN_BASE_URL } from '@buildeross/constants/etherscan'
 import {
   useExecuteSwap,
   useSwapOptions,
@@ -10,12 +11,15 @@ import {
 import { CHAIN_ID } from '@buildeross/types'
 import { isChainIdSupportedForSaleOfZoraCoins } from '@buildeross/utils/coining'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
+import { ExternalLink } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type Address, formatEther, parseEther } from 'viem'
+import { type Address, erc20Abi, formatEther, parseEther } from 'viem'
 import {
   useAccount,
+  useBalance,
   useChainId,
   usePublicClient,
+  useReadContract,
   useSwitchChain,
   useWalletClient,
 } from 'wagmi'
@@ -69,8 +73,9 @@ function CoinTradeWidgetInner({
   )
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null)
 
-  const { isConnected } = useAccount()
+  const { address: userAddress, isConnected } = useAccount()
   const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
@@ -106,6 +111,35 @@ function CoinTradeWidgetInner({
   )
   const path = selectedOption?.path
 
+  // Input token: what the user is spending. ETH on buy w/ native; otherwise the ERC20.
+  const inputTokenAddress = isBuying ? selectedPaymentToken : (coinAddress as Address)
+  const isInputNativeEth =
+    isBuying && selectedPaymentToken.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()
+
+  const { data: nativeBalance, refetch: refetchNativeBalance } = useBalance({
+    address: userAddress,
+    chainId,
+    query: { enabled: !!userAddress && isInputNativeEth },
+  })
+
+  const { data: erc20Balance, refetch: refetchErc20Balance } = useReadContract({
+    address: inputTokenAddress,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: userAddress ? [userAddress] : undefined,
+    chainId,
+    query: { enabled: !!userAddress && !isInputNativeEth },
+  })
+
+  const inputBalance: bigint | undefined = isInputNativeEth
+    ? nativeBalance?.value
+    : (erc20Balance as bigint | undefined)
+
+  function refetchBalance() {
+    if (isInputNativeEth) refetchNativeBalance()
+    else refetchErc20Balance()
+  }
+
   const amountInBigInt = useMemo(() => {
     if (!amount) return BigInt(0)
     try {
@@ -137,9 +171,11 @@ function CoinTradeWidgetInner({
     setAmount('')
     setPhase('idle')
     setError(null)
+    setTxHash(null)
   }, [tab, selectedPaymentToken])
 
-  // After success, briefly show Posted ✓ then return to idle.
+  // After success, keep the tx hash visible but reset the input + phase so the
+  // user can chain another trade.
   useEffect(() => {
     if (phase !== 'done') return
     const t = setTimeout(() => {
@@ -158,6 +194,7 @@ function CoinTradeWidgetInner({
     if (!path || !amountOut || amountOut === BigInt(0) || !publicClient) return
     setPhase('submitting')
     setError(null)
+    setTxHash(null)
     try {
       const hash = await execute({
         chainId,
@@ -166,15 +203,29 @@ function CoinTradeWidgetInner({
         amountOut,
         slippage: 0.05,
       })
+      setTxHash(hash)
       setPhase('mining')
       const receipt = await publicClient.waitForTransactionReceipt({ hash })
       if (receipt.status === 'reverted') throw new Error('Transaction reverted')
       setPhase('done')
+      refetchBalance()
     } catch (e) {
       setPhase('error')
       setError(parseTradeError(e))
     }
   }
+
+  function setMax() {
+    if (inputBalance == null) return
+    // For native ETH, leave a small buffer for gas.
+    const buffer = isInputNativeEth ? parseEther('0.0002') : BigInt(0)
+    const usable = inputBalance > buffer ? inputBalance - buffer : BigInt(0)
+    setAmount(formatEther(usable))
+  }
+
+  const exceedsBalance = inputBalance != null && amountInBigInt > inputBalance
+  const explorerBase = ETHERSCAN_BASE_URL[chainId]
+  const txUrl = txHash && explorerBase ? `${explorerBase}/tx/${txHash}` : null
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-surface-2 px-4 py-3">
@@ -226,9 +277,26 @@ function CoinTradeWidgetInner({
       </label>
 
       <div className="flex items-center justify-between text-[11.5px] text-muted-fg">
-        <span>
-          {isBuying ? 'Spend' : 'Sell'} {inputUnit} for {outputUnit}. Slippage 5%.
-        </span>
+        {userAddress && inputBalance != null ? (
+          <span>
+            Balance:{' '}
+            <span className="font-mono">
+              {formatShortAmount(inputBalance)} {inputUnit}
+            </span>{' '}
+            <button
+              type="button"
+              onClick={setMax}
+              disabled={inputBalance === BigInt(0)}
+              className="font-semibold text-accent-strong hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Max
+            </button>
+          </span>
+        ) : (
+          <span>
+            {isBuying ? 'Spend' : 'Sell'} {inputUnit} for {outputUnit}. Slippage 5%.
+          </span>
+        )}
         {amountValid && quoteLoading && <span>Quoting…</span>}
         {amountValid && !quoteLoading && amountOut != null && amountOut > BigInt(0) && (
           <span className="font-mono">
@@ -237,10 +305,28 @@ function CoinTradeWidgetInner({
         )}
       </div>
 
-      {(error || quoteError) && (
+      {exceedsBalance && (
+        <div className="text-[12px] text-destructive">
+          Amount exceeds your {inputUnit} balance.
+        </div>
+      )}
+
+      {(error || quoteError) && !exceedsBalance && (
         <div className="text-[12px] text-destructive">
           {error ?? parseTradeError(quoteError)}
         </div>
+      )}
+
+      {txUrl && (phase === 'mining' || phase === 'done') && (
+        <a
+          href={txUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11.5px] text-accent-strong hover:underline"
+        >
+          {phase === 'mining' ? 'View pending tx' : 'View tx'}
+          <ExternalLink className="h-3 w-3" />
+        </a>
       )}
 
       {!isConnected ? (
@@ -264,6 +350,7 @@ function CoinTradeWidgetInner({
           size="md"
           disabled={
             !amountValid ||
+            exceedsBalance ||
             !path ||
             optionsLoading ||
             quoteLoading ||

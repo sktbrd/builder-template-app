@@ -3,6 +3,7 @@
 import { fetchIpfsMetadata } from '@buildeross/ipfs-service'
 import { type ZoraCoinFragment } from '@buildeross/sdk/subgraph'
 import { formatTimeAgo } from '@buildeross/utils'
+import { DYNAMIC_FEE_FLAG } from '@buildeross/utils/coining'
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -108,7 +109,11 @@ export function CoinDetail({ coin }: Props) {
             </FieldRow>
             {coin.poolFee != null && (
               <FieldRow label="Pool fee">
-                <span>{(Number(coin.poolFee) / 10000).toFixed(2)}%</span>
+                <span>
+                  {Number(coin.poolFee) === DYNAMIC_FEE_FLAG
+                    ? 'Dynamic'
+                    : `${(Number(coin.poolFee) / 10000).toFixed(2)}%`}
+                </span>
               </FieldRow>
             )}
           </div>
