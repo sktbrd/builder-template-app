@@ -361,7 +361,13 @@ function CoinCreateFormInner() {
           )}
           {clankerTokenPriceUsd != null && (
             <div className="text-[12px] text-muted-fg">
-              Current price: ${clankerTokenPriceUsd.toPrecision(4)} per token
+              Current price:{' '}
+              {new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                maximumSignificantDigits: 4,
+              }).format(clankerTokenPriceUsd)}{' '}
+              per token
             </div>
           )}
         </div>

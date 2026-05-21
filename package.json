@@ -19,6 +19,7 @@
     "@buildeross/ipfs-service": "0.3.2",
     "@buildeross/sdk": "0.3.2",
     "@buildeross/stores": "0.3.2",
+    "@buildeross/swap": "0.3.2",
     "@buildeross/types": "0.3.2",
     "@buildeross/ui": "0.3.2",
     "@buildeross/utils": "0.3.2",

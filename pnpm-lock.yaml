@@ -26,6 +26,9 @@ importers:
       '@buildeross/stores':
         specifier: 0.3.2
         version: 0.3.2(@buildeross/constants@0.3.2(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(wagmi@2.18.2(@tanstack/query-core@5.90.5)(@tanstack/react-query@5.90.5(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.0.9)(ioredis@5.8.2)(react@19.2.5)(typescript@5.9.3)(utf-8-validate@6.0.6)(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))(zod@4.1.12)))(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))
+      '@buildeross/swap':
+        specifier: 0.3.2
+        version: 0.3.2(@buildeross/constants@0.3.2(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(wagmi@2.18.2(@tanstack/query-core@5.90.5)(@tanstack/react-query@5.90.5(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.0.9)(ioredis@5.8.2)(react@19.2.5)(typescript@5.9.3)(utf-8-validate@6.0.6)(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))(zod@4.1.12)))(@buildeross/sdk@0.3.2(aee6836ad6f7f6cb0a314139be6744bb))(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))
       '@buildeross/types':
         specifier: 0.3.2
         version: 0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))
@@ -346,6 +349,14 @@ packages:
       '@buildeross/constants': 0.3.2
       '@buildeross/types': 0.3.2
       react: ^19.2.1
+
+  '@buildeross/swap@0.3.2':
+    resolution: {integrity: sha512-D/R+80vZV87kpxOfoavTFXepzXxwjDxzHDcL6+X5qrUBVvGLm/Ogk6m9gP3hbrQfjunH2D/KY46pvz6rmKxheA==}
+    peerDependencies:
+      '@buildeross/constants': 0.3.2
+      '@buildeross/sdk': 0.3.2
+      '@buildeross/types': 0.3.2
+      viem: ^2.47.1
 
   '@buildeross/types@0.3.2':
     resolution: {integrity: sha512-gRDMCiCjmsPLeX0BYnm6bwI+UfRDKaSR6D+dI1IVeKVbXQ2GtcP+3tfUFw7/d8mTrg6Q+rnkVSnxGGzLgKGTAg==}
@@ -7417,6 +7428,13 @@ snapshots:
       - '@types/react'
       - immer
       - use-sync-external-store
+
+  '@buildeross/swap@0.3.2(@buildeross/constants@0.3.2(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(wagmi@2.18.2(@tanstack/query-core@5.90.5)(@tanstack/react-query@5.90.5(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.0.9)(ioredis@5.8.2)(react@19.2.5)(typescript@5.9.3)(utf-8-validate@6.0.6)(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))(zod@4.1.12)))(@buildeross/sdk@0.3.2(aee6836ad6f7f6cb0a314139be6744bb))(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))':
+    dependencies:
+      '@buildeross/constants': 0.3.2(@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)))(wagmi@2.18.2(@tanstack/query-core@5.90.5)(@tanstack/react-query@5.90.5(react@19.2.5))(@types/react@19.2.14)(bufferutil@4.0.9)(ioredis@5.8.2)(react@19.2.5)(typescript@5.9.3)(utf-8-validate@6.0.6)(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))(zod@4.1.12))
+      '@buildeross/sdk': 0.3.2(aee6836ad6f7f6cb0a314139be6744bb)
+      '@buildeross/types': 0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))
+      viem: 2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12)
 
   '@buildeross/types@0.3.2(viem@2.49.2(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.1.12))':
     dependencies:

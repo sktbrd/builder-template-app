@@ -13,6 +13,7 @@ import {
 import { useState } from 'react'
 import useSWR from 'swr'
 
+import { CoinTradeWidget } from '@/components/coins/CoinTradeWidget'
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
@@ -53,7 +54,7 @@ export function CoinDetail({ coin }: Props) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="overflow-hidden rounded-xl border border-border bg-surface-2">
           {animation ? (
             <video
@@ -120,6 +121,11 @@ export function CoinDetail({ coin }: Props) {
             )}
           </div>
 
+          <CoinTradeWidget
+            coinAddress={coin.coinAddress}
+            coinSymbol={coin.symbol ?? null}
+          />
+
           <div className="flex flex-wrap items-center gap-2">
             {zoraUrl && (
               <a href={zoraUrl} target="_blank" rel="noopener noreferrer">
@@ -177,7 +183,12 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-mono text-[12.5px]">{value}</span>
+        <span
+          className="truncate font-mono text-[12.5px]"
+          title={value}
+        >
+          {shortValue(value)}
+        </span>
         <button
           type="button"
           onClick={async () => {
@@ -207,4 +218,20 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 function shortAddress(addr: string): string {
   if (!addr || addr.length < 10) return addr
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+}
+
+function shortValue(value: string): string {
+  if (!value) return value
+  if (value.startsWith('0x') && value.length > 12) {
+    return `${value.slice(0, 6)}…${value.slice(-4)}`
+  }
+  if (value.startsWith('ipfs://')) {
+    const cid = value.slice('ipfs://'.length)
+    if (cid.length <= 16) return value
+    return `ipfs://${cid.slice(0, 6)}…${cid.slice(-4)}`
+  }
+  if (value.length > 24) {
+    return `${value.slice(0, 10)}…${value.slice(-6)}`
+  }
+  return value
 }
