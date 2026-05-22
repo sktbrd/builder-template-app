@@ -852,8 +852,6 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   }
 }
 
-const ERC20_TRANSFER_SELECTOR = '0xa9059cbb'
-
 function decodePropTransfers(
   targets: string[],
   calldatas: string[],
