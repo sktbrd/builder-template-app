@@ -3,8 +3,8 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { DecodedTransactions } from '@/components/dao/DecodedTransactions'
 import { ProposalActions } from '@/components/dao/ProposalActions'
+import { ProposalTransactionList } from '@/components/dao/ProposalTransactionList'
 import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
 import { TreasuryInsufficientBadge } from '@/components/dao/TreasuryInsufficientBadge'
@@ -106,11 +106,15 @@ export default async function ProposalDetailPage({ params }: { params: Params })
                 {transactions.length}
               </span>
             </h3>
-            <DecodedTransactions
+            <ProposalTransactionList
               chainId={daoConfig.chainId}
-              targets={transactions.map((t) => t.target)}
-              calldatas={transactions.map((t) => t.calldata)}
-              values={transactions.map((t) => t.valueWei.toString())}
+              transactions={transactions.map((t) => ({
+                target: t.target,
+                calldata: t.calldata,
+                valueWei: t.valueWei,
+              }))}
+              daoTokenAddress={daoConfig.addresses.token}
+              nftImages={detail.nftImages}
             />
           </section>
 
