@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 
+import { Markdown } from '@/components/Markdown'
 import { WalletPill } from '@/components/dao/WalletPill'
 import { DaoAvatar } from '@/components/DaoAvatar'
 import { daoConfig } from '@/lib/dao.config'
@@ -62,7 +63,7 @@ export default async function AboutPage() {
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <h2 className="mb-3 text-xl font-bold tracking-tight">About {daoConfig.name}</h2>
-        <p className="text-fg-2">{data.description ?? daoConfig.tagline}</p>
+        <Markdown className="text-fg-2">{data.description ?? daoConfig.tagline}</Markdown>
       </section>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
