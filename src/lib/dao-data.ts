@@ -17,6 +17,7 @@ import { createPublicClient, formatEther, http } from 'viem'
 import { mainnet } from 'viem/chains'
 
 import { daoConfig } from './dao.config'
+import { decodeProposalTx } from './proposal-tx-decoder'
 import type { ProposalStatus } from './types'
 
 const chainId = daoConfig.chainId
@@ -1038,6 +1039,10 @@ export type ProposalDetail = {
   voteStart: number
   voteEnd: number
   transactions: ProposalTransaction[]
+  /** Image URLs for NFT transfers on the DAO's own token contract, keyed by
+   * tokenId (as decimal string). Empty when no send-NFT calls reference the
+   * DAO token. Other ERC-721s aren't enriched here. */
+  nftImages: Record<string, string>
   voteCount: number
   /** Onchain votes cast on this proposal. Already returned by the
    * `proposals(...)` query — we just surface them now. */
@@ -1104,6 +1109,44 @@ export async function getProposalByNumber(
     }
   })
 
+  // Enrich: for ERC-721 transfers that target the DAO's own token contract,
+  // batch-fetch the artwork from the Builder subgraph so the proposal detail
+  // page can render an image instead of a generic icon.
+  const nftTokenIdsForDao: string[] = []
+  for (const tx of transactions) {
+    const decoded = decodeProposalTx(
+      { target: tx.target, calldata: tx.calldata, valueWei: tx.valueWei },
+      chainId
+    )
+    if (
+      decoded.type === 'send-nfts' &&
+      decoded.tokenId != null &&
+      decoded.target.toLowerCase() === tokenAddressLc
+    ) {
+      nftTokenIdsForDao.push(decoded.tokenId.toString())
+    }
+  }
+  const nftImages: Record<string, string> = {}
+  if (nftTokenIdsForDao.length > 0) {
+    const tokensResp = await safeFetch(
+      'proposalDetail.nftImages',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: {
+            tokenContract: tokenAddressLc,
+            tokenId_in: nftTokenIdsForDao as never,
+          } as never,
+          first: nftTokenIdsForDao.length,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    )
+    for (const t of tokensResp.tokens ?? []) {
+      if (t.image) nftImages[String(t.tokenId)] = t.image
+    }
+  }
+
   // The `proposals(where, first:1)` query already returns `votes` nested on
   // each proposal (see sdk.generated.js — `...ProposalVote` is part of the
   // doc), but the typed return doesn't include them. Bypass the cast and
@@ -1150,6 +1193,7 @@ export async function getProposalByNumber(
     voteStart: Number(fragment.voteStart ?? 0),
     voteEnd: Number(fragment.voteEnd ?? 0),
     transactions,
+    nftImages,
     voteCount: votes.length,
     votes,
   }
