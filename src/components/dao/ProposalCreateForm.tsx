@@ -2,7 +2,7 @@
 
 import { erc20Abi, governorAbi, tokenAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { ChevronLeft, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -33,13 +33,30 @@ import {
 } from '@/lib/proposal-tx'
 import { composeDescription, parseWriteError } from '@/lib/proposal-validation'
 
+import { CreatorCoinProposalModal } from '@/components/coins/CreatorCoinProposalModal'
+
 import { DraftForm } from './ProposalCreate/DraftForm'
 import { Review } from './ProposalCreate/Review'
 import { SummaryCard } from './ProposalCreate/SummaryCard'
 import { TypeCard } from './ProposalCreate/TypeCard'
 import { type WizardStep, WizardTabs } from './ProposalCreate/WizardTabs'
 
-const KINDS: TxKind[] = ['eth', 'erc20', 'custom', 'split']
+const BASIC_KINDS: TxKind[] = ['eth', 'erc20', 'nft']
+
+const ADVANCED_KINDS: TxKind[] = [
+  'stream',
+  'airdrop',
+  'milestone',
+  'mint_gov',
+  'walletconnect',
+  'delegate',
+  'pin_asset',
+  'custom',
+  'droposal',
+  'pause_auction',
+  'add_artwork',
+  'replace_artwork',
+]
 
 export function ProposalCreateForm() {
   const ready = useWeb3Ready()
@@ -95,7 +112,7 @@ function ProposalCreateFormInner() {
           {
             address: daoConfig.addresses.token as Address,
             abi: tokenAbi,
-            functionName: 'balanceOf' as const,
+            functionName: 'getVotes' as const,
             args: [address] as const,
             chainId: daoConfig.chainId,
           },
@@ -223,7 +240,13 @@ function ProposalCreateFormInner() {
 
   const submit = () => {
     if (!detailsValid || !transactionsValid) return
-    const encoded = drafts.map((d) => encodeDraft(d, tokenMeta))
+    const encoded = drafts.map((d) =>
+      encodeDraft(d, tokenMeta, {
+        treasury: daoConfig.addresses.treasury,
+        token: daoConfig.addresses.token,
+        auction: daoConfig.addresses.auction,
+      })
+    )
     if (encoded.some((e) => e === null)) return
     let valuesWei: bigint[]
     try {
@@ -454,6 +477,9 @@ function TransactionsStep({
   onRemove: (i: number) => void
   onEditorChange: (next: TxDraft) => void
 }) {
+  const [creatorCoinOpen, setCreatorCoinOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
   if (editor.mode !== 'list') {
     return (
       <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
@@ -470,6 +496,10 @@ function TransactionsStep({
   }
 
   return (
+    <>
+      {creatorCoinOpen && (
+        <CreatorCoinProposalModal open={creatorCoinOpen} onClose={() => setCreatorCoinOpen(false)} />
+      )}
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <h3 className="text-base font-bold">Add a transaction</h3>
@@ -477,10 +507,30 @@ function TransactionsStep({
           Each call the proposal executes if it passes. Pick a type to start.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {KINDS.map((k) => (
+          {BASIC_KINDS.map((k) => (
             <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="mt-3 flex items-center gap-1.5 text-[12.5px] font-medium text-muted-fg hover:text-fg"
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+          />
+          Advanced transactions
+        </button>
+
+        {advancedOpen && (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {ADVANCED_KINDS.map((k) => (
+              <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
+            ))}
+            <TypeCard kind="creator_coin" onSelect={() => setCreatorCoinOpen(true)} />
+          </div>
+        )}
       </div>
 
       {drafts.length > 0 && (
@@ -507,6 +557,7 @@ function TransactionsStep({
         </div>
       )}
     </div>
+    </>
   )
 }
 
@@ -650,15 +701,15 @@ function EligibilityBanner({
   if (eligible) {
     return (
       <div className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm">
-        <strong className="font-semibold text-success">Eligible</strong> — you hold{' '}
-        {balance} {balance === 1 ? 'token' : 'tokens'} (threshold: {threshold}).
+        <strong className="font-semibold text-success">Eligible</strong> — you have{' '}
+        {balance} {balance === 1 ? 'vote' : 'votes'} (threshold: {threshold}).
       </div>
     )
   }
   return (
     <div className="rounded-md border border-warning/25 bg-warning/5 px-4 py-3 text-sm">
-      <strong className="font-semibold text-warning">Not eligible</strong> — you hold{' '}
-      {balance} {balance === 1 ? 'token' : 'tokens'}; the proposal threshold is{' '}
+      <strong className="font-semibold text-warning">Not eligible</strong> — you have{' '}
+      {balance} {balance === 1 ? 'vote' : 'votes'}; the proposal threshold is{' '}
       {threshold + 1}+.
     </div>
   )

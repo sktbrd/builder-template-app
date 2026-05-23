@@ -217,7 +217,7 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
       target="_blank"
       rel="noreferrer"
       className="flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors sm:grid sm:gap-3"
-      style={{ gridTemplateColumns: '28px 1fr auto auto auto' }}
+      style={{ gridTemplateColumns: '28px 1fr auto auto' }}
     >
       {/* direction badge */}
       <span
@@ -239,15 +239,12 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
         </span>
       </div>
 
-      {/* asset — hidden on mobile */}
-      <span className="hidden font-mono text-[12px] text-muted-fg sm:block">{tx.asset}</span>
-
-      {/* amount */}
+      {/* amount + asset */}
       <span
         className="shrink-0 font-mono font-semibold tabular-nums text-[13px]"
         style={{ color: isIn ? '#5fd28a' : '#f06464' }}
       >
-        {isIn ? '+' : '−'}{tx.amount} <span className="font-normal sm:hidden">{tx.asset}</span>
+        {isIn ? '+' : '−'}{tx.amount} <span className="font-normal">{tx.asset}</span>
       </span>
 
       {/* time — hidden on mobile */}

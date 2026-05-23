@@ -159,23 +159,6 @@ export default async function TreasuryPage() {
               />
             ))}
 
-            {/* NFT row (no USD without floor price API) */}
-            {data.nftHoldingsCount > 0 && (
-              <AssetRow
-                logo={
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-3 text-sm font-bold">
-                    ◉
-                  </span>
-                }
-                name="NFTs"
-                sub={`${data.nftHoldingsCount} in treasury`}
-                color="#ffb347"
-                bal={`${data.nftHoldingsCount} ${daoConfig.name}`}
-                usd={0}
-                pct={0}
-                showUsd={false}
-              />
-            )}
           </div>
 
           {/* Recent transactions */}
@@ -290,7 +273,6 @@ function TxCard({
             {/* who */}
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{tx.who}</div>
-              <div className="font-mono text-[11.5px] text-muted-fg">{tx.addr}</div>
             </div>
 
             {/* tag — hidden on mobile */}

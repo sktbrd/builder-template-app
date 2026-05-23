@@ -8,10 +8,75 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
+import { useEnsAvatar, useEnsName } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
+
 import { useWeb3Ready } from '@/app/web3-providers'
 import { DaoAvatar } from '@/components/DaoAvatar'
 import { daoConfig } from '@/lib/dao.config'
 import { cn } from '@/lib/utils'
+
+function ConnectedProfile({
+  address,
+  openAccountModal,
+}: {
+  address: `0x${string}`
+  openAccountModal: () => void
+}) {
+  const { data: ensName } = useEnsName({ address, chainId: mainnet.id })
+  const { data: ensAvatar } = useEnsAvatar({ name: ensName ?? undefined, chainId: mainnet.id })
+
+  const displayName = ensName ?? `${address.slice(0, 6)}…${address.slice(-4)}`
+  const hue = parseInt(address.slice(2, 8), 16) % 360
+
+  return (
+    <button
+      type="button"
+      onClick={openAccountModal}
+      className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface-2 pl-1.5 pr-3 text-sm font-medium hover:bg-surface-3"
+    >
+      {ensAvatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={ensAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+      ) : (
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+          style={{ background: `hsl(${hue} 60% 45%)` }}
+        >
+          {displayName.slice(0, 2).toUpperCase()}
+        </span>
+      )}
+      <span className="font-mono text-[12px]">{displayName}</span>
+    </button>
+  )
+}
+
+function WalletButton() {
+  return (
+    <ConnectButton.Custom>
+      {({ account, chain, openConnectModal, openAccountModal, mounted }) => {
+        if (!mounted) return <div className="h-9 w-[140px] rounded-full bg-surface-2" />
+        if (!account || !chain) {
+          return (
+            <button
+              type="button"
+              onClick={openConnectModal}
+              className="h-9 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg hover:opacity-90"
+            >
+              Connect
+            </button>
+          )
+        }
+        return (
+          <ConnectedProfile
+            address={account.address as `0x${string}`}
+            openAccountModal={openAccountModal}
+          />
+        )
+      }}
+    </ConnectButton.Custom>
+  )
+}
 
 const CHAIN_NAMES: Record<number, string> = {
   1: 'Ethereum',
@@ -141,11 +206,7 @@ export function Header() {
             )}
           </button>
           <div className="hidden md:block">
-            {web3Ready ? (
-              <ConnectButton showBalance={false} chainStatus="none" />
-            ) : (
-              <div className="h-9 w-[140px] rounded-full bg-surface-2" />
-            )}
+            {web3Ready ? <WalletButton /> : <div className="h-9 w-[140px] rounded-full bg-surface-2" />}
           </div>
           <button
             type="button"
@@ -184,11 +245,7 @@ export function Header() {
               )
             })}
             <div className="mt-2 border-t border-border pt-3">
-              {web3Ready ? (
-                <ConnectButton showBalance={false} chainStatus="none" />
-              ) : (
-                <div className="h-9 w-full rounded-full bg-surface-2" />
-              )}
+              {web3Ready ? <WalletButton /> : <div className="h-9 w-full rounded-full bg-surface-2" />}
             </div>
           </nav>
         </div>

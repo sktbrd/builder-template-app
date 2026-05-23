@@ -1,14 +1,31 @@
 'use client'
 
-import { Coins, GitFork, Send, Settings2 } from 'lucide-react'
+import {
+  Brush,
+  CircleDollarSign,
+  CloudRain,
+  Coins,
+  Flag,
+  ImageIcon,
+  Layers,
+  Package,
+  PauseCircle,
+  Pin,
+  RefreshCw,
+  Send,
+  Settings2,
+  Timer,
+  UserCheck,
+  Wallet,
+} from 'lucide-react'
 
 import type { TxKind } from '@/lib/proposal-tx'
 import { cn } from '@/lib/utils'
 
 const KIND_META: Record<
-  TxKind,
+  TxKind | 'creator_coin',
   {
-    icon: typeof Send
+    icon: React.ElementType
     label: string
     description: string
     iconClass: string
@@ -26,22 +43,94 @@ const KIND_META: Record<
     description: 'Transfer USDC, WETH, or any other ERC-20 token.',
     iconClass: 'bg-success/15 text-success',
   },
+  nft: {
+    icon: ImageIcon,
+    label: 'Send NFTs',
+    description: 'Send NFTs from the treasury.',
+    iconClass: 'bg-orange-500/15 text-orange-500',
+  },
+  stream: {
+    icon: Timer,
+    label: 'Stream Tokens',
+    description: 'Continuous token payments over time.',
+    iconClass: 'bg-cyan-500/15 text-cyan-500',
+  },
+  airdrop: {
+    icon: CloudRain,
+    label: 'Airdrop Tokens',
+    description: 'Distribute tokens with Sablier merkle campaigns.',
+    iconClass: 'bg-sky-500/15 text-sky-500',
+  },
+  milestone: {
+    icon: Flag,
+    label: 'Milestone Payments',
+    description: 'Schedule token releases in milestones.',
+    iconClass: 'bg-rose-500/15 text-rose-500',
+  },
+  mint_gov: {
+    icon: Layers,
+    label: 'Mint Governance Tokens',
+    description: 'Mint governance tokens to selected addresses.',
+    iconClass: 'bg-emerald-500/15 text-emerald-500',
+  },
+  walletconnect: {
+    icon: Wallet,
+    label: 'WalletConnect',
+    description: 'Connect to dApps and execute transactions via WalletConnect.',
+    iconClass: 'bg-blue-500/15 text-blue-500',
+  },
+  delegate: {
+    icon: UserCheck,
+    label: 'Nominate Delegate',
+    description: 'Nominate a delegate for milestone payments or token streams.',
+    iconClass: 'bg-violet-500/15 text-violet-500',
+  },
+  pin_asset: {
+    icon: Pin,
+    label: 'Pin Treasury Asset',
+    description: 'Whitelist a token or NFT for prominent display in treasury.',
+    iconClass: 'bg-amber-500/15 text-amber-500',
+  },
   custom: {
     icon: Settings2,
-    label: 'Custom call',
-    description: 'Hand-rolled target, value, and calldata for any contract call.',
+    label: 'Custom Transaction',
+    description: 'Any other type of transaction.',
     iconClass: 'bg-muted-fg/15 text-muted-fg',
   },
-  split: {
-    icon: GitFork,
-    label: 'Revenue Split',
-    description: 'Route ETH to multiple recipients via an immutable 0xSplits contract.',
-    iconClass: 'bg-purple-500/15 text-purple-500',
+  creator_coin: {
+    icon: CircleDollarSign,
+    label: 'Creator Coin',
+    description: 'Create a proposal to mint Creator Coin.',
+    iconClass: 'bg-yellow-500/15 text-yellow-500',
+  },
+  droposal: {
+    icon: Package,
+    label: 'Droposal: Single Edition',
+    description: 'Single-edition ERC721 collection droposal.',
+    iconClass: 'bg-indigo-500/15 text-indigo-500',
+  },
+  pause_auction: {
+    icon: PauseCircle,
+    label: 'Pause Auctions',
+    description: 'Pause or unpause the DAO auction house.',
+    iconClass: 'bg-red-500/15 text-red-500',
+  },
+  add_artwork: {
+    icon: Brush,
+    label: 'Add Artwork',
+    description: 'Add new artwork to your collection.',
+    iconClass: 'bg-pink-500/15 text-pink-500',
+  },
+  replace_artwork: {
+    icon: RefreshCw,
+    label: 'Replace Artwork',
+    description: 'Replace existing artwork in your collection.',
+    iconClass: 'bg-teal-500/15 text-teal-500',
   },
 }
 
 type Props = {
-  kind: TxKind
+  kind: TxKind | 'creator_coin'
   onSelect: () => void
 }
 

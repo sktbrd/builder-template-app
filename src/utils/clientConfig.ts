@@ -1,5 +1,6 @@
 import { transports } from '@buildeross/utils/wagmi'
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+import { mainnet } from 'wagmi/chains'
 
 import { getDaoConfig } from '@/config'
 
@@ -26,12 +27,15 @@ export function createWagmiConfig() {
     )
   }
 
+  const chains = (daoChain.id === mainnet.id ? [daoChain] : [daoChain, mainnet]) as [typeof daoChain, ...typeof daoChain[]]
+
   return getDefaultConfig({
     appName: 'Builder Template',
     projectId: walletConnectProjectId || 'dummy_project_id',
-    chains: [daoChain],
+    chains,
     transports: {
       [daoChain.id]: transports[daoChain.id],
+      [mainnet.id]: transports[mainnet.id],
     },
     ssr: true,
   })
