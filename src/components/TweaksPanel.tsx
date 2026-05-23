@@ -5,8 +5,7 @@ import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 
 import { PRESETS } from '@/lib/presets'
-
-const STORAGE_KEY = 'tweaks.v1'
+import { useTweaks } from '@/lib/tweaks-context'
 
 const FONT_OPTIONS = [
   {
@@ -31,31 +30,6 @@ const FONT_OPTIONS = [
   },
 ]
 
-type Tweaks = {
-  preset: keyof typeof PRESETS
-  accent: string
-  radius: number
-  displayFont: string
-}
-
-const DEFAULTS: Tweaks = {
-  preset: 'builder',
-  accent: '#2563eb',
-  radius: 12,
-  displayFont: 'Geist',
-}
-
-function loadTweaks(): Tweaks {
-  if (typeof window === 'undefined') return DEFAULTS
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULTS
-    return { ...DEFAULTS, ...JSON.parse(raw) }
-  } catch {
-    return DEFAULTS
-  }
-}
-
 function ensureFontLink() {
   if (typeof document === 'undefined') return
   if (document.getElementById('tweaks-fonts')) return
@@ -69,39 +43,37 @@ function ensureFontLink() {
 
 export function TweaksPanel() {
   const [open, setOpen] = useState(false)
-  const [tweaks, setTweaks] = useState<Tweaks>(() => loadTweaks())
+  const { tweaks, update } = useTweaks()
   const { resolvedTheme, setTheme } = useTheme()
+  const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const applyToProd = async () => {
+    setApplyState('saving')
+    try {
+      const res = await fetch('/api/dev/apply-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accent: tweaks.accent,
+          radius: tweaks.radius,
+          displayFont: tweaks.displayFont,
+        }),
+      })
+      setApplyState(res.ok ? 'saved' : 'error')
+    } catch {
+      setApplyState('error')
+    }
+    setTimeout(() => setApplyState('idle'), 2500)
+  }
 
   useEffect(() => {
     ensureFontLink()
   }, [])
 
-  useEffect(() => {
-    const root = document.documentElement
-    root.style.setProperty('--accent', tweaks.accent)
-    root.style.setProperty(
-      '--accent-strong',
-      `color-mix(in oklab, ${tweaks.accent} 80%, black)`
-    )
-    root.style.setProperty('--radius', `${tweaks.radius}px`)
-    const fontFamily =
-      FONT_OPTIONS.find((f) => f.value === tweaks.displayFont)?.cssFamily ??
-      'var(--font-geist)'
-    root.style.setProperty('--font-display-active', fontFamily)
-    document.body.style.setProperty('--font-display-active', fontFamily)
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tweaks))
-    } catch (e) {
-      console.warn('[TweaksPanel] Could not save tweaks to localStorage:', e)
-    }
-  }, [tweaks])
-
-  const update = (patch: Partial<Tweaks>) => setTweaks((prev) => ({ ...prev, ...patch }))
-
   const applyPreset = (key: keyof typeof PRESETS) => {
     const p = PRESETS[key]
     if (!p) return
-    setTweaks({
+    update({
       preset: key,
       accent: p.theme.accent,
       radius: p.theme.radius,
@@ -199,6 +171,38 @@ export function TweaksPanel() {
           </select>
         </Field>
       </Section>
+
+      <Section title="Proposals">
+        <Toggle
+          label="Thumbnails"
+          checked={tweaks.showProposalThumbnails}
+          onChange={(v) => update({ showProposalThumbnails: v })}
+        />
+      </Section>
+
+      <button
+        type="button"
+        onClick={applyToProd}
+        disabled={applyState === 'saving'}
+        className="mt-1 w-full rounded-md px-3 py-2 text-[13px] font-semibold transition-colors disabled:opacity-60"
+        style={{
+          background:
+            applyState === 'saved'
+              ? '#16a34a'
+              : applyState === 'error'
+                ? '#dc2626'
+                : 'var(--accent)',
+          color: 'var(--accent-fg, #000)',
+        }}
+      >
+        {applyState === 'saving'
+          ? 'Saving…'
+          : applyState === 'saved'
+            ? '✓ Saved to dao.theme.json'
+            : applyState === 'error'
+              ? '✗ Error — check console'
+              : 'Apply to prod'}
+      </button>
     </div>
   )
 }
@@ -252,6 +256,34 @@ function Radio({
           </button>
         ))}
       </div>
+    </Field>
+  )
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <Field label={label}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className="relative h-5 w-9 flex-shrink-0 rounded-full border border-border transition-colors"
+        style={{ background: checked ? 'var(--accent)' : 'var(--surface-3)', borderColor: checked ? 'var(--accent)' : 'var(--border)' }}
+      >
+        <span
+          className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
+          style={{ transform: checked ? 'translateX(18px)' : 'translateX(2px)' }}
+        />
+      </button>
     </Field>
   )
 }

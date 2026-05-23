@@ -66,34 +66,30 @@ export default async function AboutPage() {
         <Markdown className="text-fg-2">{data.description ?? daoConfig.tagline}</Markdown>
       </section>
 
+      {data.founders.length > 0 && (
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <h2 className="mb-4 text-xl font-bold tracking-tight">Founders</h2>
-        {data.founders.length === 0 ? (
-          <div className="text-sm text-muted-fg">
-            No founders configured for this DAO.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {data.founders.map((f) => (
-              <div
-                key={f.wallet}
-                className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-4 py-3.5"
-              >
-                <WalletPill
-                  address={f.wallet}
-                  ens={f.ens}
-                  showAvatar
-                  size="md"
-                  className="min-w-0 flex-1"
-                />
-                <div className="shrink-0 text-[12.5px] text-muted-fg">
-                  {f.ownershipPct}% share
-                </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {data.founders.map((f) => (
+            <div
+              key={f.wallet}
+              className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-4 py-3.5"
+            >
+              <WalletPill
+                address={f.wallet}
+                ens={f.ens}
+                showAvatar
+                size="md"
+                className="min-w-0 flex-1"
+              />
+              <div className="shrink-0 text-[12.5px] text-muted-fg">
+                {f.ownershipPct}% share
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </section>
+      )}
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="mb-4 flex items-center justify-between gap-3">

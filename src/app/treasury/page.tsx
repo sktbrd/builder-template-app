@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 
 import { type DonutSlice, TreasuryDonut } from '@/components/dao/TreasuryDonut'
 import { TokenLogo } from '@/components/dao/TokenLogo'
-import { WalletPill } from '@/components/dao/WalletPill'
+import { NftSection } from '@/components/dao/NftSection'
+import { TreasuryTransfers } from '@/components/dao/TreasuryTransfers'
 import { daoConfig } from '@/lib/dao.config'
 import { type TreasuryTx, getTreasuryPageData } from '@/lib/dao-data'
 
@@ -106,14 +108,22 @@ export default async function TreasuryPage() {
       {/* ── Two-column grid ── */}
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[380px_1fr]">
 
-        {/* Donut card */}
-        <div className="rounded-[14px] border border-border bg-surface px-6 py-7 text-center">
-          {hasUsd ? (
-            <TreasuryDonut slices={slices} totalUsd={totalUsd} />
-          ) : (
-            <div className="py-10 text-sm text-muted-fg">
-              USD prices unavailable — showing balances only.
-            </div>
+        {/* Left column: donut + NFT mini-grid */}
+        <div className="flex flex-col gap-4">
+          {/* Donut card */}
+          <div className="rounded-[14px] border border-border bg-surface px-6 py-7 text-center">
+            {hasUsd ? (
+              <TreasuryDonut slices={slices} totalUsd={totalUsd} />
+            ) : (
+              <div className="py-10 text-sm text-muted-fg">
+                USD prices unavailable — showing balances only.
+              </div>
+            )}
+          </div>
+
+          {/* NFT mini-grid */}
+          {data.nftHoldings.length > 0 && (
+            <NftSection nfts={data.nftHoldings} count={data.nftHoldingsCount} />
           )}
         </div>
 
@@ -173,43 +183,11 @@ export default async function TreasuryPage() {
         </div>
       </div>
 
-      {/* ── NFT holdings ── */}
-      {data.nftHoldings.length > 0 && (
-        <section className="rounded-[14px] border border-border bg-surface px-6 py-[22px]">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-base font-bold">
-              NFT holdings · {data.nftHoldingsCount} in treasury
-              {data.nftHoldingsCount === 24 && '+'}
-            </h2>
-            <span className="text-[12.5px] text-muted-fg">
-              {data.nftHoldingsCount} {daoConfig.name} tokens
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-2.5 sm:grid-cols-6 lg:grid-cols-8">
-            {data.nftHoldings.slice(0, 7).map((nft) => (
-              <a
-                key={nft.tokenId}
-                href={`/auction/${nft.tokenId}`}
-                className="aspect-square overflow-hidden rounded-[10px] border border-border bg-surface-2 transition-[transform,border-color] hover:-translate-y-px hover:border-border-strong"
-              >
-                {nft.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={resolveIpfs(nft.image)}
-                    alt={nft.name}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                ) : null}
-              </a>
-            ))}
-            {data.nftHoldingsCount > 7 && (
-              <div className="aspect-square flex items-center justify-center rounded-[10px] border border-dashed border-border-strong bg-surface-2 font-semibold text-muted-fg">
-                +{data.nftHoldingsCount - 7}
-              </div>
-            )}
-          </div>
-        </section>
+      {/* ── Full transfer history (client-side, Alchemy-powered) ── */}
+      {process.env.NEXT_PUBLIC_ALCHEMY_API_KEY && (
+        <Suspense fallback={<div className="h-40 rounded-[14px] border border-border bg-surface animate-pulse" />}>
+          <TreasuryTransfers />
+        </Suspense>
       )}
     </div>
   )
@@ -355,7 +333,3 @@ function trimDecimals(value: string, max: number): string {
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
 
-function resolveIpfs(uri: string): string {
-  if (uri.startsWith('ipfs://')) return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
-  return uri
-}

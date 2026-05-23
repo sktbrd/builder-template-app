@@ -159,6 +159,8 @@ export type ProposalSummary = {
    * proposals (executed / defeated / vetoed / expired / cancelled) are false.
    */
   treasuryInsufficient: boolean
+  /** First image URL found in the proposal's markdown description, if any. */
+  thumbnail: string | null
 }
 
 export type DashboardActivityItem = {
@@ -405,7 +407,13 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
     endsLabel: relativeLabel(status, created),
     requested,
     treasuryInsufficient,
+    thumbnail: extractFirstImage(p.description ?? ''),
   }
+}
+
+function extractFirstImage(markdown: string): string | null {
+  const match = markdown.match(/!\[.*?\]\((https?:\/\/[^)\s]+)\)/)
+  return match?.[1] ?? null
 }
 
 // ── Requested-amount decode + treasury-insufficient check ──
@@ -784,7 +792,6 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   // ── Recent transactions (inflows from auctions, outflows from executed proposals) ──
   const auctionTxs: TreasuryTx[] = (historyResp?.dao?.auctions ?? [])
     .filter((a) => a.winningBid?.amount)
-    .slice(0, 10)
     .map((a) => {
       const parts = String(a.id).split('-')
       const tokenId = parts[parts.length - 1]
@@ -806,9 +813,9 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   const proposalTxs: TreasuryTx[] = []
   for (const p of (proposalsResp?.proposals ?? []).filter((p) => p.executedAt)) {
     const transfers = decodePropTransfers(
-      p.targets as string[],
-      p.calldatas as string[],
-      p.values as string[],
+      (p.targets as unknown) as string[],
+      (p.calldatas as unknown) as string[],
+      (p.values as unknown) as string[],
       knownTokens
     )
     if (transfers.length === 0) continue
@@ -834,7 +841,7 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
 
   const recentTxs = [...auctionTxs, ...proposalTxs]
     .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 10)
+    .slice(0, 12)
 
   return {
     treasuryEth,
