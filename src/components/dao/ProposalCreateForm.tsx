@@ -20,6 +20,7 @@ import { useWeb3Ready } from '@/app/web3-providers'
 import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
+import { useSearchParams } from 'next/navigation'
 import {
   emptyDraft,
   encodeDraft,
@@ -57,11 +58,20 @@ type EditorState =
 
 function ProposalCreateFormInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
+  // Pre-fill from URL params (set by NftSection "New proposal" flow)
   const [step, setStep] = useState<WizardStep>('details')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [drafts, setDrafts] = useState<TxDraft[]>([])
+  const [title, setTitle] = useState(() => searchParams.get('title') ?? '')
+  const [description, setDescription] = useState(() => searchParams.get('description') ?? '')
+  const [drafts, setDrafts] = useState<TxDraft[]>(() => {
+    const target = searchParams.get('tx_target')
+    const calldata = searchParams.get('tx_calldata')
+    if (target && calldata) {
+      return [{ kind: 'custom' as const, target, valueEth: '0', calldata }]
+    }
+    return []
+  })
   const [editor, setEditor] = useState<EditorState>({ mode: 'list' })
   const [showPreview, setShowPreview] = useState(false)
 

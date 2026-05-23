@@ -1,8 +1,9 @@
 'use client'
 
 import { ArrowUpRight, Check, Copy, X } from 'lucide-react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEnsName } from 'wagmi'
 
 import { daoConfig } from '@/lib/dao.config'
 
@@ -131,6 +132,7 @@ function encodeTransferCalldata(from: string, to: string, tokenId: number): stri
 }
 
 function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => void }) {
+  const router = useRouter()
   const [recipient, setRecipient] = useState('')
   const [copied, setCopied] = useState(false)
 
@@ -142,12 +144,37 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
 
   const isValid = /^0x[0-9a-fA-F]{40}$/.test(recipient)
 
+  // Resolve ENS name for the recipient address (mainnet)
+  const { data: recipientEns } = useEnsName({
+    address: isValid ? (recipient as `0x${string}`) : undefined,
+    chainId: 1,
+  })
+
+  const displayRecipient = recipientEns ?? (isValid ? `${recipient.slice(0, 6)}…${recipient.slice(-4)}` : '')
+
   const copy = () => {
     if (!isValid) return
     const data = encodeTransferCalldata(daoConfig.addresses.treasury, recipient, nft.tokenId)
     navigator.clipboard.writeText(data)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const openProposal = () => {
+    if (!isValid) return
+    const tokenName = nft.name || `${daoConfig.name} #${nft.tokenId}`
+    const title = `Send ${tokenName} to ${displayRecipient || recipient}`
+    const calldata = encodeTransferCalldata(daoConfig.addresses.treasury, recipient, nft.tokenId)
+    const description = buildProposalDescription(tokenName, recipient, displayRecipient, nft)
+
+    const params = new URLSearchParams({
+      title,
+      description,
+      tx_target: daoConfig.addresses.token,
+      tx_calldata: calldata,
+    })
+    router.push(`/proposals/new?${params.toString()}`)
+    onClose()
   }
 
   return (
@@ -201,6 +228,9 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
               onChange={(e) => setRecipient(e.target.value)}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[12.5px] outline-none placeholder:text-muted-fg/50 focus:border-accent"
             />
+            {recipientEns && (
+              <p className="mt-1 text-[11.5px] text-accent">{recipientEns}</p>
+            )}
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -211,20 +241,54 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'Copied!' : 'Copy calldata'}
               </button>
-              <Link
-                href="/proposals/new"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12.5px] font-semibold"
+              <button
+                type="button"
+                onClick={openProposal}
+                disabled={!isValid}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[12.5px] font-semibold disabled:opacity-40"
                 style={{ background: 'var(--accent)', color: 'var(--accent-fg, #000)' }}
               >
                 New proposal
                 <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function buildProposalDescription(
+  tokenName: string,
+  recipientAddr: string,
+  displayRecipient: string,
+  nft: TreasuryNft
+): string {
+  const recipient = displayRecipient || recipientAddr
+  const short = `${recipientAddr.slice(0, 6)}…${recipientAddr.slice(-4)}`
+  return `## Summary
+
+This proposal requests the transfer of **${tokenName}** — currently held in the ${daoConfig.name} treasury — to ${recipient} (\`${short}\`).
+
+## Why
+
+_Edit this section: explain why the DAO should send this token. Examples: a grant, a reward for a contributor, an auction prize, or a partnership._
+
+## Details
+
+| Field | Value |
+|---|---|
+| Token | ${tokenName} |
+| Token ID | #${nft.tokenId} |
+| Minted | ${fmtDate(nft.mintedAt)} |
+| Recipient | \`${recipientAddr}\` |
+| Action | \`transferFrom(treasury, recipient, tokenId)\` |
+
+## Transaction
+
+The proposal encodes a single \`transferFrom\` call on the ${daoConfig.name} token contract. No ETH is transferred. The transaction will fail if the treasury no longer holds token #${nft.tokenId} at execution time.
+`
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
