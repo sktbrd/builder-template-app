@@ -208,29 +208,28 @@ function AssetRow({
   showUsd: boolean
 }) {
   return (
-    <div
-      className="grid items-center gap-4 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2"
-      style={{ gridTemplateColumns: '40px 1fr 1fr' + (showUsd ? ' 1fr 1fr' : '') }}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
+      style={{ gridTemplateColumns: showUsd ? '40px 1fr 1fr 1fr 1fr' : '40px 1fr 1fr' }}
     >
       {/* icon */}
-      <div>{logo}</div>
+      <div className="shrink-0">{logo}</div>
 
       {/* name */}
-      <div>
+      <div className="min-w-0 flex-1 sm:flex-none">
         <div className="font-semibold">{name}</div>
         <div className="mt-0.5 text-xs text-muted-fg">{sub}</div>
       </div>
 
       {/* balance */}
-      <div className="text-right font-mono text-[13.5px] tabular-nums">{bal}</div>
+      <div className="ml-auto font-mono text-[13.5px] tabular-nums sm:ml-0 sm:text-right">{bal}</div>
 
       {/* USD + bar — only when price data available */}
       {showUsd && (
         <>
-          <div className="text-right font-mono text-[13.5px] tabular-nums text-muted-fg">
+          <div className="w-full text-right font-mono text-[13.5px] tabular-nums text-muted-fg sm:w-auto">
             {fmtUSD(usd)}
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <div className="h-1 overflow-hidden rounded-full bg-surface-3">
               <div
                 className="h-full rounded-full transition-[width]"
@@ -272,12 +271,12 @@ function TxCard({
         {txs.map((tx, i) => (
           <div
             key={i}
-            className="grid items-center gap-4 border-b border-border py-3 text-[13.5px] last:border-0"
-            style={{ gridTemplateColumns: '28px 1fr 1.2fr 1fr auto' }}
+            className="flex items-center gap-3 border-b border-border py-3 text-[13.5px] last:border-0 sm:grid sm:gap-4"
+            style={{ gridTemplateColumns: '28px 1fr auto auto auto' }}
           >
             {/* direction badge */}
             <span
-              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
               style={{
                 background: tx.dir === 'in'
                   ? 'color-mix(in oklab, #5fd28a 22%, transparent)'
@@ -289,24 +288,24 @@ function TxCard({
             </span>
 
             {/* who */}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{tx.who}</div>
               <div className="font-mono text-[11.5px] text-muted-fg">{tx.addr}</div>
             </div>
 
-            {/* tag */}
-            <div className="font-mono text-[11.5px] text-muted-fg">{tx.tag}</div>
+            {/* tag — hidden on mobile */}
+            <div className="hidden font-mono text-[11.5px] text-muted-fg sm:block">{tx.tag}</div>
 
             {/* amount */}
             <div
-              className="text-right font-mono font-semibold tabular-nums"
+              className="shrink-0 text-right font-mono font-semibold tabular-nums"
               style={{ color: tx.dir === 'in' ? '#5fd28a' : '#f06464' }}
             >
               {tx.dir === 'in' ? '+' : '−'}{tx.amount} {tx.symbol}
             </div>
 
-            {/* time */}
-            <div className="text-right font-mono text-[11.5px] text-muted-fg">
+            {/* time — hidden on mobile */}
+            <div className="hidden text-right font-mono text-[11.5px] text-muted-fg sm:block">
               {tx.relativeTime}
             </div>
           </div>

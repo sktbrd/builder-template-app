@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { AuctionArt } from '@/components/dao/AuctionArt'
+import { AuctionPoller } from '@/components/dao/AuctionPoller'
 import { BidForm } from '@/components/dao/BidForm'
 import { BidHistory } from '@/components/dao/BidHistory'
 import { SettleAuctionAction } from '@/components/dao/SettleAuctionAction'
@@ -34,6 +35,7 @@ export default async function AuctionPage({ params }: { params: Params }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <AuctionPoller active={hasOpenAuction} />
       {hasOpenAuction && endsIn && (
         <TimeAlert icon={<Clock className="h-4 w-4" />} dismissible>
           Auction for {tokenLabel} #{data.tokenId} ends in {endsIn}.

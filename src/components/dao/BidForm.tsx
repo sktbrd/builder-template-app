@@ -5,6 +5,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { type Address, parseEther } from 'viem'
+import { useRouter } from 'next/navigation'
 import {
   useAccount,
   useBalance,
@@ -50,6 +51,7 @@ function BidFormInner({
 }: Props) {
   const [bid, setBid] = useState('')
   const [comment, setComment] = useState('')
+  const router = useRouter()
 
   const { address, isConnected } = useAccount()
   const connectedChainId = useChainId()
@@ -89,13 +91,15 @@ function BidFormInner({
 
   useEffect(() => {
     if (!isMined) return
+    // Refresh server data so the new top bid appears immediately
+    router.refresh()
     const t = setTimeout(() => {
       setBid('')
       setComment('')
       resetWrite()
     }, 2400)
     return () => clearTimeout(t)
-  }, [isMined, resetWrite])
+  }, [isMined, resetWrite, router])
 
   const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
     !isConnected

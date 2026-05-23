@@ -216,12 +216,12 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
       href={`${explorerBase}/tx/${tx.hash}`}
       target="_blank"
       rel="noreferrer"
-      className="grid items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors"
+      className="flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors sm:grid sm:gap-3"
       style={{ gridTemplateColumns: '28px 1fr auto auto auto' }}
     >
       {/* direction badge */}
       <span
-        className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
         style={{
           background: isIn
             ? 'color-mix(in oklab, #5fd28a 20%, transparent)'
@@ -233,25 +233,25 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
       </span>
 
       {/* counterpart */}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <span className="font-mono text-[12px] text-muted-fg">
           {shortAddr(counterpart)}
         </span>
       </div>
 
-      {/* asset */}
-      <span className="font-mono text-[12px] text-muted-fg">{tx.asset}</span>
+      {/* asset — hidden on mobile */}
+      <span className="hidden font-mono text-[12px] text-muted-fg sm:block">{tx.asset}</span>
 
       {/* amount */}
       <span
-        className="font-mono font-semibold tabular-nums text-[13px]"
+        className="shrink-0 font-mono font-semibold tabular-nums text-[13px]"
         style={{ color: isIn ? '#5fd28a' : '#f06464' }}
       >
-        {isIn ? '+' : '−'}{tx.amount}
+        {isIn ? '+' : '−'}{tx.amount} <span className="font-normal sm:hidden">{tx.asset}</span>
       </span>
 
-      {/* time */}
-      <span className="font-mono text-[11.5px] text-muted-fg text-right">
+      {/* time — hidden on mobile */}
+      <span className="hidden text-right font-mono text-[11.5px] text-muted-fg sm:block">
         {relativeTime(tx.timestamp)}
       </span>
     </a>
