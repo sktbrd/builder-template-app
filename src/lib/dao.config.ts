@@ -77,6 +77,25 @@ export type DaoConfig = {
    * Shown as quick-pick pills in the "Send NFT" proposal form.
    */
   treasuryNftCollections: TreasuryNftCollection[]
+  /**
+   * Per-fork overrides for protocol contracts used by proposal forms.
+   * Lets a DAO point at custom deployments on niche chains without forking
+   * the template's address tables.
+   */
+  contractOverrides?: ContractOverrides
+}
+
+export type ContractOverrides = {
+  /** Disperse.app contract — bulk send (Airdrop Tokens form). */
+  disperse?: `0x${string}`
+  /** EscrowBundler — milestone payments form. */
+  escrowBundler?: `0x${string}`
+  /** Sablier LockupLinear — token streams form. */
+  sablierLockupLinear?: `0x${string}`
+  /** Zora NFT Creator factory — droposal form. */
+  zoraNftCreator?: `0x${string}`
+  /** EAS contract — pin asset + nominate delegate forms. */
+  eas?: `0x${string}`
 }
 
 export type TreasuryNftCollection = {
@@ -157,6 +176,17 @@ export const daoConfig: DaoConfig = {
   treasuryNftCollections: [
     // { symbol: 'BasePaint', address: '0xBa…' },
   ],
+
+  // ── Contract overrides ───────────────────────────
+  // Optional per-fork overrides for protocol contracts used by proposal
+  // forms. Leave empty to use the built-in chain → address mappings.
+  // contractOverrides: {
+  //   disperse: '0x…',           // Airdrop Tokens
+  //   escrowBundler: '0x…',      // Milestone Payments
+  //   sablierLockupLinear: '0x…', // Stream Tokens
+  //   zoraNftCreator: '0x…',     // Droposal: Single Edition
+  //   eas: '0x…',                // Pin Treasury Asset + Nominate Delegate
+  // },
 }
 
 /**

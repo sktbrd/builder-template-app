@@ -16,18 +16,3 @@ export type ProposalStatus =
   | 'expired'
   | 'executed'
   | 'vetoed'
-
-/** Voting / queue / execute is still in play. */
-export function isProposalOpen(status: ProposalStatus): boolean {
-  return (
-    status === 'pending' ||
-    status === 'active' ||
-    status === 'succeeded' ||
-    status === 'queued'
-  )
-}
-
-/** Passed but not yet executed (i.e., Succeeded or Queued). */
-export function isProposalSuccessful(status: ProposalStatus): boolean {
-  return status === 'succeeded' || status === 'queued'
-}

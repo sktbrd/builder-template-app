@@ -25,6 +25,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   emptyDraft,
   encodeDraft,
+  summarizeDraftsMarkdown,
   tokenKey,
   type TokenMetaMap,
   type TxDraft,
@@ -84,6 +85,33 @@ type EditorState =
   | { mode: 'new'; draft: TxDraft }
   | { mode: 'edit'; index: number; draft: TxDraft }
 
+const DRAFT_STORAGE_KEY = `proposal-draft.v1.${daoConfig.chainId}.${daoConfig.addresses.token.toLowerCase()}`
+
+type PersistedDraftState = {
+  title: string
+  description: string
+  drafts: TxDraft[]
+}
+
+function readPersistedDraft(): PersistedDraftState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedDraftState
+    if (
+      typeof parsed.title === 'string' &&
+      typeof parsed.description === 'string' &&
+      Array.isArray(parsed.drafts)
+    ) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 function ProposalCreateFormInner({
   treasuryNfts,
   treasuryTokens,
@@ -94,10 +122,19 @@ function ProposalCreateFormInner({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Pre-fill from URL params (set by NftSection "New proposal" flow)
+  // URL params take priority over persisted state — landing here from
+  // a "Send NFT" deep link should always show that draft, not stale local state.
+  const fromUrlKind = searchParams.get('tx_kind')
+  const fromUrlTitle = searchParams.get('title')
+  const fromUrlDescription = searchParams.get('description')
+  const hasUrlData = !!(fromUrlKind || fromUrlTitle || fromUrlDescription)
+  const persisted = hasUrlData ? null : readPersistedDraft()
+
   const [step, setStep] = useState<WizardStep>('details')
-  const [title, setTitle] = useState(() => searchParams.get('title') ?? '')
-  const [description, setDescription] = useState(() => searchParams.get('description') ?? '')
+  const [title, setTitle] = useState(() => fromUrlTitle ?? persisted?.title ?? '')
+  const [description, setDescription] = useState(
+    () => fromUrlDescription ?? persisted?.description ?? ''
+  )
   const [drafts, setDrafts] = useState<TxDraft[]>(() => {
     const kind = searchParams.get('tx_kind')
     if (kind === 'nft') {
@@ -115,10 +152,36 @@ function ProposalCreateFormInner({
     if (target && calldata) {
       return [{ kind: 'custom' as const, target, valueEth: '0', calldata }]
     }
-    return []
+    return persisted?.drafts ?? []
   })
   const [editor, setEditor] = useState<EditorState>({ mode: 'list' })
   const [showPreview, setShowPreview] = useState(false)
+  /** Toggle in the Review step — when true, the decoded-transactions section
+   *  is appended to the proposal description on submit. */
+  const [includeDecodedSummary, setIncludeDecodedSummary] = useState(true)
+
+  // Persist title/description/drafts to localStorage so refresh or wallet
+  // network switches don't lose the in-progress proposal. Cleared by
+  // submit() on a successful proposal write.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hasAny = title.trim().length > 0 || description.trim().length > 0 || drafts.length > 0
+    const timer = window.setTimeout(() => {
+      try {
+        if (hasAny) {
+          window.localStorage.setItem(
+            DRAFT_STORAGE_KEY,
+            JSON.stringify({ title, description, drafts })
+          )
+        } else {
+          window.localStorage.removeItem(DRAFT_STORAGE_KEY)
+        }
+      } catch {
+        // localStorage quota / disabled — silently drop
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [title, description, drafts])
 
   const { address, isConnected } = useAccount()
   const connectedChainId = useChainId()
@@ -245,6 +308,13 @@ function ProposalCreateFormInner({
 
   useEffect(() => {
     if (!isMined) return
+    // Successful submit — clear the persisted draft so a refresh on /proposals
+    // doesn't bring us back here with the same state.
+    try {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
     const t = setTimeout(() => {
       router.push('/proposals')
     }, 1600)
@@ -286,7 +356,11 @@ function ProposalCreateFormInner({
     }
     const targets = encoded.map((e) => e!.target as Address)
     const calldatas = encoded.map((e) => (e!.calldata?.trim() || '0x') as `0x${string}`)
-    const fullDescription = composeDescription(title, description)
+    const decodedSection =
+      includeDecodedSummary && drafts.length > 0
+        ? `\n\n${summarizeDraftsMarkdown(drafts, tokenMeta)}`
+        : ''
+    const fullDescription = composeDescription(title, description + decodedSection)
 
     writeContract({
       address: daoConfig.addresses.governor as Address,
@@ -317,6 +391,12 @@ function ProposalCreateFormInner({
   const removeDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i))
   const setEditorDraft = (next: TxDraft) =>
     setEditor((cur) => (cur.mode === 'list' ? cur : { ...cur, draft: next }))
+  /**
+   * Used by milestone/stream/airdrop forms to push a paired ERC-20 approval
+   * draft into the queue without losing the in-progress draft.
+   */
+  const addRelatedDraft = (extra: TxDraft) =>
+    setDrafts((prev) => [...prev, extra])
 
   // ── Navigation
   const goNext = () => {
@@ -382,6 +462,7 @@ function ProposalCreateFormInner({
           onSaveEdit={saveEdit}
           onRemove={removeDraft}
           onEditorChange={setEditorDraft}
+          onAddRelatedDraft={addRelatedDraft}
         />
       )}
 
@@ -391,6 +472,8 @@ function ProposalCreateFormInner({
           description={description}
           drafts={drafts}
           tokenMeta={tokenMeta}
+          includeDecodedSummary={includeDecodedSummary}
+          onIncludeDecodedSummaryChange={setIncludeDecodedSummary}
         />
       )}
 
@@ -504,6 +587,7 @@ function TransactionsStep({
   onSaveEdit,
   onRemove,
   onEditorChange,
+  onAddRelatedDraft,
 }: {
   drafts: TxDraft[]
   tokenMeta: TokenMetaMap
@@ -516,6 +600,7 @@ function TransactionsStep({
   onSaveEdit: () => void
   onRemove: (i: number) => void
   onEditorChange: (next: TxDraft) => void
+  onAddRelatedDraft: (extra: TxDraft) => void
 }) {
   const [creatorCoinOpen, setCreatorCoinOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -531,6 +616,7 @@ function TransactionsStep({
           tokenMeta={tokenMeta}
           treasuryNfts={treasuryNfts}
           treasuryTokens={treasuryTokens}
+          onAddRelatedDraft={onAddRelatedDraft}
           saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Add to queue'}
         />
       </div>
@@ -608,11 +694,15 @@ function PreviewStep({
   description,
   drafts,
   tokenMeta,
+  includeDecodedSummary,
+  onIncludeDecodedSummaryChange,
 }: {
   title: string
   description: string
   drafts: TxDraft[]
   tokenMeta: TokenMetaMap
+  includeDecodedSummary: boolean
+  onIncludeDecodedSummaryChange: (next: boolean) => void
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
@@ -621,6 +711,8 @@ function PreviewStep({
         description={description}
         drafts={drafts}
         tokenMeta={tokenMeta}
+        includeDecodedSummary={includeDecodedSummary}
+        onIncludeDecodedSummaryChange={onIncludeDecodedSummaryChange}
       />
     </div>
   )

@@ -227,6 +227,129 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
     )
   }
 
+  if (draft.kind === 'pin_asset') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="text-muted-fg">Pin</span>
+        <span className="font-semibold text-fg uppercase">{draft.tokenType}</span>
+        {draft.isCollection && (
+          <span className="rounded-full border border-border bg-surface px-1.5 py-0 text-[10px] font-medium text-muted-fg">
+            collection
+          </span>
+        )}
+        {!draft.isCollection && draft.tokenType !== 'erc20' && draft.tokenId && (
+          <span className="font-mono text-[11px] text-muted-fg">#{draft.tokenId}</span>
+        )}
+        {draft.contract && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <WalletPill
+              address={draft.contract}
+              link={false}
+              size="xs"
+              showExplorer
+              chainId={daoConfig.chainId}
+            />
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'milestone') {
+    const totalEth = draft.milestones
+      .map((m) => Number(m.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    return (
+      <div className="flex flex-col gap-1 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-fg">
+            {draft.milestones.length} milestone{draft.milestones.length === 1 ? '' : 's'}
+          </span>
+          {totalEth > 0 && (
+            <>
+              <span className="text-muted-fg">·</span>
+              <span className="font-semibold text-fg">
+                {formatNumber(totalEth.toString())} total
+              </span>
+            </>
+          )}
+          <span className="text-muted-fg">to</span>
+          {draft.recipient ? (
+            <WalletPill address={draft.recipient} link={false} size="xs" />
+          ) : (
+            <span className="italic text-muted-fg">(no recipient)</span>
+          )}
+        </div>
+        {draft.safetyValveDate && (
+          <div className="text-[11px] text-muted-fg">
+            Safety valve {draft.safetyValveDate}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'airdrop') {
+    const total = draft.recipients
+      .map((r) => Number(r.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {draft.recipients.length} recipient{draft.recipients.length === 1 ? '' : 's'}
+        </span>
+        {total > 0 && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <span className="font-semibold text-fg">{formatNumber(total.toString())}</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'droposal') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg truncate">{draft.name || '(no name)'}</span>
+        {draft.symbol && (
+          <span className="font-mono text-[11px] text-muted-fg">({draft.symbol})</span>
+        )}
+        <span className="text-muted-fg">·</span>
+        <span className="text-muted-fg">
+          {draft.editionSize ? `${draft.editionSize} editions` : 'open edition'}
+        </span>
+        {draft.priceEth && draft.priceEth !== '0' && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <span className="font-semibold text-fg">{formatNumber(draft.priceEth)} ETH</span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'stream') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {formatNumber(draft.totalAmount) || '0'}
+        </span>
+        <span className="text-muted-fg">over</span>
+        <span className="font-semibold text-fg">{draft.durationDays || '?'} days</span>
+        <span className="text-muted-fg">to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+      </div>
+    )
+  }
+
   // custom + all custom-like kinds
   if (draft.kind === 'custom' || CUSTOM_LIKE_KINDS.has(draft.kind)) {
     const d = draft as Extract<TxDraft, { target: string; valueEth: string; calldata: string }>

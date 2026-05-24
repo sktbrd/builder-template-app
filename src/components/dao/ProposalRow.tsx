@@ -34,6 +34,14 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
           >
             {proposerLabel}
           </span>
+          {p.proposerStats && p.proposerStats.total > 1 && (
+            <span
+              title={`${p.proposerStats.passed}/${p.proposerStats.total} passed (recent window)`}
+              className="shrink-0 rounded-full border border-border bg-surface px-1.5 py-0 text-[10px] font-medium tabular-nums text-muted-fg"
+            >
+              {p.proposerStats.total}× · {p.proposerStats.passed}✓
+            </span>
+          )}
           <span aria-hidden>·</span>
           <span className="shrink-0 tabular-nums">{p.date}</span>
           {hasReq && (

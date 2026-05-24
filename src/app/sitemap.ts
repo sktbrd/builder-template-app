@@ -29,7 +29,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 
   const [proposalUrls, auctionUrls] = await Promise.all([
-    getAllProposals(200)
+    // Default cap is 1000 proposals (well under Next.js's 50k sitemap entry
+    // limit). For DAOs that exceed this, see Next.js's `generateSitemaps`
+    // API for sharding: https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap#generating-multiple-sitemaps
+    getAllProposals(1000)
       .then((proposals) =>
         proposals.map<MetadataRoute.Sitemap[number]>((p) => ({
           url: `${BASE}/proposals/${p.proposalNumber}`,

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { isAddress } from 'viem'
 
 import { TokenLogo } from '@/components/dao/TokenLogo'
@@ -8,6 +9,7 @@ import { daoConfig } from '@/lib/dao.config'
 import type { TreasuryNft, TreasuryTokenHolding } from '@/lib/dao-data'
 import {
   type AirdropEntry,
+  buildApprovalDraft,
   CUSTOM_LIKE_KINDS,
   isAirdropSupported,
   isEasSupported,
@@ -38,6 +40,8 @@ type Props = {
   tokenMeta: TokenMetaMap
   treasuryNfts?: TreasuryNft[]
   treasuryTokens?: TreasuryTokenHolding[]
+  /** Push an additional draft into the queue without losing this one. */
+  onAddRelatedDraft?: (extra: TxDraft) => void
   saveLabel: string
 }
 
@@ -49,6 +53,7 @@ export function DraftForm({
   tokenMeta,
   treasuryNfts = [],
   treasuryTokens = [],
+  onAddRelatedDraft,
   saveLabel,
 }: Props) {
   const errors = validateDraft(draft, tokenMeta)
@@ -103,6 +108,7 @@ export function DraftForm({
           onChange={onChange}
           tokenMeta={tokenMeta}
           treasuryTokens={treasuryTokens}
+          onAddRelatedDraft={onAddRelatedDraft}
         />
       )}
       {draft.kind === 'airdrop' && (
@@ -111,6 +117,7 @@ export function DraftForm({
           onChange={onChange}
           tokenMeta={tokenMeta}
           treasuryTokens={treasuryTokens}
+          onAddRelatedDraft={onAddRelatedDraft}
         />
       )}
       {draft.kind === 'walletconnect' && (
@@ -121,7 +128,12 @@ export function DraftForm({
       )}
       {draft.kind === 'droposal' && <DroposalFields draft={draft} onChange={onChange} />}
       {draft.kind === 'stream' && (
-        <StreamFields draft={draft} onChange={onChange} tokenMeta={tokenMeta} />
+        <StreamFields
+          draft={draft}
+          onChange={onChange}
+          tokenMeta={tokenMeta}
+          onAddRelatedDraft={onAddRelatedDraft}
+        />
       )}
       {CUSTOM_LIKE_KINDS.has(draft.kind) && (
         <CustomLikeFields
@@ -738,16 +750,45 @@ function PauseAuctionFields({
   )
 }
 
+/**
+ * Shown on milestone/stream/airdrop forms for ERC-20 token flows — pushes
+ * a paired `approve(spender, amount)` draft to the queue so the proposer
+ * doesn't have to build it by hand.
+ */
+function ApprovalQueueButton({
+  draft,
+  tokenMeta,
+  onAddRelatedDraft,
+}: {
+  draft: TxDraft
+  tokenMeta: TokenMetaMap
+  onAddRelatedDraft?: (extra: TxDraft) => void
+}) {
+  const approval = buildApprovalDraft(draft, tokenMeta)
+  if (!approval || !onAddRelatedDraft) return null
+  return (
+    <button
+      type="button"
+      onClick={() => onAddRelatedDraft(approval)}
+      className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-[12px] font-semibold text-accent-strong hover:bg-accent/20"
+    >
+      + Queue ERC-20 approval for this draft
+    </button>
+  )
+}
+
 function AirdropFields({
   draft,
   onChange,
   tokenMeta,
   treasuryTokens,
+  onAddRelatedDraft,
 }: {
   draft: TxDraftAirdrop
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
   treasuryTokens: TreasuryTokenHolding[]
+  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const supported = isAirdropSupported()
   const isNative =
@@ -801,10 +842,15 @@ function AirdropFields({
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Uses the Disperse contract to fan-out funds in a single tx. For ERC-20 tokens add a
-        separate <strong>Send ERC-20</strong> approval to the Disperse address for the total
-        amount.
+        Uses the Disperse contract to fan-out funds in a single tx. For ERC-20 tokens you also
+        need an <span className="font-mono">approve()</span> tx to the Disperse address — use
+        the button below once token + amounts are set.
       </div>
+      <ApprovalQueueButton
+        draft={draft}
+        tokenMeta={tokenMeta}
+        onAddRelatedDraft={onAddRelatedDraft}
+      />
 
       {/* Token picker */}
       <Field label="Token">
@@ -913,11 +959,13 @@ function MilestoneFields({
   onChange,
   tokenMeta,
   treasuryTokens,
+  onAddRelatedDraft,
 }: {
   draft: TxDraftMilestone
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
   treasuryTokens: TreasuryTokenHolding[]
+  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const escrowOk = isEscrowSupported()
   const isNative =
@@ -969,10 +1017,15 @@ function MilestoneFields({
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Deploys a SmartInvoice escrow. For ERC-20 tokens you must also add a separate{' '}
-        <strong>Send ERC-20</strong> transaction approving the bundler for the total amount.
-        Native ETH is forwarded automatically.
+        Deploys a SmartInvoice escrow. For ERC-20 tokens you also need an{' '}
+        <span className="font-mono">approve()</span> tx to the EscrowBundler — use the button
+        below once token + amounts are set. Native ETH is forwarded automatically.
       </div>
+      <ApprovalQueueButton
+        draft={draft}
+        tokenMeta={tokenMeta}
+        onAddRelatedDraft={onAddRelatedDraft}
+      />
 
       {/* Token picker */}
       <Field label="Token">
@@ -1112,11 +1165,97 @@ function MilestoneFields({
         </div>
       </div>
 
-      <div className="text-[11.5px] text-muted-fg">
-        Note: milestone titles and descriptions are skipped from on-chain metadata in this
-        template version. Funds release on-chain by amount + date; full SmartInvoice metadata
-        upload to IPFS can be added per-DAO.
+      <MilestoneMetadataUpload draft={draft} onChange={onChange} />
+    </div>
+  )
+}
+
+function MilestoneMetadataUpload({
+  draft,
+  onChange,
+}: {
+  draft: TxDraftMilestone
+  onChange: (next: TxDraft) => void
+}) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const upload = async () => {
+    setError(null)
+    setUploading(true)
+    try {
+      const payload = {
+        title: draft.milestones[0]?.title || 'Milestone proposal',
+        description: 'SmartInvoice escrow milestones',
+        endDate: draft.milestones.reduce(
+          (max, m) =>
+            m.endDate ? Math.max(max, Math.floor(new Date(m.endDate).getTime() / 1000)) : max,
+          0
+        ),
+        milestones: draft.milestones.map((m, i) => ({
+          id: `m-${i}`,
+          title: m.title,
+          description: m.description,
+          endDate: m.endDate
+            ? Math.floor(new Date(m.endDate).getTime() / 1000)
+            : 0,
+          createdAt: Math.floor(Date.now() / 1000),
+        })),
+        createdAt: Math.floor(Date.now() / 1000),
+      }
+      const { uploadJson } = await import('@buildeross/ipfs-service')
+      const result = await uploadJson(payload)
+      const cid =
+        typeof result === 'string'
+          ? result
+          : ((result as { cid?: string }).cid ?? (result as { uri?: string }).uri ?? '')
+      if (!cid) throw new Error('Upload returned no CID')
+      const clean = cid.replace(/^ipfs:\/\//, '')
+      onChange({ ...draft, ipfsCid: clean })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'IPFS upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-surface-2 px-3 py-2.5 text-[12px]">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="font-semibold text-fg">SmartInvoice metadata</span>
+        {draft.ipfsCid ? (
+          <span className="font-mono text-[10.5px] text-success">
+            ipfs://{draft.ipfsCid.slice(0, 8)}…{draft.ipfsCid.slice(-6)}
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-fg">not uploaded</span>
+        )}
       </div>
+      <p className="mb-2 text-muted-fg">
+        Optional. Uploads milestone titles, descriptions, and dates as JSON so the
+        SmartInvoice UI can show them off-chain. Without this the escrow still executes
+        — only the off-chain display loses context.
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={upload}
+          disabled={uploading}
+          className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-[12px] font-semibold text-accent-strong hover:bg-accent/20 disabled:opacity-50"
+        >
+          {uploading ? 'Uploading…' : draft.ipfsCid ? 'Re-upload metadata' : 'Upload metadata to IPFS'}
+        </button>
+        {draft.ipfsCid && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...draft, ipfsCid: undefined })}
+            className="text-[11px] text-muted-fg hover:text-fg"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {error && <div className="mt-2 text-[11px] text-warning">{error}</div>}
     </div>
   )
 }
@@ -1354,10 +1493,12 @@ function StreamFields({
   draft,
   onChange,
   tokenMeta,
+  onAddRelatedDraft,
 }: {
   draft: TxDraftStream
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
+  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const meta: TokenMeta | undefined = isAddress(draft.token)
     ? tokenMeta[tokenKey(draft.token)]
@@ -1366,10 +1507,15 @@ function StreamFields({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Streams tokens linearly over time. You must also add a separate{' '}
-        <strong>Send ERC-20</strong> transaction to first approve or transfer tokens to the Sablier
-        contract.
+        Streams tokens linearly over time. You also need an{' '}
+        <span className="font-mono">approve()</span> tx to the Sablier contract — use the
+        button below once token + total amount are set.
       </div>
+      <ApprovalQueueButton
+        draft={draft}
+        tokenMeta={tokenMeta}
+        onAddRelatedDraft={onAddRelatedDraft}
+      />
       <Field label="Sablier LockupLinear contract">
         <input
           type="text"

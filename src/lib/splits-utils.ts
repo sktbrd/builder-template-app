@@ -5,17 +5,10 @@ export interface SplitRecipient {
   percentAllocation: number
 }
 
-export interface SplitConfig {
-  recipients: SplitRecipient[]
-  distributorFeePercent: number
-}
-
 export interface SplitValidationError {
   field: string
   message: string
 }
-
-export const IMMUTABLE_CONTROLLER = '0x0000000000000000000000000000000000000000' as const
 
 export function validateSplitRecipients(recipients: SplitRecipient[]): SplitValidationError[] {
   const errors: SplitValidationError[] = []
@@ -73,12 +66,3 @@ export function autoAdjustPercentages(recipients: SplitRecipient[]): SplitRecipi
   }))
 }
 
-export function createDefaultSplitConfig(treasuryAddress: string, userAddress?: string): SplitConfig {
-  return {
-    recipients: [
-      { address: treasuryAddress, percentAllocation: 80 },
-      { address: userAddress && userAddress !== treasuryAddress ? userAddress : '', percentAllocation: 20 },
-    ],
-    distributorFeePercent: 0,
-  }
-}

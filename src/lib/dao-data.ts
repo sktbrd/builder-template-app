@@ -162,6 +162,19 @@ export type ProposalSummary = {
   treasuryInsufficient: boolean
   /** First image URL found in the proposal's markdown description, if any. */
   thumbnail: string | null
+  /**
+   * Per-proposer activity in the recent window — used to surface a small
+   * reputation badge next to the proposer pill on lists. `null` when the
+   * caller didn't compute stats.
+   */
+  proposerStats: ProposerStats | null
+}
+
+export type ProposerStats = {
+  /** Total proposals by this proposer in the data window. */
+  total: number
+  /** Proposals that reached a passing state (Succeeded / Queued / Executed). */
+  passed: number
 }
 
 export type DashboardActivityItem = {
@@ -280,10 +293,12 @@ export async function getDashboardData(): Promise<DashboardData> {
     resolveEnsNames(recentProposers),
     fetchTreasuryBalances(),
   ])
+  const recentProposerStats = computeProposerStats(proposalsResp.proposals)
   const recentProposals: ProposalSummary[] = proposalsResp.proposals.map((p) =>
     formatProposal(p, {
       proposerEns: recentProposerEns.get(String(p.proposer).toLowerCase()) ?? null,
       treasury: treasuryBalances,
+      proposerStats: recentProposerStats.get(String(p.proposer).toLowerCase()) ?? null,
     })
   )
 
@@ -387,6 +402,8 @@ type FormatProposalOptions = {
   proposerEns?: string | null
   /** Treasury holdings — ETH wei + per-token (lowercase addr) raw amounts. */
   treasury?: TreasuryBalances
+  /** Per-proposer reputation stats computed across the data window. */
+  proposerStats?: ProposerStats | null
 }
 
 function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): ProposalSummary {
@@ -425,7 +442,30 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
     requested,
     treasuryInsufficient,
     thumbnail: extractFirstImage(p.description ?? ''),
+    proposerStats: opts.proposerStats ?? null,
   }
+}
+
+/**
+ * Tally per-proposer activity from a slice of recent proposals. The result
+ * is bounded by the same limit the caller passed to `getAllProposals` — i.e.
+ * "recent window" reputation, not all-time.
+ */
+export function computeProposerStats(
+  proposals: Proposal[]
+): Map<string, ProposerStats> {
+  const out = new Map<string, ProposerStats>()
+  for (const p of proposals) {
+    const key = String(p.proposer).toLowerCase()
+    const entry = out.get(key) ?? { total: 0, passed: 0 }
+    entry.total += 1
+    const state = mapProposalState(p.state)
+    if (state === 'executed' || state === 'queued' || state === 'succeeded') {
+      entry.passed += 1
+    }
+    out.set(key, entry)
+  }
+  return out
 }
 
 function extractFirstImage(markdown: string): string | null {
@@ -1030,10 +1070,12 @@ export async function getAllProposals(limit = 50): Promise<ProposalSummary[]> {
     resolveEnsNames(proposers),
     fetchTreasuryBalances(),
   ])
+  const statsByProposer = computeProposerStats(resp.proposals)
   return resp.proposals.map((p) =>
     formatProposal(p, {
       proposerEns: ensMap.get(String(p.proposer).toLowerCase()) ?? null,
       treasury: treasuryBalances,
+      proposerStats: statsByProposer.get(String(p.proposer).toLowerCase()) ?? null,
     })
   )
 }

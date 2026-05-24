@@ -7,6 +7,7 @@ import {
   TREASURY_ASSET_PIN_SCHEMA_UID,
 } from '@buildeross/constants/eas'
 import {
+  convertIpfsCidV0ToByte32,
   deployEscrowAbi,
   ESCROW_REQUIRE_VERIFICATION,
   ESCROW_RESOLVER_TYPE,
@@ -34,7 +35,11 @@ type ChainId = keyof typeof EAS_CONTRACT_ADDRESS
 
 /** EAS contract address for the current DAO's chain, if supported. */
 function easAddress(): `0x${string}` | null {
-  return EAS_CONTRACT_ADDRESS[daoConfig.chainId as ChainId] ?? null
+  return (
+    daoConfig.contractOverrides?.eas ??
+    EAS_CONTRACT_ADDRESS[daoConfig.chainId as ChainId] ??
+    null
+  )
 }
 
 /** EAS supported on the current chain? */
@@ -44,10 +49,21 @@ export function isEasSupported(): boolean {
 
 /** EscrowBundler supported on the current chain? */
 export function isEscrowSupported(): boolean {
+  if (daoConfig.contractOverrides?.escrowBundler) return true
   try {
     return !!getEscrowBundler(daoConfig.chainId)
   } catch {
     return false
+  }
+}
+
+function resolvedEscrowBundler(): `0x${string}` | null {
+  if (daoConfig.contractOverrides?.escrowBundler)
+    return daoConfig.contractOverrides.escrowBundler
+  try {
+    return getEscrowBundler(daoConfig.chainId) as `0x${string}`
+  } catch {
+    return null
   }
 }
 
@@ -189,6 +205,10 @@ const DISPERSE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
 }
 
 export function disperseAddress(chainId: number): `0x${string}` | null {
+  // Override takes priority — only honored when the active chain matches.
+  if (chainId === daoConfig.chainId && daoConfig.contractOverrides?.disperse) {
+    return daoConfig.contractOverrides.disperse
+  }
   return DISPERSE_ADDRESSES[chainId] ?? null
 }
 
@@ -197,6 +217,15 @@ export function isAirdropSupported(): boolean {
 }
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+function cidToByte32(cid?: string): `0x${string}` {
+  if (!cid || !cid.trim()) return zeroHash
+  try {
+    return convertIpfsCidV0ToByte32(cid.trim()) as `0x${string}`
+  } catch {
+    return zeroHash
+  }
+}
 
 const disperseAbi = [
   {
@@ -345,6 +374,12 @@ export type TxDraftMilestone = {
   /** YYYY-MM-DD safety valve — after this date, the client can reclaim. */
   safetyValveDate: string
   milestones: MilestoneEntry[]
+  /**
+   * IPFS CID (v0) of the uploaded SmartInvoice metadata. Optional — when
+   * absent, the encoder uses zeroHash and the off-chain UI loses titles
+   * and descriptions but the escrow still functions on-chain.
+   */
+  ipfsCid?: string
 }
 
 // Custom-like draft: identical structure, different kind discriminant.
@@ -395,12 +430,16 @@ export function emptyDraft(kind: TxKind): TxDraft {
   if (kind === 'delegate') return { kind: 'delegate', delegatee: '' }
   if (kind === 'pause_auction') return { kind: 'pause_auction', action: 'pause' }
   if (kind === 'droposal') return {
-    kind: 'droposal', zoraNftCreator: '', name: '', symbol: '', description: '',
+    kind: 'droposal',
+    zoraNftCreator: daoConfig.contractOverrides?.zoraNftCreator ?? '',
+    name: '', symbol: '', description: '',
     imageUri: '', priceEth: '0', editionSize: '', saleStart: '', saleEnd: '',
     mintLimitPerAddress: '', royaltyPercent: '5', fundsRecipient: '', defaultAdmin: '',
   }
   if (kind === 'stream') return {
-    kind: 'stream', sablierLL: '', token: '', recipient: '', totalAmount: '',
+    kind: 'stream',
+    sablierLL: daoConfig.contractOverrides?.sablierLockupLinear ?? '',
+    token: '', recipient: '', totalAmount: '',
     durationDays: '', cliffDays: '', cancelable: true,
   }
   if (kind === 'pin_asset') return {
@@ -733,12 +772,8 @@ export function encodeDraft(
     if (!isAddress(draft.token) || !isAddress(draft.recipient) || !isAddress(draft.client))
       return null
     if (!ctx.treasury || !isAddress(ctx.treasury)) return null
-    let bundler: `0x${string}`
-    try {
-      bundler = getEscrowBundler(daoConfig.chainId) as `0x${string}`
-    } catch {
-      return null
-    }
+    const bundler = resolvedEscrowBundler()
+    if (!bundler) return null
     const isNative = draft.token.toLowerCase() === ZERO_ADDRESS
     const wrappedToken = (() => {
       try {
@@ -780,7 +815,7 @@ export function encodeDraft(
         SMART_INVOICE_ARBITRATION_PROVIDER,
         tokenForEscrow,
         safetyValveUnix,
-        zeroHash,
+        cidToByte32(draft.ipfsCid),
         wrappedToken ?? tokenForEscrow,
         ESCROW_REQUIRE_VERIFICATION,
         bundler,
@@ -982,6 +1017,198 @@ export function encodeDraft(
     valueEth: draft.valueEth,
     calldata: draft.calldata || '0x',
   }
+}
+
+/**
+ * Build an ERC-20 `approve(spender, amount)` draft for the source draft when
+ * its token + amount can be resolved. Returns null for native ETH or for
+ * source drafts that don't need an approval (eth/erc20/etc.).
+ */
+export function buildApprovalDraft(
+  source: TxDraft,
+  tokenMeta: TokenMetaMap
+): TxDraftCustom | null {
+  let token: string | null = null
+  let amount: string | null = null
+  let spender: `0x${string}` | null = null
+
+  if (source.kind === 'stream') {
+    token = source.token
+    amount = source.totalAmount
+    spender =
+      isAddress(source.sablierLL) ? (getAddress(source.sablierLL) as `0x${string}`) : null
+  } else if (source.kind === 'airdrop') {
+    token = source.token
+    spender = disperseAddress(daoConfig.chainId)
+    const totals = source.recipients
+      .map((r) => Number(r.amount))
+      .filter((n) => Number.isFinite(n))
+    if (totals.length === source.recipients.length) {
+      amount = totals.reduce((a, b) => a + b, 0).toString()
+    }
+  } else if (source.kind === 'milestone') {
+    token = source.token
+    spender = resolvedEscrowBundler()
+    const totals = source.milestones
+      .map((m) => Number(m.amount))
+      .filter((n) => Number.isFinite(n))
+    if (totals.length === source.milestones.length) {
+      amount = totals.reduce((a, b) => a + b, 0).toString()
+    }
+  } else {
+    return null
+  }
+
+  if (!token || !isAddress(token)) return null
+  if (token.toLowerCase() === ZERO_ADDRESS) return null // native ETH — no approval
+  if (!spender || !isAddress(spender)) return null
+  if (!amount) return null
+
+  const meta = tokenMeta[tokenKey(token)]
+  if (!meta) return null
+
+  let parsed: bigint
+  try {
+    parsed = parseUnits(amount, meta.decimals)
+  } catch {
+    return null
+  }
+
+  const calldata = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: 'approve',
+    args: [spender, parsed],
+  })
+
+  return {
+    kind: 'custom',
+    target: getAddress(token),
+    valueEth: '0',
+    calldata,
+  }
+}
+
+/**
+ * Render a single draft as a human-readable markdown block — used to
+ * append a "Decoded transactions" section to the proposal description so
+ * voters see what the call actually does without having to decode calldata.
+ */
+export function summarizeDraftMarkdown(
+  draft: TxDraft,
+  index: number,
+  tokenMeta: TokenMetaMap
+): string {
+  const heading = `**Tx ${index + 1}: ${TX_KIND_LABELS[draft.kind]}**`
+  const lines: string[] = [heading]
+
+  if (draft.kind === 'eth') {
+    lines.push(`- Send \`${draft.valueEth || '0'} ETH\` to \`${draft.recipient || '?'}\``)
+  } else if (draft.kind === 'erc20') {
+    const meta = tokenMeta[tokenKey(draft.token)]
+    const symbol = meta?.symbol ?? 'tokens'
+    lines.push(
+      `- Send \`${draft.amount || '0'} ${symbol}\` to \`${draft.recipient || '?'}\``
+    )
+    lines.push(`- Token contract: \`${draft.token}\``)
+  } else if (draft.kind === 'nft') {
+    lines.push(`- Send NFT #${draft.tokenId} to \`${draft.recipient || '?'}\``)
+    lines.push(`- Collection: \`${draft.contract}\``)
+  } else if (draft.kind === 'mint_gov') {
+    lines.push(`- Mint a governance token to \`${draft.recipient}\``)
+  } else if (draft.kind === 'delegate') {
+    lines.push(`- Nominate \`${draft.delegatee}\` as the DAO's escrow delegate`)
+    lines.push('- Via EAS attestation (escrow-delegate schema)')
+  } else if (draft.kind === 'pause_auction') {
+    lines.push(`- **${draft.action === 'pause' ? 'Pause' : 'Unpause'}** the DAO auction house`)
+  } else if (draft.kind === 'pin_asset') {
+    const what = draft.isCollection
+      ? `the ${draft.tokenType.toUpperCase()} collection`
+      : `${draft.tokenType.toUpperCase()} token #${draft.tokenId}`
+    lines.push(`- Pin ${what} at \`${draft.contract}\` to the treasury display`)
+  } else if (draft.kind === 'droposal') {
+    lines.push(`- Deploy a Zora edition: **${draft.name}** (${draft.symbol})`)
+    lines.push(
+      `- Mint price: \`${draft.priceEth || '0'} ETH\` · ${
+        draft.editionSize ? `Size: ${draft.editionSize}` : 'Open edition'
+      } · Royalty: ${draft.royaltyPercent || '0'}%`
+    )
+    if (draft.description) lines.push(`- "${draft.description}"`)
+  } else if (draft.kind === 'stream') {
+    const meta = tokenMeta[tokenKey(draft.token)]
+    const symbol = meta?.symbol ?? 'tokens'
+    lines.push(
+      `- Stream \`${draft.totalAmount || '0'} ${symbol}\` to \`${draft.recipient}\` over ${draft.durationDays} days${
+        draft.cliffDays ? ` (cliff ${draft.cliffDays} days)` : ''
+      }`
+    )
+    lines.push(`- Cancelable: ${draft.cancelable ? 'yes' : 'no'}`)
+  } else if (draft.kind === 'milestone') {
+    const isNative = draft.token.toLowerCase() === ZERO_ADDRESS
+    const symbol = isNative
+      ? 'ETH'
+      : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
+    const total = draft.milestones
+      .map((m) => Number(m.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    lines.push(
+      `- Deploy a SmartInvoice escrow to \`${draft.recipient}\` · client \`${draft.client}\``
+    )
+    lines.push(`- Total: \`${total} ${symbol}\` across ${draft.milestones.length} milestones`)
+    lines.push(`- Safety valve: \`${draft.safetyValveDate}\``)
+    for (let i = 0; i < draft.milestones.length; i++) {
+      const m = draft.milestones[i]
+      lines.push(
+        `  - Milestone ${i + 1}: ${m.title || '(untitled)'} — \`${m.amount} ${symbol}\` by ${m.endDate}`
+      )
+    }
+  } else if (draft.kind === 'airdrop') {
+    const isNative = draft.token.toLowerCase() === ZERO_ADDRESS
+    const symbol = isNative
+      ? 'ETH'
+      : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
+    const total = draft.recipients
+      .map((r) => Number(r.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    lines.push(
+      `- Bulk-send \`${total} ${symbol}\` to **${draft.recipients.length} recipients** via Disperse`
+    )
+    for (const r of draft.recipients.slice(0, 5)) {
+      lines.push(`  - \`${r.recipient}\` — \`${r.amount} ${symbol}\``)
+    }
+    if (draft.recipients.length > 5) {
+      lines.push(`  - …and ${draft.recipients.length - 5} more`)
+    }
+  } else {
+    // custom + custom-like
+    const d = draft as Extract<TxDraft, { target: string; valueEth: string; calldata: string }>
+    lines.push(`- Call \`${d.target}\` with \`${d.valueEth || '0'} ETH\``)
+    if (d.calldata && d.calldata !== '0x') {
+      const preview = d.calldata.length > 24 ? `${d.calldata.slice(0, 12)}…${d.calldata.slice(-8)}` : d.calldata
+      lines.push(`- Calldata: \`${preview}\``)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Render a "Decoded transactions" markdown section for all drafts.
+ * Designed to be appended to the proposal description body for voter
+ * comprehension.
+ */
+export function summarizeDraftsMarkdown(
+  drafts: TxDraft[],
+  tokenMeta: TokenMetaMap
+): string {
+  if (drafts.length === 0) return ''
+  return [
+    '---',
+    '## Decoded transactions',
+    '',
+    ...drafts.map((d, i) => summarizeDraftMarkdown(d, i, tokenMeta)),
+  ].join('\n\n')
 }
 
 /** Collect the unique ERC-20 token addresses referenced across drafts. */
