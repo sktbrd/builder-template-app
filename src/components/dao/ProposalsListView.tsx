@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { ProposalCard } from '@/components/dao/ProposalCard'
 import { Button } from '@/components/ui/button'
 import type { ProposalSummary } from '@/lib/dao-data'
+import { useTweaks } from '@/lib/tweaks-context'
 import type { ProposalStatus } from '@/lib/types'
 
 type StatusFilter = ProposalStatus | 'all' | 'hide-cancelled'
@@ -14,8 +15,8 @@ type StatusFilter = ProposalStatus | 'all' | 'hide-cancelled'
 const HIDDEN_BY_DEFAULT: ProposalStatus[] = ['cancelled', 'vetoed', 'expired']
 
 const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: 'hide-cancelled', label: 'All statuses' },
-  { value: 'all', label: 'Include cancelled' },
+  { value: 'hide-cancelled', label: 'Active' },
+  { value: 'all', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
   { value: 'active', label: 'Active' },
   { value: 'succeeded', label: 'Succeeded' },
@@ -30,6 +31,7 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
 export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] }) {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<StatusFilter>('hide-cancelled')
+  const { tweaks } = useTweaks()
 
   const filtered = useMemo(() => {
     const ql = q.toLowerCase()
@@ -95,7 +97,11 @@ export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] 
       ) : (
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (
-            <ProposalCard key={p.id} p={p} />
+            <ProposalCard
+              key={p.id}
+              p={p}
+              showThumbnails={tweaks.showProposalThumbnails}
+            />
           ))}
         </div>
       )}

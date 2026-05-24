@@ -12,16 +12,9 @@ export const metadata: Metadata = {
 
 export const revalidate = 60
 
-const CHAIN_NAMES: Record<number, string> = {
-  1: 'Ethereum',
-  10: 'Optimism',
-  8453: 'Base',
-  7777777: 'Zora',
-}
-
 export default async function AboutPage() {
   const data = await getAboutPageData()
-  const chainName = CHAIN_NAMES[daoConfig.chainId] ?? `Chain ${daoConfig.chainId}`
+  const chainName = daoConfig.chain.name
   const treasuryDisplay = trimDecimals(data.treasuryEth, 4)
 
   const contracts: Array<{ label: string; addr: string }> = [

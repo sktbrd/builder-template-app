@@ -3,21 +3,21 @@
 import { ArrowUpRight, Check, Copy, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { encodeFunctionData, getAddress, parseAbi } from 'viem'
 import { useEnsName } from 'wagmi'
 
 import { daoConfig } from '@/lib/dao.config'
+import { resolveIpfs } from '@/lib/utils'
+
+const ERC721_SAFE_TRANSFER_ABI = parseAbi([
+  'function safeTransferFrom(address from, address to, uint256 tokenId)',
+])
 
 export type TreasuryNft = {
   tokenId: number
   name: string
   image: string | null
   mintedAt: number
-}
-
-function resolveIpfs(uri: string): string {
-  if (uri.startsWith('ipfs://'))
-    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
-  return uri
 }
 
 function fmtDate(ts: number): string {
@@ -130,10 +130,11 @@ function NftGalleryDialog({
 // ── Detail dialog ─────────────────────────────────────────────────────────────
 
 function encodeTransferCalldata(from: string, to: string, tokenId: number): string {
-  const padAddr = (a: string) => a.replace(/^0x/, '').toLowerCase().padStart(64, '0')
-  const padNum = (n: number) => n.toString(16).padStart(64, '0')
-  // safeTransferFrom(address,address,uint256) selector = 0x42842e0e
-  return '0x42842e0e' + padAddr(from) + padAddr(to) + padNum(tokenId)
+  return encodeFunctionData({
+    abi: ERC721_SAFE_TRANSFER_ABI,
+    functionName: 'safeTransferFrom',
+    args: [getAddress(from), getAddress(to), BigInt(tokenId)],
+  })
 }
 
 function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => void }) {

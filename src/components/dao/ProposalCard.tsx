@@ -1,10 +1,7 @@
-'use client'
-
 import Image from 'next/image'
 import Link from 'next/link'
 
 import type { ProposalSummary } from '@/lib/dao-data'
-import { useTweaks } from '@/lib/tweaks-context'
 import type { ProposalStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -30,8 +27,13 @@ const STATUS_CHIP: Record<ProposalStatus, { color: string; bg: string; label: st
     vetoed: { color: 'text-destructive', bg: 'bg-destructive/15', label: 'Vetoed' },
   }
 
-export function ProposalCard({ p }: { p: ProposalSummary }) {
-  const { tweaks } = useTweaks()
+export function ProposalCard({
+  p,
+  showThumbnails = false,
+}: {
+  p: ProposalSummary
+  showThumbnails?: boolean
+}) {
   const chip = STATUS_CHIP[p.status]
 
   const reqParts = [
@@ -46,7 +48,7 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
       href={`/proposals/${p.id}`}
       className="group flex flex-col rounded-xl border border-border bg-surface text-left text-fg transition-[transform,border-color] hover:-translate-y-px hover:border-border-strong overflow-hidden"
     >
-      {tweaks.showProposalThumbnails && (
+      {showThumbnails && (
         <div className="relative h-[140px] w-full shrink-0 overflow-hidden">
           {p.thumbnail ? (
             <Image src={p.thumbnail} alt="" fill className="object-cover" unoptimized />
@@ -66,18 +68,18 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
       <div
         className={cn(
           'flex flex-1 flex-col gap-3.5',
-          tweaks.showProposalThumbnails ? 'px-[22px] pb-[22px]' : 'px-[22px] py-[22px]'
+          showThumbnails ? 'px-[22px] pb-[22px]' : 'px-[22px] py-[22px]'
         )}
       >
         {/* Prop ID + status chip */}
         <div className="flex items-center justify-between">
-          {!tweaks.showProposalThumbnails && (
+          {!showThumbnails && (
             <span className="font-mono text-[12.5px] text-muted-fg">Prop {p.id}</span>
           )}
           <span
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-widest',
-              tweaks.showProposalThumbnails && 'ml-auto',
+              showThumbnails && 'ml-auto',
               chip.color,
               chip.bg
             )}

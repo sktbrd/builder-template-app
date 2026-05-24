@@ -340,7 +340,6 @@ describe('encodeDraft — droposal', () => {
   it('encodes Zora createEdition', () => {
     const draft: TxDraft = {
       kind: 'droposal',
-      zoraNftCreator: SAMPLE.zoraCreator,
       name: 'My Edition',
       symbol: 'ME',
       description: 'desc',

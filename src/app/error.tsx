@@ -16,11 +16,8 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 text-center">
-      <div
-        className="flex h-14 w-14 items-center justify-center rounded-full"
-        style={{ background: 'color-mix(in oklab, #f06464 15%, transparent)' }}
-      >
-        <RefreshCw className="h-6 w-6" style={{ color: '#f06464' }} />
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/15">
+        <RefreshCw className="h-6 w-6 text-destructive" />
       </div>
       <div>
         <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-widest text-muted-fg">

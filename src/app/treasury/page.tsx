@@ -318,14 +318,12 @@ function TxCard({
           >
             {/* direction badge */}
             <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-              style={{
-                background:
-                  tx.dir === 'in'
-                    ? 'color-mix(in oklab, #5fd28a 22%, transparent)'
-                    : 'color-mix(in oklab, #f06464 22%, transparent)',
-                color: tx.dir === 'in' ? '#5fd28a' : '#f06464',
-              }}
+              className={
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
+                (tx.dir === 'in'
+                  ? 'bg-success/20 text-success'
+                  : 'bg-destructive/20 text-destructive')
+              }
             >
               {tx.dir === 'in' ? '↓' : '↑'}
             </span>
@@ -345,8 +343,10 @@ function TxCard({
 
             {/* amount */}
             <div
-              className="shrink-0 text-right font-mono font-semibold tabular-nums"
-              style={{ color: tx.dir === 'in' ? '#5fd28a' : '#f06464' }}
+              className={
+                'shrink-0 text-right font-mono font-semibold tabular-nums ' +
+                (tx.dir === 'in' ? 'text-success' : 'text-destructive')
+              }
             >
               {tx.dir === 'in' ? '+' : '−'}
               {tx.amount} {tx.symbol}
