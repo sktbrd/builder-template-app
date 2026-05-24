@@ -24,7 +24,7 @@ import type { TreasuryNft, TreasuryTokenHolding } from '@/lib/dao-data'
 import { useSearchParams } from 'next/navigation'
 import {
   emptyDraft,
-  encodeDraft,
+  encodeDraftToTxs,
   summarizeDraftsMarkdown,
   tokenKey,
   type TokenMetaMap,
@@ -338,24 +338,28 @@ function ProposalCreateFormInner({
 
   const submit = () => {
     if (!detailsValid || !transactionsValid) return
+    // encodeDraftToTxs returns Tx[] (1 tx for most kinds, ≥2 for kinds that
+    // need a paired ERC-20 approval). Flatten before submitting so the
+    // governor sees the linearized call sequence.
     const encoded = drafts.map((d) =>
-      encodeDraft(d, tokenMeta, {
+      encodeDraftToTxs(d, tokenMeta, {
         treasury: daoConfig.addresses.treasury,
         token: daoConfig.addresses.token,
         auction: daoConfig.addresses.auction,
       })
     )
     if (encoded.some((e) => e === null)) return
+    const flat = encoded.flat() as { target: string; valueEth: string; calldata: string }[]
     let valuesWei: bigint[]
     try {
-      valuesWei = encoded.map((e) =>
-        e!.valueEth.trim() ? parseEther(e!.valueEth) : BigInt(0)
+      valuesWei = flat.map((e) =>
+        e.valueEth.trim() ? parseEther(e.valueEth) : BigInt(0)
       )
     } catch {
       return
     }
-    const targets = encoded.map((e) => e!.target as Address)
-    const calldatas = encoded.map((e) => (e!.calldata?.trim() || '0x') as `0x${string}`)
+    const targets = flat.map((e) => e.target as Address)
+    const calldatas = flat.map((e) => (e.calldata?.trim() || '0x') as `0x${string}`)
     const decodedSection =
       includeDecodedSummary && drafts.length > 0
         ? `\n\n${summarizeDraftsMarkdown(drafts, tokenMeta)}`
@@ -391,13 +395,6 @@ function ProposalCreateFormInner({
   const removeDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i))
   const setEditorDraft = (next: TxDraft) =>
     setEditor((cur) => (cur.mode === 'list' ? cur : { ...cur, draft: next }))
-  /**
-   * Used by milestone/stream/airdrop forms to push a paired ERC-20 approval
-   * draft into the queue without losing the in-progress draft.
-   */
-  const addRelatedDraft = (extra: TxDraft) =>
-    setDrafts((prev) => [...prev, extra])
-
   // ── Navigation
   const goNext = () => {
     if (step === 'details' && unlocked.transactions) setStep('transactions')
@@ -462,7 +459,6 @@ function ProposalCreateFormInner({
           onSaveEdit={saveEdit}
           onRemove={removeDraft}
           onEditorChange={setEditorDraft}
-          onAddRelatedDraft={addRelatedDraft}
         />
       )}
 
@@ -587,7 +583,6 @@ function TransactionsStep({
   onSaveEdit,
   onRemove,
   onEditorChange,
-  onAddRelatedDraft,
 }: {
   drafts: TxDraft[]
   tokenMeta: TokenMetaMap
@@ -600,7 +595,6 @@ function TransactionsStep({
   onSaveEdit: () => void
   onRemove: (i: number) => void
   onEditorChange: (next: TxDraft) => void
-  onAddRelatedDraft: (extra: TxDraft) => void
 }) {
   const [creatorCoinOpen, setCreatorCoinOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -616,7 +610,6 @@ function TransactionsStep({
           tokenMeta={tokenMeta}
           treasuryNfts={treasuryNfts}
           treasuryTokens={treasuryTokens}
-          onAddRelatedDraft={onAddRelatedDraft}
           saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Add to queue'}
         />
       </div>

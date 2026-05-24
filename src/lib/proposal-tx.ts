@@ -1020,6 +1020,28 @@ export function encodeDraft(
 }
 
 /**
+ * Encode a draft into the *final* list of transactions to include in the
+ * proposal. Most kinds return a single tx, but kinds that spend ERC-20s
+ * from the treasury (milestone, stream, airdrop) auto-prepend the matching
+ * `approve(spender, amount)` call so the proposer doesn't have to build it
+ * by hand. Native-ETH variants of those kinds skip the approval.
+ */
+export function encodeDraftToTxs(
+  draft: TxDraft,
+  tokenMeta: TokenMetaMap,
+  ctx: { treasury: string; token?: string; auction?: string } = { treasury: '' }
+): Tx[] | null {
+  const main = encodeDraft(draft, tokenMeta, ctx)
+  if (main === null) return null
+  const approval = buildApprovalDraft(draft, tokenMeta)
+  if (!approval) return [main]
+  return [
+    { target: approval.target, valueEth: approval.valueEth, calldata: approval.calldata },
+    main,
+  ]
+}
+
+/**
  * Build an ERC-20 `approve(spender, amount)` draft for the source draft when
  * its token + amount can be resolved. Returns null for native ETH or for
  * source drafts that don't need an approval (eth/erc20/etc.).
@@ -1142,11 +1164,15 @@ export function summarizeDraftMarkdown(
       }`
     )
     lines.push(`- Cancelable: ${draft.cancelable ? 'yes' : 'no'}`)
+    lines.push(`- (Auto-prepended: \`approve()\` to the Sablier contract for the total amount.)`)
   } else if (draft.kind === 'milestone') {
     const isNative = draft.token.toLowerCase() === ZERO_ADDRESS
     const symbol = isNative
       ? 'ETH'
       : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
+    if (!isNative) {
+      lines.push(`- (Auto-prepended: \`approve()\` to the EscrowBundler for the total amount.)`)
+    }
     const total = draft.milestones
       .map((m) => Number(m.amount))
       .filter((n) => Number.isFinite(n))
@@ -1167,6 +1193,9 @@ export function summarizeDraftMarkdown(
     const symbol = isNative
       ? 'ETH'
       : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
+    if (!isNative) {
+      lines.push(`- (Auto-prepended: \`approve()\` to the Disperse contract for the total amount.)`)
+    }
     const total = draft.recipients
       .map((r) => Number(r.amount))
       .filter((n) => Number.isFinite(n))

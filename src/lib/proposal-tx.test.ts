@@ -17,6 +17,7 @@ import {
   buildApprovalDraft,
   emptyDraft,
   encodeDraft,
+  encodeDraftToTxs,
   isAirdropSupported,
   isEasSupported,
   isEscrowSupported,
@@ -362,6 +363,58 @@ describe('encodeDraft — droposal', () => {
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+describe('encodeDraftToTxs (auto-included approvals)', () => {
+  it('returns a single tx for plain ETH transfers', () => {
+    const draft: TxDraft = { kind: 'eth', recipient: SAMPLE.recipient, valueEth: '1' }
+    const txs = encodeDraftToTxs(draft, {}, CTX)
+    expect(txs).not.toBeNull()
+    expect(txs!.length).toBe(1)
+  })
+
+  it('prepends an ERC-20 approve() before stream deployment', () => {
+    const draft: TxDraft = {
+      kind: 'stream',
+      sablierLL: SAMPLE.sablierLL,
+      token: SAMPLE.usdc,
+      recipient: SAMPLE.recipient,
+      totalAmount: '1000',
+      durationDays: '365',
+      cliffDays: '0',
+      cancelable: true,
+    }
+    const txs = encodeDraftToTxs(draft, TOKEN_META, CTX)
+    expect(txs).not.toBeNull()
+    expect(txs!.length).toBe(2)
+    // First is the approval
+    expectSelector(txs![0].calldata, SEL.approve)
+    expect(txs![0].target.toLowerCase()).toBe(SAMPLE.usdc.toLowerCase())
+    // Second is the actual stream call
+    expectSelector(txs![1].calldata, SEL.createWithDurationsLL)
+  })
+
+  it('skips approval for native-ETH airdrops', () => {
+    if (!isAirdropSupported()) return
+    const draft: TxDraft = {
+      kind: 'airdrop',
+      token: ZERO_ADDRESS,
+      recipients: [{ recipient: SAMPLE.recipient, amount: '0.1' }],
+    }
+    const txs = encodeDraftToTxs(draft, {}, CTX)
+    expect(txs).not.toBeNull()
+    expect(txs!.length).toBe(1)
+  })
+
+  it('returns null when underlying encodeDraft fails', () => {
+    const draft: TxDraft = {
+      kind: 'erc20',
+      token: SAMPLE.other,
+      recipient: SAMPLE.recipient,
+      amount: '1',
+    } // no token meta → encodeDraft returns null
+    expect(encodeDraftToTxs(draft, {}, CTX)).toBeNull()
+  })
+})
 
 describe('buildApprovalDraft', () => {
   it('returns a custom approve() draft for ERC-20 streams', () => {

@@ -40,8 +40,6 @@ type Props = {
   tokenMeta: TokenMetaMap
   treasuryNfts?: TreasuryNft[]
   treasuryTokens?: TreasuryTokenHolding[]
-  /** Push an additional draft into the queue without losing this one. */
-  onAddRelatedDraft?: (extra: TxDraft) => void
   saveLabel: string
 }
 
@@ -53,7 +51,6 @@ export function DraftForm({
   tokenMeta,
   treasuryNfts = [],
   treasuryTokens = [],
-  onAddRelatedDraft,
   saveLabel,
 }: Props) {
   const errors = validateDraft(draft, tokenMeta)
@@ -108,7 +105,6 @@ export function DraftForm({
           onChange={onChange}
           tokenMeta={tokenMeta}
           treasuryTokens={treasuryTokens}
-          onAddRelatedDraft={onAddRelatedDraft}
         />
       )}
       {draft.kind === 'airdrop' && (
@@ -117,7 +113,6 @@ export function DraftForm({
           onChange={onChange}
           tokenMeta={tokenMeta}
           treasuryTokens={treasuryTokens}
-          onAddRelatedDraft={onAddRelatedDraft}
         />
       )}
       {draft.kind === 'walletconnect' && (
@@ -132,7 +127,6 @@ export function DraftForm({
           draft={draft}
           onChange={onChange}
           tokenMeta={tokenMeta}
-          onAddRelatedDraft={onAddRelatedDraft}
         />
       )}
       {CUSTOM_LIKE_KINDS.has(draft.kind) && (
@@ -755,25 +749,28 @@ function PauseAuctionFields({
  * a paired `approve(spender, amount)` draft to the queue so the proposer
  * doesn't have to build it by hand.
  */
-function ApprovalQueueButton({
+/**
+ * Status hint shown on milestone / stream / airdrop forms when the chosen
+ * token is an ERC-20 — confirms that the encoder will auto-include the
+ * matching approve() call in the final proposal.
+ */
+function ApprovalHint({
   draft,
   tokenMeta,
-  onAddRelatedDraft,
+  spenderLabel,
 }: {
   draft: TxDraft
   tokenMeta: TokenMetaMap
-  onAddRelatedDraft?: (extra: TxDraft) => void
+  spenderLabel: string
 }) {
   const approval = buildApprovalDraft(draft, tokenMeta)
-  if (!approval || !onAddRelatedDraft) return null
+  if (!approval) return null
   return (
-    <button
-      type="button"
-      onClick={() => onAddRelatedDraft(approval)}
-      className="self-start rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-[12px] font-semibold text-accent-strong hover:bg-accent/20"
-    >
-      + Queue ERC-20 approval for this draft
-    </button>
+    <div className="self-start rounded-md border border-accent/40 bg-accent/5 px-3 py-1.5 text-[11.5px] text-accent-strong">
+      ✓ Auto-included: <span className="font-mono">approve(</span>
+      {spenderLabel}
+      <span className="font-mono">, …)</span> as a prepended tx in the proposal.
+    </div>
   )
 }
 
@@ -782,13 +779,11 @@ function AirdropFields({
   onChange,
   tokenMeta,
   treasuryTokens,
-  onAddRelatedDraft,
 }: {
   draft: TxDraftAirdrop
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
   treasuryTokens: TreasuryTokenHolding[]
-  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const supported = isAirdropSupported()
   const isNative =
@@ -842,15 +837,11 @@ function AirdropFields({
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Uses the Disperse contract to fan-out funds in a single tx. For ERC-20 tokens you also
-        need an <span className="font-mono">approve()</span> tx to the Disperse address — use
-        the button below once token + amounts are set.
+        Uses the Disperse contract to fan-out funds in a single tx. For ERC-20 airdrops
+        the matching <span className="font-mono">approve()</span> call is auto-prepended
+        to the proposal — you don&apos;t need to queue it by hand.
       </div>
-      <ApprovalQueueButton
-        draft={draft}
-        tokenMeta={tokenMeta}
-        onAddRelatedDraft={onAddRelatedDraft}
-      />
+      <ApprovalHint draft={draft} tokenMeta={tokenMeta} spenderLabel="Disperse" />
 
       {/* Token picker */}
       <Field label="Token">
@@ -959,13 +950,11 @@ function MilestoneFields({
   onChange,
   tokenMeta,
   treasuryTokens,
-  onAddRelatedDraft,
 }: {
   draft: TxDraftMilestone
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
   treasuryTokens: TreasuryTokenHolding[]
-  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const escrowOk = isEscrowSupported()
   const isNative =
@@ -1017,14 +1006,14 @@ function MilestoneFields({
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Deploys a SmartInvoice escrow. For ERC-20 tokens you also need an{' '}
-        <span className="font-mono">approve()</span> tx to the EscrowBundler — use the button
-        below once token + amounts are set. Native ETH is forwarded automatically.
+        Deploys a SmartInvoice escrow. For ERC-20 milestones the matching{' '}
+        <span className="font-mono">approve()</span> call to the EscrowBundler is
+        auto-prepended to the proposal. Native ETH is forwarded automatically.
       </div>
-      <ApprovalQueueButton
+      <ApprovalHint
         draft={draft}
         tokenMeta={tokenMeta}
-        onAddRelatedDraft={onAddRelatedDraft}
+        spenderLabel="EscrowBundler"
       />
 
       {/* Token picker */}
@@ -1493,12 +1482,10 @@ function StreamFields({
   draft,
   onChange,
   tokenMeta,
-  onAddRelatedDraft,
 }: {
   draft: TxDraftStream
   onChange: (next: TxDraft) => void
   tokenMeta: TokenMetaMap
-  onAddRelatedDraft?: (extra: TxDraft) => void
 }) {
   const meta: TokenMeta | undefined = isAddress(draft.token)
     ? tokenMeta[tokenKey(draft.token)]
@@ -1507,15 +1494,11 @@ function StreamFields({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
-        Streams tokens linearly over time. You also need an{' '}
-        <span className="font-mono">approve()</span> tx to the Sablier contract — use the
-        button below once token + total amount are set.
+        Streams tokens linearly over time. The matching{' '}
+        <span className="font-mono">approve()</span> call to the Sablier contract is
+        auto-prepended to the proposal — no manual approval tx needed.
       </div>
-      <ApprovalQueueButton
-        draft={draft}
-        tokenMeta={tokenMeta}
-        onAddRelatedDraft={onAddRelatedDraft}
-      />
+      <ApprovalHint draft={draft} tokenMeta={tokenMeta} spenderLabel="Sablier" />
       <Field label="Sablier LockupLinear contract">
         <input
           type="text"
