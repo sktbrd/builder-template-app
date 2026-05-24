@@ -188,10 +188,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         {label}
       </span>
       <div className="flex min-w-0 items-center gap-2">
-        <span
-          className="truncate font-mono text-[12.5px]"
-          title={value}
-        >
+        <span className="truncate font-mono text-[12.5px]" title={value}>
           {shortValue(value)}
         </span>
         <button

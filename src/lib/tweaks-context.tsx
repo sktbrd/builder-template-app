@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
 
 import { PRESETS } from './presets'
 
@@ -63,7 +63,10 @@ export function TweaksProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return
     const root = document.documentElement
     root.style.setProperty('--accent', tweaks.accent)
-    root.style.setProperty('--accent-strong', `color-mix(in oklab, ${tweaks.accent} 80%, black)`)
+    root.style.setProperty(
+      '--accent-strong',
+      `color-mix(in oklab, ${tweaks.accent} 80%, black)`
+    )
     root.style.setProperty('--radius', `${tweaks.radius}px`)
     const fontFamily = FONT_OPTIONS[tweaks.displayFont] ?? 'var(--font-geist)'
     root.style.setProperty('--font-display-active', fontFamily)
@@ -75,7 +78,9 @@ export function TweaksProvider({ children }: { children: ReactNode }) {
 
   const update = (patch: Partial<Tweaks>) => setTweaks((prev) => ({ ...prev, ...patch }))
 
-  return <TweaksContext.Provider value={{ tweaks, update }}>{children}</TweaksContext.Provider>
+  return (
+    <TweaksContext.Provider value={{ tweaks, update }}>{children}</TweaksContext.Provider>
+  )
 }
 
 export function useTweaks() {

@@ -277,9 +277,7 @@ describe('encodeDraft — milestone', () => {
       recipient: SAMPLE.recipient,
       client: SAMPLE.other,
       safetyValveDate: '2099-01-01',
-      milestones: [
-        { amount: '1', title: 'M1', description: '', endDate: '2098-12-01' },
-      ],
+      milestones: [{ amount: '1', title: 'M1', description: '', endDate: '2098-12-01' }],
     }
     const tx = encodeDraft(draft, {}, CTX)
     expect(tx).not.toBeNull()
@@ -476,10 +474,7 @@ describe('uniqueErc20Tokens', () => {
 
 describe('validateDraft', () => {
   it('rejects an ETH transfer with no recipient', () => {
-    const errs = validateDraft(
-      { kind: 'eth', recipient: '', valueEth: '1' },
-      {}
-    )
+    const errs = validateDraft({ kind: 'eth', recipient: '', valueEth: '1' }, {})
     expect(errs.length).toBeGreaterThan(0)
   })
 
@@ -491,7 +486,9 @@ describe('validateDraft', () => {
         recipient: SAMPLE.recipient,
         client: SAMPLE.recipient, // same!
         safetyValveDate: '2099-01-01',
-        milestones: [{ amount: '1', title: 'M1', description: '', endDate: '2098-01-01' }],
+        milestones: [
+          { amount: '1', title: 'M1', description: '', endDate: '2098-01-01' },
+        ],
       },
       TOKEN_META
     )

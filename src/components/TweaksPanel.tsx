@@ -45,7 +45,9 @@ export function TweaksPanel() {
   const [open, setOpen] = useState(false)
   const { tweaks, update } = useTweaks()
   const { resolvedTheme, setTheme } = useTheme()
-  const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle'
+  )
 
   const applyToProd = async () => {
     setApplyState('saving')
@@ -277,7 +279,10 @@ function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className="relative h-5 w-9 flex-shrink-0 rounded-full border border-border transition-colors"
-        style={{ background: checked ? 'var(--accent)' : 'var(--surface-3)', borderColor: checked ? 'var(--accent)' : 'var(--border)' }}
+        style={{
+          background: checked ? 'var(--accent)' : 'var(--surface-3)',
+          borderColor: checked ? 'var(--accent)' : 'var(--border)',
+        }}
       >
         <span
           className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"

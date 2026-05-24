@@ -30,7 +30,8 @@ export default function GlobalError({
           Couldn&apos;t load this page
         </h1>
         <p className="mt-2 max-w-sm text-sm text-muted-fg">
-          There was an error fetching on-chain data. This is usually temporary — try again.
+          There was an error fetching on-chain data. This is usually temporary — try
+          again.
         </p>
         {error.digest && (
           <p className="mt-1 font-mono text-[11px] text-muted-fg/60">

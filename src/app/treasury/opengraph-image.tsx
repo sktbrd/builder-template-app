@@ -10,7 +10,9 @@ export const contentType = OG_CONTENT_TYPE
 export const revalidate = 300
 
 function chainName(id: number): string {
-  return { 1: 'Ethereum', 10: 'Optimism', 8453: 'Base', 7777777: 'Zora' }[id] ?? `Chain ${id}`
+  return (
+    { 1: 'Ethereum', 10: 'Optimism', 8453: 'Base', 7777777: 'Zora' }[id] ?? `Chain ${id}`
+  )
 }
 
 function fmtUsd(n: number): string {
@@ -78,11 +80,26 @@ export default async function TreasuryOGImage() {
           }}
         >
           {/* Header row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              marginBottom: 'auto',
+            }}
+          >
             {logoUrl && (
-              <img src={logoUrl} width={44} height={44} style={{ borderRadius: 999 }} alt="" />
+              <img
+                src={logoUrl}
+                width={44}
+                height={44}
+                style={{ borderRadius: 999 }}
+                alt=""
+              />
             )}
-            <div style={{ display: 'flex', fontSize: 22, color: c.fgDim, fontWeight: 600 }}>
+            <div
+              style={{ display: 'flex', fontSize: 22, color: c.fgDim, fontWeight: 600 }}
+            >
               {daoConfig.name}
             </div>
             <div
@@ -102,8 +119,17 @@ export default async function TreasuryOGImage() {
           </div>
 
           {/* Main content */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, margin: 'auto 0' }}>
-            <div style={{ display: 'flex', fontSize: 24, color: c.fgDim, fontWeight: 600 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              margin: 'auto 0',
+            }}
+          >
+            <div
+              style={{ display: 'flex', fontSize: 24, color: c.fgDim, fontWeight: 600 }}
+            >
               Treasury
             </div>
             <div
@@ -121,7 +147,9 @@ export default async function TreasuryOGImage() {
             {hasUsd && (
               <div style={{ display: 'flex', fontSize: 28, color: c.fgDim }}>
                 {trimEth(treasuryEth)} ETH
-                {tokenCount > 0 ? ` · ${tokenCount} ERC-20 asset${tokenCount > 1 ? 's' : ''}` : ''}
+                {tokenCount > 0
+                  ? ` · ${tokenCount} ERC-20 asset${tokenCount > 1 ? 's' : ''}`
+                  : ''}
               </div>
             )}
           </div>
@@ -145,8 +173,12 @@ export default async function TreasuryOGImage() {
                   padding: '16px 24px',
                 }}
               >
-                <div style={{ display: 'flex', fontSize: 15, color: c.fgDim }}>{stat.label}</div>
-                <div style={{ display: 'flex', fontSize: 28, fontWeight: 700 }}>{stat.value}</div>
+                <div style={{ display: 'flex', fontSize: 15, color: c.fgDim }}>
+                  {stat.label}
+                </div>
+                <div style={{ display: 'flex', fontSize: 28, fontWeight: 700 }}>
+                  {stat.value}
+                </div>
               </div>
             ))}
           </div>

@@ -133,7 +133,11 @@ export function WalletPill({
               aria-label="Copy address"
               title="Copy address"
             >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
             </button>
           )}
           {showExplorer && chainId && (

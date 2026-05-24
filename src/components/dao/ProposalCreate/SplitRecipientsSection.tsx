@@ -1,7 +1,7 @@
 'use client'
 
-import { isAddress } from 'viem'
 import { Plus, Trash2 } from 'lucide-react'
+import { isAddress } from 'viem'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -17,7 +17,11 @@ type Props = {
   onChange: (recipients: SplitRecipient[], distributorFeePercent: number) => void
 }
 
-export function SplitRecipientsSection({ recipients, distributorFeePercent, onChange }: Props) {
+export function SplitRecipientsSection({
+  recipients,
+  distributorFeePercent,
+  onChange,
+}: Props) {
   const errors = validateSplitRecipients(recipients)
   const total = recipients.reduce((s, r) => s + (r.percentAllocation || 0), 0)
   const remaining = calculateRemainingPercentage(recipients)
@@ -26,7 +30,10 @@ export function SplitRecipientsSection({ recipients, distributorFeePercent, onCh
   const update = (next: SplitRecipient[]) => onChange(next, distributorFeePercent)
 
   const addRecipient = () => {
-    const next: SplitRecipient = { address: '', percentAllocation: remaining > 0 ? remaining : 10 }
+    const next: SplitRecipient = {
+      address: '',
+      percentAllocation: remaining > 0 ? remaining : 10,
+    }
     update([...recipients, next])
   }
 
@@ -53,7 +60,15 @@ export function SplitRecipientsSection({ recipients, distributorFeePercent, onCh
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between text-[12px]">
           <span className="text-muted-fg">Total allocated</span>
-          <span className={totalOk ? 'font-semibold text-success' : total > 100 ? 'font-semibold text-warning' : 'font-semibold text-yellow-500'}>
+          <span
+            className={
+              totalOk
+                ? 'font-semibold text-success'
+                : total > 100
+                  ? 'font-semibold text-warning'
+                  : 'font-semibold text-yellow-500'
+            }
+          >
             {total.toFixed(2)}%
           </span>
         </div>
@@ -114,11 +129,22 @@ export function SplitRecipientsSection({ recipients, distributorFeePercent, onCh
 
       {/* Action buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" type="button" onClick={addRecipient} disabled={recipients.length >= 100}>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={addRecipient}
+          disabled={recipients.length >= 100}
+        >
           <Plus className="h-3.5 w-3.5 mr-1" />
           Add recipient
         </Button>
-        <Button variant="outline" size="sm" type="button" onClick={() => update(autoAdjustPercentages(recipients))}>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={() => update(autoAdjustPercentages(recipients))}
+        >
           Distribute evenly
         </Button>
       </div>
@@ -126,7 +152,9 @@ export function SplitRecipientsSection({ recipients, distributorFeePercent, onCh
       {/* Validation errors */}
       {errors.length > 0 && (
         <ul className="list-disc pl-5 text-[12.5px] text-warning">
-          {errors.map((e, i) => <li key={i}>{e.message}</li>)}
+          {errors.map((e, i) => (
+            <li key={i}>{e.message}</li>
+          ))}
         </ul>
       )}
     </div>

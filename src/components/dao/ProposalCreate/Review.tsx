@@ -116,7 +116,9 @@ export function Review({
               <span
                 className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
                 style={{
-                  transform: includeDecodedSummary ? 'translateX(18px)' : 'translateX(2px)',
+                  transform: includeDecodedSummary
+                    ? 'translateX(18px)'
+                    : 'translateX(2px)',
                 }}
               />
             </button>
@@ -125,8 +127,9 @@ export function Review({
                 Append a decoded-transactions section to the proposal description
               </div>
               <p className="mt-0.5 text-muted-fg">
-                Voters see what each call does without having to decode calldata. Recommended
-                for proposals with structured kinds (NFT/ERC-20/milestone/airdrop/etc.).
+                Voters see what each call does without having to decode calldata.
+                Recommended for proposals with structured kinds
+                (NFT/ERC-20/milestone/airdrop/etc.).
               </p>
               <button
                 type="button"

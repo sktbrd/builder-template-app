@@ -24,12 +24,15 @@ export function AuctionPriceChart({ data }: { data: AuctionPricePoint[] }) {
   const [period, setPeriod] = useState<PeriodKey>('all')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
+  // Snapshot "now" once at mount so the React compiler doesn't flag the
+  // impure Date.now() call inside the period-filter memo.
+  const [nowSec] = useState(() => Math.floor(Date.now() / 1000))
   const filtered = useMemo(() => {
     if (period === 'all') return data
     const days = PERIODS.find((p) => p.key === period)!.days
-    const cutoff = Math.floor(Date.now() / 1000) - days * 86400
+    const cutoff = nowSec - days * 86400
     return data.filter((p) => p.endTime >= cutoff)
-  }, [data, period])
+  }, [data, period, nowSec])
 
   const stats = useMemo(() => {
     if (filtered.length === 0) return null
@@ -122,7 +125,10 @@ function Chart({
   const maxAmount = Math.max(...points.map((p) => p.ethAmount), 0.0001)
 
   const xy = (i: number, amt: number) => {
-    const x = points.length === 1 ? innerW / 2 + PAD_X : PAD_X + (i / (points.length - 1)) * innerW
+    const x =
+      points.length === 1
+        ? innerW / 2 + PAD_X
+        : PAD_X + (i / (points.length - 1)) * innerW
     const y = PAD_Y + innerH - (amt / maxAmount) * innerH
     return { x, y }
   }
@@ -258,9 +264,7 @@ function HoverCard({
       }}
     >
       <div className="text-[11px] uppercase tracking-wider text-muted-fg">{date}</div>
-      <div className="text-sm font-bold text-fg">
-        {trim(point.ethAmount, 4)} ETH
-      </div>
+      <div className="text-sm font-bold text-fg">{trim(point.ethAmount, 4)} ETH</div>
       <Link
         href={`/auction/${point.tokenId}`}
         className="text-[11px] font-medium text-accent-strong hover:underline"

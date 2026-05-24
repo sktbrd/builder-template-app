@@ -50,9 +50,7 @@ async function fetchTransfers(
     method: 'alchemy_getAssetTransfers',
     params: [
       {
-        ...(direction === 'in'
-          ? { toAddress: treasury }
-          : { fromAddress: treasury }),
+        ...(direction === 'in' ? { toAddress: treasury } : { fromAddress: treasury }),
         category: ['external', 'erc20', 'erc721', 'erc1155'],
         withMetadata: true,
         excludeZeroValue: true,
@@ -63,15 +61,12 @@ async function fetchTransfers(
     ],
   }
 
-  const res = await fetch(
-    `https://${network}.g.alchemy.com/v2/${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      next: { revalidate: 300 },
-    }
-  )
+  const res = await fetch(`https://${network}.g.alchemy.com/v2/${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    next: { revalidate: 300 },
+  })
 
   if (!res.ok) throw new Error(`Alchemy ${res.status}`)
   const json = await res.json()
@@ -89,7 +84,12 @@ async function fetchTransfers(
 function isSpamAsset(asset: string | null): boolean {
   if (!asset) return false
   const s = asset.toLowerCase()
-  if (/https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(s)) return true
+  if (
+    /https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(
+      s
+    )
+  )
+    return true
   if (/claim|airdrop|reward|visit|bonus|gift|winner|voucher|promo/.test(s)) return true
   if (/[*!?@#$%^&()\[\]{}<>]/.test(asset)) return true
   if (asset.length > 20) return true
@@ -119,7 +119,10 @@ export async function GET(req: Request) {
 
   const network = ALCHEMY_NETWORK[daoConfig.chainId]
   if (!network) {
-    return NextResponse.json({ error: `Unsupported chainId ${daoConfig.chainId}` }, { status: 400 })
+    return NextResponse.json(
+      { error: `Unsupported chainId ${daoConfig.chainId}` },
+      { status: 400 }
+    )
   }
 
   const { searchParams } = new URL(req.url)
@@ -131,15 +134,18 @@ export async function GET(req: Request) {
   try {
     const fetches: Promise<{ transfers: AlchemyTransfer[]; pageKey?: string }>[] = []
 
-    if (dir === 'in' || dir === 'all') fetches.push(fetchTransfers(apiKey, network, treasury, 'in', pageKey))
-    if (dir === 'out' || dir === 'all') fetches.push(fetchTransfers(apiKey, network, treasury, 'out', pageKey))
+    if (dir === 'in' || dir === 'all')
+      fetches.push(fetchTransfers(apiKey, network, treasury, 'in', pageKey))
+    if (dir === 'out' || dir === 'all')
+      fetches.push(fetchTransfers(apiKey, network, treasury, 'out', pageKey))
 
     const results = await Promise.all(fetches)
 
-    const rawIn  = dir === 'out' ? [] : results[0]?.transfers ?? []
-    const rawOut = dir === 'in'  ? [] : results[dir === 'all' ? 1 : 0]?.transfers ?? []
-    const nextPageKeyIn  = dir === 'out' ? undefined : results[0]?.pageKey
-    const nextPageKeyOut = dir === 'in'  ? undefined : results[dir === 'all' ? 1 : 0]?.pageKey
+    const rawIn = dir === 'out' ? [] : (results[0]?.transfers ?? [])
+    const rawOut = dir === 'in' ? [] : (results[dir === 'all' ? 1 : 0]?.transfers ?? [])
+    const nextPageKeyIn = dir === 'out' ? undefined : results[0]?.pageKey
+    const nextPageKeyOut =
+      dir === 'in' ? undefined : results[dir === 'all' ? 1 : 0]?.pageKey
 
     const normalize = (list: AlchemyTransfer[], direction: 'in' | 'out'): Transfer[] =>
       list
@@ -162,10 +168,9 @@ export async function GET(req: Request) {
           }
         })
 
-    const all: Transfer[] = [
-      ...normalize(rawIn, 'in'),
-      ...normalize(rawOut, 'out'),
-    ].sort((a, b) => b.timestamp - a.timestamp)
+    const all: Transfer[] = [...normalize(rawIn, 'in'), ...normalize(rawOut, 'out')].sort(
+      (a, b) => b.timestamp - a.timestamp
+    )
 
     return NextResponse.json({
       transfers: all,

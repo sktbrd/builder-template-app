@@ -57,7 +57,9 @@ export function ProposalTransactionList({
   nftImages,
 }: Props) {
   if (transactions.length === 0) {
-    return <div className="text-sm text-muted-fg">(No transactions on this proposal.)</div>
+    return (
+      <div className="text-sm text-muted-fg">(No transactions on this proposal.)</div>
+    )
   }
   const daoTokenLc = daoTokenAddress?.toLowerCase()
   return (
@@ -163,17 +165,13 @@ function Row({
   )
 }
 
-function Summary({
-  decoded,
-  chainId,
-}: {
-  decoded: DecodedProposalTx
-  chainId: number
-}) {
+function Summary({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: number }) {
   if (decoded.type === 'send-eth') {
     return (
       <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
-        <span className="font-semibold text-fg">{trimDecimals(decoded.valueEth, 6)} ETH</span>
+        <span className="font-semibold text-fg">
+          {trimDecimals(decoded.valueEth, 6)} ETH
+        </span>
         <span className="text-muted-fg">to</span>
         <WalletPill address={decoded.target} link={false} size="xs" />
       </div>
@@ -241,7 +239,9 @@ function Summary({
         )}
         <span className="text-muted-fg">·</span>
         <span className="text-fg">
-          {decoded.editionSize === '0' ? 'open edition' : `${decoded.editionSize} editions`}
+          {decoded.editionSize === '0'
+            ? 'open edition'
+            : `${decoded.editionSize} editions`}
         </span>
         <span className="text-muted-fg">@</span>
         <span className="font-semibold text-fg">
@@ -281,13 +281,7 @@ function Summary({
   )
 }
 
-function Details({
-  decoded,
-  chainId,
-}: {
-  decoded: DecodedProposalTx
-  chainId: number
-}) {
+function Details({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: number }) {
   return (
     <dl className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr]">
       <DetailRow label="Target">
@@ -375,7 +369,9 @@ function Details({
           )}
           {decoded.collectionDescription && (
             <DetailRow label="Description">
-              <p className="whitespace-pre-wrap text-fg">{decoded.collectionDescription}</p>
+              <p className="whitespace-pre-wrap text-fg">
+                {decoded.collectionDescription}
+              </p>
             </DetailRow>
           )}
         </>
@@ -407,7 +403,9 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
-function customReasonLabel(reason: 'no-calldata-but-value' | 'unknown-selector' | 'decode-failed') {
+function customReasonLabel(
+  reason: 'no-calldata-but-value' | 'unknown-selector' | 'decode-failed'
+) {
   if (reason === 'no-calldata-but-value') return 'Zero-value call with no calldata.'
   if (reason === 'unknown-selector') return 'Function selector not recognized.'
   return 'Calldata matched a known signature but failed to decode.'

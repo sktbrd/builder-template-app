@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 
-import { type DonutSlice, TreasuryDonut } from '@/components/dao/TreasuryDonut'
-import { TokenLogo } from '@/components/dao/TokenLogo'
 import { NftSection } from '@/components/dao/NftSection'
+import { TokenLogo } from '@/components/dao/TokenLogo'
+import { type DonutSlice, TreasuryDonut } from '@/components/dao/TreasuryDonut'
 import { TreasuryTransfers } from '@/components/dao/TreasuryTransfers'
 import { daoConfig } from '@/lib/dao.config'
-import { type TreasuryTx, getTreasuryPageData } from '@/lib/dao-data'
+import { getTreasuryPageData, type TreasuryTx } from '@/lib/dao-data'
 
 export const metadata: Metadata = {
   title: 'Treasury',
@@ -16,10 +16,25 @@ export const revalidate = 60
 
 // ── Token USD helpers ─────────────────────────────────────────────────────────
 
-const STABLE_SYMBOLS = new Set(['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD', 'USDBC', 'USDS', 'USDGLO', 'GUSD'])
+const STABLE_SYMBOLS = new Set([
+  'USDC',
+  'USDT',
+  'DAI',
+  'FRAX',
+  'LUSD',
+  'USDBC',
+  'USDS',
+  'USDGLO',
+  'GUSD',
+])
 const WETH_SYMBOLS = new Set(['WETH', 'CBETH', 'STETH', 'RETH'])
 
-function tokenUsdValue(balanceRaw: string, decimals: number, symbol: string, ethUsdPrice: number): number {
+function tokenUsdValue(
+  balanceRaw: string,
+  decimals: number,
+  symbol: string,
+  ethUsdPrice: number
+): number {
   const sym = symbol.toUpperCase()
   const human = Number(BigInt(balanceRaw)) / 10 ** decimals
   if (STABLE_SYMBOLS.has(sym)) return human
@@ -29,31 +44,37 @@ function tokenUsdValue(balanceRaw: string, decimals: number, symbol: string, eth
 
 // Per-asset slice colors: ETH uses accent, stables green, WETH grey, others orange
 const TOKEN_COLORS: Record<string, string> = {
-  ETH:  'var(--accent)',
+  ETH: 'var(--accent)',
   WETH: '#9a9aa2',
   CBETH: '#9a9aa2',
   USDC: '#5fd28a',
   USDT: '#5fd28a',
-  DAI:  '#f9a825',
+  DAI: '#f9a825',
   FRAX: '#c084fc',
 }
 const FALLBACK_COLORS = ['#ffb347', '#60a5fa', '#c084fc', '#f472b6', '#34d399']
 
 function tokenColor(symbol: string, fallbackIdx: number): string {
-  return TOKEN_COLORS[symbol.toUpperCase()] ?? FALLBACK_COLORS[fallbackIdx % FALLBACK_COLORS.length]
+  return (
+    TOKEN_COLORS[symbol.toUpperCase()] ??
+    FALLBACK_COLORS[fallbackIdx % FALLBACK_COLORS.length]
+  )
 }
 
 function fmtUSD(n: number, dp = 0): string {
-  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: dp, minimumFractionDigits: dp })
+  return (
+    '$' +
+    n.toLocaleString('en-US', { maximumFractionDigits: dp, minimumFractionDigits: dp })
+  )
 }
 
 // ── Explorer link ─────────────────────────────────────────────────────────────
 
 const EXPLORER: Record<number, { name: string; base: string }> = {
-  1:       { name: 'Etherscan',  base: 'https://etherscan.io' },
-  10:      { name: 'Optimistic', base: 'https://optimistic.etherscan.io' },
-  8453:    { name: 'Basescan',   base: 'https://basescan.org' },
-  7777777: { name: 'Zorascan',  base: 'https://explorer.zora.energy' },
+  1: { name: 'Etherscan', base: 'https://etherscan.io' },
+  10: { name: 'Optimistic', base: 'https://optimistic.etherscan.io' },
+  8453: { name: 'Basescan', base: 'https://basescan.org' },
+  7777777: { name: 'Zorascan', base: 'https://explorer.zora.energy' },
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -62,11 +83,11 @@ export default async function TreasuryPage() {
   const data = await getTreasuryPageData()
   const { ethUsdPrice } = data
 
-  const ethBal   = parseFloat(data.treasuryEth)
-  const ethUsd   = ethBal * ethUsdPrice
+  const ethBal = parseFloat(data.treasuryEth)
+  const ethUsd = ethBal * ethUsdPrice
 
   const tokenAssets = data.tokenHoldings.map((t, i) => {
-    const usd   = tokenUsdValue(t.balanceRaw, t.decimals, t.symbol, ethUsdPrice)
+    const usd = tokenUsdValue(t.balanceRaw, t.decimals, t.symbol, ethUsdPrice)
     const color = tokenColor(t.symbol, i)
     return { ...t, usd, color }
   })
@@ -76,17 +97,22 @@ export default async function TreasuryPage() {
   // Donut slices (only include assets with known USD value)
   const slices: DonutSlice[] = [
     ...(ethUsd > 0 ? [{ name: 'ETH', color: 'var(--accent)', value: ethUsd }] : []),
-    ...tokenAssets.filter((t) => t.usd > 0).map((t) => ({
-      name: t.symbol,
-      color: t.color,
-      value: t.usd,
-    })),
+    ...tokenAssets
+      .filter((t) => t.usd > 0)
+      .map((t) => ({
+        name: t.symbol,
+        color: t.color,
+        value: t.usd,
+      })),
   ]
 
   // Show donut fallback if no USD prices resolved
   const hasUsd = totalUsd > 0
 
-  const explorer = EXPLORER[daoConfig.chainId] ?? { name: 'Explorer', base: 'https://basescan.org' }
+  const explorer = EXPLORER[daoConfig.chainId] ?? {
+    name: 'Explorer',
+    base: 'https://basescan.org',
+  }
 
   return (
     <div className="flex flex-col gap-7">
@@ -107,7 +133,6 @@ export default async function TreasuryPage() {
 
       {/* ── Two-column grid ── */}
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr]">
-
         {/* Left column: donut + NFT mini-grid */}
         <div className="flex flex-col gap-4">
           {/* Donut card */}
@@ -129,7 +154,6 @@ export default async function TreasuryPage() {
 
         {/* Right column: asset rows + tx card */}
         <div className="flex min-h-full flex-col gap-4">
-
           {/* Asset rows */}
           <div className="flex flex-col gap-3">
             {/* ETH row */}
@@ -148,9 +172,22 @@ export default async function TreasuryPage() {
             {tokenAssets.map((t) => (
               <AssetRow
                 key={t.address}
-                logo={<TokenLogo address={t.address} symbol={t.symbol} chainId={daoConfig.chainId} size={36} />}
+                logo={
+                  <TokenLogo
+                    address={t.address}
+                    symbol={t.symbol}
+                    chainId={daoConfig.chainId}
+                    size={36}
+                  />
+                }
                 name={t.symbol}
-                sub={STABLE_SYMBOLS.has(t.symbol.toUpperCase()) ? 'Stable reserve' : WETH_SYMBOLS.has(t.symbol.toUpperCase()) ? 'Wrapped' : 'ERC-20'}
+                sub={
+                  STABLE_SYMBOLS.has(t.symbol.toUpperCase())
+                    ? 'Stable reserve'
+                    : WETH_SYMBOLS.has(t.symbol.toUpperCase())
+                      ? 'Wrapped'
+                      : 'ERC-20'
+                }
                 color={t.color}
                 bal={`${t.balance} ${t.symbol}`}
                 usd={t.usd}
@@ -158,19 +195,26 @@ export default async function TreasuryPage() {
                 showUsd={hasUsd}
               />
             ))}
-
           </div>
 
           {/* Recent transactions */}
           <div className="flex flex-1 flex-col">
-            <TxCard txs={data.recentTxs} explorer={explorer} treasuryAddress={data.treasuryAddress} />
+            <TxCard
+              txs={data.recentTxs}
+              explorer={explorer}
+              treasuryAddress={data.treasuryAddress}
+            />
           </div>
         </div>
       </div>
 
       {/* ── Full transfer history (client-side, Alchemy-powered) ── */}
       {process.env.NEXT_PUBLIC_ALCHEMY_API_KEY && (
-        <Suspense fallback={<div className="h-40 rounded-[14px] border border-border bg-surface animate-pulse" />}>
+        <Suspense
+          fallback={
+            <div className="h-40 rounded-[14px] border border-border bg-surface animate-pulse" />
+          }
+        >
           <TreasuryTransfers />
         </Suspense>
       )}
@@ -181,7 +225,14 @@ export default async function TreasuryPage() {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function AssetRow({
-  logo, name, sub, color, bal, usd, pct, showUsd,
+  logo,
+  name,
+  sub,
+  color,
+  bal,
+  usd,
+  pct,
+  showUsd,
 }: {
   logo: React.ReactNode
   name: string
@@ -193,7 +244,8 @@ function AssetRow({
   showUsd: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
       style={{ gridTemplateColumns: showUsd ? '40px 1fr 1fr 1fr 1fr' : '40px 1fr 1fr' }}
     >
       {/* icon */}
@@ -206,7 +258,9 @@ function AssetRow({
       </div>
 
       {/* balance */}
-      <div className="ml-auto font-mono text-[13.5px] tabular-nums sm:ml-0 sm:text-right">{bal}</div>
+      <div className="ml-auto font-mono text-[13.5px] tabular-nums sm:ml-0 sm:text-right">
+        {bal}
+      </div>
 
       {/* USD + bar — only when price data available */}
       {showUsd && (
@@ -244,7 +298,9 @@ function TxCard({
     <div className="flex h-full flex-col rounded-[14px] border border-border bg-surface px-6 py-[22px]">
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <h3 className="text-base font-bold">Recent transactions</h3>
-        <span className="text-[12.5px] text-muted-fg">From treasury safe · last 30 days</span>
+        <span className="text-[12.5px] text-muted-fg">
+          From treasury safe · last 30 days
+        </span>
       </div>
 
       <div className="flex flex-1 flex-col">
@@ -263,9 +319,10 @@ function TxCard({
             <span
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
               style={{
-                background: tx.dir === 'in'
-                  ? 'color-mix(in oklab, #5fd28a 22%, transparent)'
-                  : 'color-mix(in oklab, #f06464 22%, transparent)',
+                background:
+                  tx.dir === 'in'
+                    ? 'color-mix(in oklab, #5fd28a 22%, transparent)'
+                    : 'color-mix(in oklab, #f06464 22%, transparent)',
                 color: tx.dir === 'in' ? '#5fd28a' : '#f06464',
               }}
             >
@@ -278,14 +335,17 @@ function TxCard({
             </div>
 
             {/* tag — hidden on mobile */}
-            <div className="hidden font-mono text-[11.5px] text-muted-fg sm:block">{tx.tag}</div>
+            <div className="hidden font-mono text-[11.5px] text-muted-fg sm:block">
+              {tx.tag}
+            </div>
 
             {/* amount */}
             <div
               className="shrink-0 text-right font-mono font-semibold tabular-nums"
               style={{ color: tx.dir === 'in' ? '#5fd28a' : '#f06464' }}
             >
-              {tx.dir === 'in' ? '+' : '−'}{tx.amount} {tx.symbol}
+              {tx.dir === 'in' ? '+' : '−'}
+              {tx.amount} {tx.symbol}
             </div>
 
             {/* time — hidden on mobile */}
@@ -315,4 +375,3 @@ function trimDecimals(value: string, max: number): string {
   const [intPart, decPart] = value.split('.')
   return `${intPart}.${decPart.slice(0, max).replace(/0+$/, '') || '0'}`
 }
-

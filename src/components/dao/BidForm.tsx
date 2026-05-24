@@ -3,9 +3,9 @@
 import { auctionAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { type Address, parseEther } from 'viem'
-import { useRouter } from 'next/navigation'
 import {
   useAccount,
   useBalance,

@@ -4,7 +4,12 @@ import { erc20Abi, getAddress, isAddress, parseUnits } from 'viem'
 import { useReadContracts } from 'wagmi'
 
 import { daoConfig } from '@/lib/dao.config'
-import { type TokenMetaMap, tokenKey, type TxDraft, ZERO_ADDRESS } from '@/lib/proposal-tx'
+import {
+  tokenKey,
+  type TokenMetaMap,
+  type TxDraft,
+  ZERO_ADDRESS,
+} from '@/lib/proposal-tx'
 
 const erc721OwnerAbi = [
   {
@@ -23,7 +28,13 @@ export type FeasibilityWarning = {
   message: string
 }
 
-type Erc20Check = { kind: 'erc20'; token: `0x${string}`; symbol: string; required: bigint; decimals: number }
+type Erc20Check = {
+  kind: 'erc20'
+  token: `0x${string}`
+  symbol: string
+  required: bigint
+  decimals: number
+}
 type NftCheck = { kind: 'nft'; index: number; contract: `0x${string}`; tokenId: bigint }
 
 /**
@@ -129,13 +140,15 @@ export function useProposalFeasibility(
     }
   }
 
-  const erc20CheckList: Erc20Check[] = Array.from(erc20Required.entries()).map(([k, required]) => ({
-    kind: 'erc20',
-    token: getAddress(k) as `0x${string}`,
-    symbol: erc20Symbols.get(k) || '',
-    required,
-    decimals: erc20Decimals.get(k)!,
-  }))
+  const erc20CheckList: Erc20Check[] = Array.from(erc20Required.entries()).map(
+    ([k, required]) => ({
+      kind: 'erc20',
+      token: getAddress(k) as `0x${string}`,
+      symbol: erc20Symbols.get(k) || '',
+      required,
+      decimals: erc20Decimals.get(k)!,
+    })
+  )
 
   // ── Build batched reads ──────────────────────────────────────────────────
   const contracts = [
@@ -249,6 +262,10 @@ function formatBig(v: bigint, decimals: number, maxFrac = 4): string {
   const whole = v / base
   const frac = v % base
   if (frac === BigInt(0)) return whole.toString()
-  const fracStr = frac.toString().padStart(decimals, '0').slice(0, maxFrac).replace(/0+$/, '')
+  const fracStr = frac
+    .toString()
+    .padStart(decimals, '0')
+    .slice(0, maxFrac)
+    .replace(/0+$/, '')
   return fracStr ? `${whole}.${fracStr}` : whole.toString()
 }

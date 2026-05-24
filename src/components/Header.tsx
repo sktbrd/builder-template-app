@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useMemo, useState, useSyncExternalStore } from 'react'
-
 import { useEnsAvatar, useEnsName } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
@@ -24,7 +23,10 @@ function ConnectedProfile({
   openAccountModal: () => void
 }) {
   const { data: ensName } = useEnsName({ address, chainId: mainnet.id })
-  const { data: ensAvatar } = useEnsAvatar({ name: ensName ?? undefined, chainId: mainnet.id })
+  const { data: ensAvatar } = useEnsAvatar({
+    name: ensName ?? undefined,
+    chainId: mainnet.id,
+  })
 
   const displayName = ensName ?? `${address.slice(0, 6)}…${address.slice(-4)}`
   const hue = parseInt(address.slice(2, 8), 16) % 360
@@ -206,7 +208,11 @@ export function Header() {
             )}
           </button>
           <div className="hidden md:block">
-            {web3Ready ? <WalletButton /> : <div className="h-9 w-[140px] rounded-full bg-surface-2" />}
+            {web3Ready ? (
+              <WalletButton />
+            ) : (
+              <div className="h-9 w-[140px] rounded-full bg-surface-2" />
+            )}
           </div>
           <button
             type="button"
@@ -245,7 +251,11 @@ export function Header() {
               )
             })}
             <div className="mt-2 border-t border-border pt-3">
-              {web3Ready ? <WalletButton /> : <div className="h-9 w-full rounded-full bg-surface-2" />}
+              {web3Ready ? (
+                <WalletButton />
+              ) : (
+                <div className="h-9 w-full rounded-full bg-surface-2" />
+              )}
             </div>
           </nav>
         </div>

@@ -92,8 +92,20 @@ const mintToAbi = [
 ] as const
 
 const pauseAbi = [
-  { name: 'pause', type: 'function', inputs: [], outputs: [], stateMutability: 'nonpayable' },
-  { name: 'unpause', type: 'function', inputs: [], outputs: [], stateMutability: 'nonpayable' },
+  {
+    name: 'pause',
+    type: 'function',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    name: 'unpause',
+    type: 'function',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
 ] as const
 
 const zoraNftCreatorAbi = [
@@ -108,7 +120,8 @@ const zoraNftCreatorAbi = [
       { name: 'fundsRecipient', type: 'address' },
       { name: 'defaultAdmin', type: 'address' },
       {
-        name: 'saleConfig', type: 'tuple',
+        name: 'saleConfig',
+        type: 'tuple',
         components: [
           { name: 'publicSalePrice', type: 'uint104' },
           { name: 'maxSalePurchasePerAddress', type: 'uint32' },
@@ -134,7 +147,8 @@ const sablierLLAbi = [
     type: 'function',
     inputs: [
       {
-        name: 'params', type: 'tuple',
+        name: 'params',
+        type: 'tuple',
         components: [
           { name: 'sender', type: 'address' },
           { name: 'recipient', type: 'address' },
@@ -143,14 +157,16 @@ const sablierLLAbi = [
           { name: 'cancelable', type: 'bool' },
           { name: 'transferable', type: 'bool' },
           {
-            name: 'durations', type: 'tuple',
+            name: 'durations',
+            type: 'tuple',
             components: [
               { name: 'cliff', type: 'uint40' },
               { name: 'total', type: 'uint40' },
             ],
           },
           {
-            name: 'broker', type: 'tuple',
+            name: 'broker',
+            type: 'tuple',
             components: [
               { name: 'account', type: 'address' },
               { name: 'fee', type: 'uint256' },
@@ -429,31 +445,57 @@ export function emptyDraft(kind: TxKind): TxDraft {
   if (kind === 'mint_gov') return { kind: 'mint_gov', recipient: '' }
   if (kind === 'delegate') return { kind: 'delegate', delegatee: '' }
   if (kind === 'pause_auction') return { kind: 'pause_auction', action: 'pause' }
-  if (kind === 'droposal') return {
-    kind: 'droposal',
-    zoraNftCreator: daoConfig.contractOverrides?.zoraNftCreator ?? '',
-    name: '', symbol: '', description: '',
-    imageUri: '', priceEth: '0', editionSize: '', saleStart: '', saleEnd: '',
-    mintLimitPerAddress: '', royaltyPercent: '5', fundsRecipient: '', defaultAdmin: '',
-  }
-  if (kind === 'stream') return {
-    kind: 'stream',
-    sablierLL: daoConfig.contractOverrides?.sablierLockupLinear ?? '',
-    token: '', recipient: '', totalAmount: '',
-    durationDays: '', cliffDays: '', cancelable: true,
-  }
-  if (kind === 'pin_asset') return {
-    kind: 'pin_asset', tokenType: 'erc721', contract: '', isCollection: true, tokenId: '',
-  }
-  if (kind === 'milestone') return {
-    kind: 'milestone', token: '', recipient: '', client: '', safetyValveDate: '',
-    milestones: [{ amount: '', title: '', description: '', endDate: '' }],
-  }
-  if (kind === 'airdrop') return {
-    kind: 'airdrop',
-    token: '0x0000000000000000000000000000000000000000',
-    recipients: [{ recipient: '', amount: '' }],
-  }
+  if (kind === 'droposal')
+    return {
+      kind: 'droposal',
+      zoraNftCreator: daoConfig.contractOverrides?.zoraNftCreator ?? '',
+      name: '',
+      symbol: '',
+      description: '',
+      imageUri: '',
+      priceEth: '0',
+      editionSize: '',
+      saleStart: '',
+      saleEnd: '',
+      mintLimitPerAddress: '',
+      royaltyPercent: '5',
+      fundsRecipient: '',
+      defaultAdmin: '',
+    }
+  if (kind === 'stream')
+    return {
+      kind: 'stream',
+      sablierLL: daoConfig.contractOverrides?.sablierLockupLinear ?? '',
+      token: '',
+      recipient: '',
+      totalAmount: '',
+      durationDays: '',
+      cliffDays: '',
+      cancelable: true,
+    }
+  if (kind === 'pin_asset')
+    return {
+      kind: 'pin_asset',
+      tokenType: 'erc721',
+      contract: '',
+      isCollection: true,
+      tokenId: '',
+    }
+  if (kind === 'milestone')
+    return {
+      kind: 'milestone',
+      token: '',
+      recipient: '',
+      client: '',
+      safetyValveDate: '',
+      milestones: [{ amount: '', title: '', description: '', endDate: '' }],
+    }
+  if (kind === 'airdrop')
+    return {
+      kind: 'airdrop',
+      token: '0x0000000000000000000000000000000000000000',
+      recipients: [{ recipient: '', amount: '' }],
+    }
   if (CUSTOM_LIKE_KINDS.has(kind)) {
     return { kind: kind as CustomLikeKind, target: '', valueEth: '0', calldata: '0x' }
   }
@@ -578,8 +620,7 @@ export function validateDraft(draft: TxDraft, tokenMeta: TokenMetaMap): string[]
         errs.push('Safety valve date must be at least 30 days after the last milestone.')
       }
     }
-    const isNative =
-      isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
+    const isNative = isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
     if (isAddress(draft.token) && !isNative) {
       const meta = tokenMeta[tokenKey(draft.token)]
       if (!meta) errs.push("Couldn't read decimals for this token yet.")
@@ -593,8 +634,7 @@ export function validateDraft(draft: TxDraft, tokenMeta: TokenMetaMap): string[]
     if (!draft.token || !isAddress(draft.token)) {
       errs.push('Token address is required (use zero address for native ETH).')
     }
-    const isNative =
-      isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
+    const isNative = isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
     if (!isNative && isAddress(draft.token)) {
       const meta = tokenMeta[tokenKey(draft.token)]
       if (!meta) errs.push("Couldn't read decimals for this token yet.")
@@ -700,13 +740,21 @@ export function encodeDraft(
   }
 
   if (draft.kind === 'nft') {
-    if (!isAddress(draft.contract) || !isAddress(draft.recipient) || !draft.tokenId.trim())
+    if (
+      !isAddress(draft.contract) ||
+      !isAddress(draft.recipient) ||
+      !draft.tokenId.trim()
+    )
       return null
     if (!isAddress(ctx.treasury)) return null
     const calldata = encodeFunctionData({
       abi: erc721Abi,
       functionName: 'safeTransferFrom',
-      args: [getAddress(ctx.treasury), getAddress(draft.recipient), BigInt(draft.tokenId)],
+      args: [
+        getAddress(ctx.treasury),
+        getAddress(draft.recipient),
+        BigInt(draft.tokenId),
+      ],
     })
     return { target: getAddress(draft.contract), valueEth: '0', calldata }
   }
@@ -769,7 +817,11 @@ export function encodeDraft(
   }
 
   if (draft.kind === 'milestone') {
-    if (!isAddress(draft.token) || !isAddress(draft.recipient) || !isAddress(draft.client))
+    if (
+      !isAddress(draft.token) ||
+      !isAddress(draft.recipient) ||
+      !isAddress(draft.client)
+    )
       return null
     if (!ctx.treasury || !isAddress(ctx.treasury)) return null
     const bundler = resolvedEscrowBundler()
@@ -827,20 +879,13 @@ export function encodeDraft(
     const calldata = encodeFunctionData({
       abi: deployEscrowAbi,
       functionName: 'deployEscrow',
-      args: [
-        getAddress(draft.recipient),
-        amounts,
-        escrowData,
-        ESCROW_TYPE,
-        fundAmount,
-      ],
+      args: [getAddress(draft.recipient), amounts, escrowData, ESCROW_TYPE, fundAmount],
     })
     return {
       target: bundler,
-      valueEth: isNative ? draft.milestones.reduce(
-        (acc, m) => acc + Number(m.amount || '0'),
-        0
-      ).toString() : '0',
+      valueEth: isNative
+        ? draft.milestones.reduce((acc, m) => acc + Number(m.amount || '0'), 0).toString()
+        : '0',
       calldata,
     }
   }
@@ -976,7 +1021,11 @@ export function encodeDraft(
   }
 
   if (draft.kind === 'stream') {
-    if (!isAddress(draft.sablierLL) || !isAddress(draft.token) || !isAddress(draft.recipient))
+    if (
+      !isAddress(draft.sablierLL) ||
+      !isAddress(draft.token) ||
+      !isAddress(draft.recipient)
+    )
       return null
     if (!isAddress(ctx.treasury)) return null
     const meta = tokenMeta[tokenKey(draft.token)]
@@ -988,7 +1037,9 @@ export function encodeDraft(
       return null
     }
     const durationSecs = Math.round(Number(draft.durationDays) * 86400)
-    const cliffSecs = draft.cliffDays.trim() ? Math.round(Number(draft.cliffDays) * 86400) : 0
+    const cliffSecs = draft.cliffDays.trim()
+      ? Math.round(Number(draft.cliffDays) * 86400)
+      : 0
     const calldata = encodeFunctionData({
       abi: sablierLLAbi,
       functionName: 'createWithDurationsLL',
@@ -1057,8 +1108,9 @@ export function buildApprovalDraft(
   if (source.kind === 'stream') {
     token = source.token
     amount = source.totalAmount
-    spender =
-      isAddress(source.sablierLL) ? (getAddress(source.sablierLL) as `0x${string}`) : null
+    spender = isAddress(source.sablierLL)
+      ? (getAddress(source.sablierLL) as `0x${string}`)
+      : null
   } else if (source.kind === 'airdrop') {
     token = source.token
     spender = disperseAddress(daoConfig.chainId)
@@ -1141,7 +1193,9 @@ export function summarizeDraftMarkdown(
     lines.push(`- Nominate \`${draft.delegatee}\` as the DAO's escrow delegate`)
     lines.push('- Via EAS attestation (escrow-delegate schema)')
   } else if (draft.kind === 'pause_auction') {
-    lines.push(`- **${draft.action === 'pause' ? 'Pause' : 'Unpause'}** the DAO auction house`)
+    lines.push(
+      `- **${draft.action === 'pause' ? 'Pause' : 'Unpause'}** the DAO auction house`
+    )
   } else if (draft.kind === 'pin_asset') {
     const what = draft.isCollection
       ? `the ${draft.tokenType.toUpperCase()} collection`
@@ -1164,14 +1218,18 @@ export function summarizeDraftMarkdown(
       }`
     )
     lines.push(`- Cancelable: ${draft.cancelable ? 'yes' : 'no'}`)
-    lines.push(`- (Auto-prepended: \`approve()\` to the Sablier contract for the total amount.)`)
+    lines.push(
+      `- (Auto-prepended: \`approve()\` to the Sablier contract for the total amount.)`
+    )
   } else if (draft.kind === 'milestone') {
     const isNative = draft.token.toLowerCase() === ZERO_ADDRESS
     const symbol = isNative
       ? 'ETH'
       : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
     if (!isNative) {
-      lines.push(`- (Auto-prepended: \`approve()\` to the EscrowBundler for the total amount.)`)
+      lines.push(
+        `- (Auto-prepended: \`approve()\` to the EscrowBundler for the total amount.)`
+      )
     }
     const total = draft.milestones
       .map((m) => Number(m.amount))
@@ -1180,7 +1238,9 @@ export function summarizeDraftMarkdown(
     lines.push(
       `- Deploy a SmartInvoice escrow to \`${draft.recipient}\` · client \`${draft.client}\``
     )
-    lines.push(`- Total: \`${total} ${symbol}\` across ${draft.milestones.length} milestones`)
+    lines.push(
+      `- Total: \`${total} ${symbol}\` across ${draft.milestones.length} milestones`
+    )
     lines.push(`- Safety valve: \`${draft.safetyValveDate}\``)
     for (let i = 0; i < draft.milestones.length; i++) {
       const m = draft.milestones[i]
@@ -1194,7 +1254,9 @@ export function summarizeDraftMarkdown(
       ? 'ETH'
       : (tokenMeta[tokenKey(draft.token)]?.symbol ?? 'tokens')
     if (!isNative) {
-      lines.push(`- (Auto-prepended: \`approve()\` to the Disperse contract for the total amount.)`)
+      lines.push(
+        `- (Auto-prepended: \`approve()\` to the Disperse contract for the total amount.)`
+      )
     }
     const total = draft.recipients
       .map((r) => Number(r.amount))
@@ -1211,10 +1273,16 @@ export function summarizeDraftMarkdown(
     }
   } else {
     // custom + custom-like
-    const d = draft as Extract<TxDraft, { target: string; valueEth: string; calldata: string }>
+    const d = draft as Extract<
+      TxDraft,
+      { target: string; valueEth: string; calldata: string }
+    >
     lines.push(`- Call \`${d.target}\` with \`${d.valueEth || '0'} ETH\``)
     if (d.calldata && d.calldata !== '0x') {
-      const preview = d.calldata.length > 24 ? `${d.calldata.slice(0, 12)}…${d.calldata.slice(-8)}` : d.calldata
+      const preview =
+        d.calldata.length > 24
+          ? `${d.calldata.slice(0, 12)}…${d.calldata.slice(-8)}`
+          : d.calldata
       lines.push(`- Calldata: \`${preview}\``)
     }
   }

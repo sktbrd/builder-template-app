@@ -66,19 +66,28 @@ export function DraftForm({
           {draft.kind === 'eth' && 'Transfer ETH from the treasury.'}
           {draft.kind === 'erc20' && 'Transfer an ERC-20 token from the treasury.'}
           {draft.kind === 'nft' && 'Transfer an ERC-721 NFT from the treasury.'}
-          {draft.kind === 'custom' && 'Encode a raw contract call. You provide target, value, and calldata.'}
-          {draft.kind === 'mint_gov' && 'Mint a governance NFT to the specified address using the DAO token contract.'}
+          {draft.kind === 'custom' &&
+            'Encode a raw contract call. You provide target, value, and calldata.'}
+          {draft.kind === 'mint_gov' &&
+            'Mint a governance NFT to the specified address using the DAO token contract.'}
           {draft.kind === 'delegate' &&
             'Nominate an escrow delegate via EAS attestation — the nominated address can manage milestone payments and token streams on behalf of the DAO.'}
-          {draft.kind === 'pause_auction' && 'Pause or unpause the DAO auction house contract.'}
+          {draft.kind === 'pause_auction' &&
+            'Pause or unpause the DAO auction house contract.'}
           {draft.kind === 'pin_asset' &&
             'Whitelist an ERC-20, ERC-721, or ERC-1155 contract for prominent display in the treasury (EAS attestation).'}
-          {draft.kind === 'stream' && 'Create a continuous ERC-20 token stream via Sablier LockupLinear.'}
-          {draft.kind === 'airdrop' && 'Bulk-send ETH or an ERC-20 to many recipients in one transaction via the Disperse contract.'}
-          {draft.kind === 'milestone' && 'Deploy a SmartInvoice escrow with milestone-based releases — funds unlock as the client approves each milestone.'}
-          {draft.kind === 'droposal' && 'Create a single-edition ERC721 drop via Zora NFT Creator.'}
-          {draft.kind === 'add_artwork' && 'Add new artwork properties to the metadata renderer. Provide encoded calldata for addProperties().'}
-          {draft.kind === 'replace_artwork' && 'Replace all artwork by calling deleteAndRecreateProperties() on the metadata renderer.'}
+          {draft.kind === 'stream' &&
+            'Create a continuous ERC-20 token stream via Sablier LockupLinear.'}
+          {draft.kind === 'airdrop' &&
+            'Bulk-send ETH or an ERC-20 to many recipients in one transaction via the Disperse contract.'}
+          {draft.kind === 'milestone' &&
+            'Deploy a SmartInvoice escrow with milestone-based releases — funds unlock as the client approves each milestone.'}
+          {draft.kind === 'droposal' &&
+            'Create a single-edition ERC721 drop via Zora NFT Creator.'}
+          {draft.kind === 'add_artwork' &&
+            'Add new artwork properties to the metadata renderer. Provide encoded calldata for addProperties().'}
+          {draft.kind === 'replace_artwork' &&
+            'Replace all artwork by calling deleteAndRecreateProperties() on the metadata renderer.'}
         </div>
       </div>
 
@@ -97,7 +106,9 @@ export function DraftForm({
       {draft.kind === 'custom' && <CustomFields draft={draft} onChange={onChange} />}
       {draft.kind === 'mint_gov' && <MintGovFields draft={draft} onChange={onChange} />}
       {draft.kind === 'delegate' && <DelegateFields draft={draft} onChange={onChange} />}
-      {draft.kind === 'pause_auction' && <PauseAuctionFields draft={draft} onChange={onChange} />}
+      {draft.kind === 'pause_auction' && (
+        <PauseAuctionFields draft={draft} onChange={onChange} />
+      )}
       {draft.kind === 'pin_asset' && <PinAssetFields draft={draft} onChange={onChange} />}
       {draft.kind === 'milestone' && (
         <MilestoneFields
@@ -123,11 +134,7 @@ export function DraftForm({
       )}
       {draft.kind === 'droposal' && <DroposalFields draft={draft} onChange={onChange} />}
       {draft.kind === 'stream' && (
-        <StreamFields
-          draft={draft}
-          onChange={onChange}
-          tokenMeta={tokenMeta}
-        />
+        <StreamFields draft={draft} onChange={onChange} tokenMeta={tokenMeta} />
       )}
       {CUSTOM_LIKE_KINDS.has(draft.kind) && (
         <CustomLikeFields
@@ -171,7 +178,9 @@ function EthFields({
           value={draft.recipient}
           onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.recipient.length > 0 && !isAddress(draft.recipient))}
+          className={textInputClass(
+            draft.recipient.length > 0 && !isAddress(draft.recipient)
+          )}
         />
       </Field>
       <Field label="Amount (ETH)">
@@ -263,7 +272,9 @@ function Erc20Fields({
                     size={28}
                   />
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-semibold text-fg">{t.symbol}</span>
+                    <span className="truncate text-sm font-semibold text-fg">
+                      {t.symbol}
+                    </span>
                     <span className="truncate font-mono text-[11px] text-muted-fg">
                       {t.balance ?? '—'}
                     </span>
@@ -290,7 +301,9 @@ function Erc20Fields({
             value={draft.recipient}
             onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
             placeholder="0x…"
-            className={textInputClass(draft.recipient.length > 0 && !isAddress(draft.recipient))}
+            className={textInputClass(
+              draft.recipient.length > 0 && !isAddress(draft.recipient)
+            )}
           />
         </Field>
         <Field
@@ -323,7 +336,8 @@ function Erc20Fields({
         <div className="text-[12px] text-muted-fg">
           {meta ? (
             <>
-              Token: <span className="text-fg">{meta.symbol ?? '—'}</span> · {meta.decimals} decimals
+              Token: <span className="text-fg">{meta.symbol ?? '—'}</span> ·{' '}
+              {meta.decimals} decimals
               {selectedHolding && (
                 <>
                   {' · Treasury balance: '}
@@ -406,7 +420,9 @@ function NftFields({
           value={draft.contract}
           onChange={(e) => onChange({ ...draft, contract: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.contract.length > 0 && !isAddress(draft.contract))}
+          className={textInputClass(
+            draft.contract.length > 0 && !isAddress(draft.contract)
+          )}
         />
       </Field>
 
@@ -422,7 +438,9 @@ function NftFields({
             type="text"
             inputMode="numeric"
             value={draft.tokenId}
-            onChange={(e) => onChange({ ...draft, tokenId: e.target.value.replace(/\D/g, '') })}
+            onChange={(e) =>
+              onChange({ ...draft, tokenId: e.target.value.replace(/\D/g, '') })
+            }
             placeholder="0"
             className={textInputClass(false)}
           />
@@ -435,7 +453,9 @@ function NftFields({
           value={draft.recipient}
           onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.recipient.length > 0 && !isAddress(draft.recipient))}
+          className={textInputClass(
+            draft.recipient.length > 0 && !isAddress(draft.recipient)
+          )}
         />
       </Field>
 
@@ -518,7 +538,9 @@ function CustomFields({
             value={draft.target}
             onChange={(e) => onChange({ ...draft, target: e.target.value })}
             placeholder="0x…"
-            className={textInputClass(draft.target.length > 0 && !isAddress(draft.target))}
+            className={textInputClass(
+              draft.target.length > 0 && !isAddress(draft.target)
+            )}
           />
         </Field>
         <Field label="Value (ETH)">
@@ -560,12 +582,14 @@ function MintGovFields({
           value={draft.recipient}
           onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.recipient.length > 0 && !isAddress(draft.recipient))}
+          className={textInputClass(
+            draft.recipient.length > 0 && !isAddress(draft.recipient)
+          )}
         />
       </Field>
       <div className="text-[12px] text-muted-fg">
-        Calls <span className="font-mono">mintTo(address)</span> on the DAO token contract. The next
-        sequential token ID is minted to the recipient.
+        Calls <span className="font-mono">mintTo(address)</span> on the DAO token
+        contract. The next sequential token ID is minted to the recipient.
       </div>
     </div>
   )
@@ -583,9 +607,9 @@ function DelegateFields({
     <div className="flex flex-col gap-3">
       {!easOk && (
         <div className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          EAS isn&apos;t deployed on this chain — escrow delegate nominations are unavailable.
-          Switch to a supported chain (Ethereum, Optimism, Base, Sepolia) or use a Custom
-          Transaction.
+          EAS isn&apos;t deployed on this chain — escrow delegate nominations are
+          unavailable. Switch to a supported chain (Ethereum, Optimism, Base, Sepolia) or
+          use a Custom Transaction.
         </div>
       )}
       <Field label="Escrow delegate address">
@@ -594,12 +618,15 @@ function DelegateFields({
           value={draft.delegatee}
           onChange={(e) => onChange({ ...draft, delegatee: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.delegatee.length > 0 && !isAddress(draft.delegatee))}
+          className={textInputClass(
+            draft.delegatee.length > 0 && !isAddress(draft.delegatee)
+          )}
         />
       </Field>
       <div className="text-[12px] text-muted-fg">
-        Writes an EAS attestation pointing at the DAO token contract. The nominated address
-        will be authorized to manage escrows and token streams on behalf of the DAO.
+        Writes an EAS attestation pointing at the DAO token contract. The nominated
+        address will be authorized to manage escrows and token streams on behalf of the
+        DAO.
       </div>
     </div>
   )
@@ -628,8 +655,9 @@ function PinAssetFields({
     <div className="flex flex-col gap-3">
       {!easOk && (
         <div className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          EAS isn&apos;t deployed on this chain — treasury asset pinning is unavailable. Switch
-          to a supported chain (Ethereum, Optimism, Base, Sepolia) or use a Custom Transaction.
+          EAS isn&apos;t deployed on this chain — treasury asset pinning is unavailable.
+          Switch to a supported chain (Ethereum, Optimism, Base, Sepolia) or use a Custom
+          Transaction.
         </div>
       )}
 
@@ -658,7 +686,9 @@ function PinAssetFields({
           value={draft.contract}
           onChange={(e) => onChange({ ...draft, contract: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.contract.length > 0 && !isAddress(draft.contract))}
+          className={textInputClass(
+            draft.contract.length > 0 && !isAddress(draft.contract)
+          )}
         />
       </Field>
 
@@ -677,7 +707,9 @@ function PinAssetFields({
           >
             <span
               className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-              style={{ transform: draft.isCollection ? 'translateX(18px)' : 'translateX(2px)' }}
+              style={{
+                transform: draft.isCollection ? 'translateX(18px)' : 'translateX(2px)',
+              }}
             />
           </button>
           <span className="text-[12.5px] text-muted-fg">
@@ -692,7 +724,9 @@ function PinAssetFields({
             type="text"
             inputMode="numeric"
             value={draft.tokenId}
-            onChange={(e) => onChange({ ...draft, tokenId: e.target.value.replace(/\D/g, '') })}
+            onChange={(e) =>
+              onChange({ ...draft, tokenId: e.target.value.replace(/\D/g, '') })
+            }
             placeholder="0"
             className={textInputClass(false)}
           />
@@ -700,8 +734,8 @@ function PinAssetFields({
       )}
 
       <div className="text-[12px] text-muted-fg">
-        Writes an EAS attestation with a Builder treasury-pin schema. Surfaces the asset in
-        treasury views that recognize the schema.
+        Writes an EAS attestation with a Builder treasury-pin schema. Surfaces the asset
+        in treasury views that recognize the schema.
       </div>
     </div>
   )
@@ -735,7 +769,8 @@ function PauseAuctionFields({
         </div>
       </Field>
       <div className="text-[12px] text-muted-fg">
-        Calls <span className="font-mono">{draft.action}()</span> on the DAO auction house contract.
+        Calls <span className="font-mono">{draft.action}()</span> on the DAO auction house
+        contract.
         {draft.action === 'pause'
           ? ' New bids will be blocked until unpaused.'
           : ' Resumes the auction house.'}
@@ -786,13 +821,13 @@ function AirdropFields({
   treasuryTokens: TreasuryTokenHolding[]
 }) {
   const supported = isAirdropSupported()
-  const isNative =
-    isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
+  const isNative = isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
   const tokenSymbol = isNative
     ? 'ETH'
     : isAddress(draft.token)
       ? (tokenMeta[tokenKey(draft.token)]?.symbol ??
-        treasuryTokens.find((t) => tokenKey(t.address) === tokenKey(draft.token))?.symbol ??
+        treasuryTokens.find((t) => tokenKey(t.address) === tokenKey(draft.token))
+          ?.symbol ??
         '')
       : ''
 
@@ -832,8 +867,9 @@ function AirdropFields({
     <div className="flex flex-col gap-3">
       {!supported && (
         <div className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          The Disperse contract isn&apos;t configured for this chain. Switch to a supported
-          chain (Ethereum, Optimism, Polygon, Arbitrum, Base) or use a Custom Transaction.
+          The Disperse contract isn&apos;t configured for this chain. Switch to a
+          supported chain (Ethereum, Optimism, Polygon, Arbitrum, Base) or use a Custom
+          Transaction.
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
@@ -884,7 +920,8 @@ function AirdropFields({
       <div>
         <div className="mb-1 flex items-center justify-between">
           <span className="text-[12.5px] text-muted-fg">
-            Recipients ({draft.recipients.length}){tokenSymbol &&
+            Recipients ({draft.recipients.length})
+            {tokenSymbol &&
               ` · total ${total.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${tokenSymbol}`}
           </span>
           <button
@@ -957,13 +994,13 @@ function MilestoneFields({
   treasuryTokens: TreasuryTokenHolding[]
 }) {
   const escrowOk = isEscrowSupported()
-  const isNative =
-    isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
+  const isNative = isAddress(draft.token) && draft.token.toLowerCase() === ZERO_ADDRESS
   const tokenSymbol = isNative
     ? 'ETH'
     : isAddress(draft.token)
       ? (tokenMeta[tokenKey(draft.token)]?.symbol ??
-        treasuryTokens.find((t) => tokenKey(t.address) === tokenKey(draft.token))?.symbol ??
+        treasuryTokens.find((t) => tokenKey(t.address) === tokenKey(draft.token))
+          ?.symbol ??
         '')
       : ''
 
@@ -1000,9 +1037,9 @@ function MilestoneFields({
     <div className="flex flex-col gap-3">
       {!escrowOk && (
         <div className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          EscrowBundler isn&apos;t deployed on this chain — milestone payments are unavailable.
-          Switch to a supported chain (Ethereum, Optimism, Base, Zora) or use a Custom
-          Transaction.
+          EscrowBundler isn&apos;t deployed on this chain — milestone payments are
+          unavailable. Switch to a supported chain (Ethereum, Optimism, Base, Zora) or use
+          a Custom Transaction.
         </div>
       )}
       <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[12px] text-muted-fg">
@@ -1010,11 +1047,7 @@ function MilestoneFields({
         <span className="font-mono">approve()</span> call to the EscrowBundler is
         auto-prepended to the proposal. Native ETH is forwarded automatically.
       </div>
-      <ApprovalHint
-        draft={draft}
-        tokenMeta={tokenMeta}
-        spenderLabel="EscrowBundler"
-      />
+      <ApprovalHint draft={draft} tokenMeta={tokenMeta} spenderLabel="EscrowBundler" />
 
       {/* Token picker */}
       <Field label="Token">
@@ -1072,7 +1105,9 @@ function MilestoneFields({
             value={draft.client}
             onChange={(e) => onChange({ ...draft, client: e.target.value })}
             placeholder="0x… (DAO multisig or treasury)"
-            className={textInputClass(draft.client.length > 0 && !isAddress(draft.client))}
+            className={textInputClass(
+              draft.client.length > 0 && !isAddress(draft.client)
+            )}
           />
         </Field>
       </div>
@@ -1178,16 +1213,16 @@ function MilestoneMetadataUpload({
         description: 'SmartInvoice escrow milestones',
         endDate: draft.milestones.reduce(
           (max, m) =>
-            m.endDate ? Math.max(max, Math.floor(new Date(m.endDate).getTime() / 1000)) : max,
+            m.endDate
+              ? Math.max(max, Math.floor(new Date(m.endDate).getTime() / 1000))
+              : max,
           0
         ),
         milestones: draft.milestones.map((m, i) => ({
           id: `m-${i}`,
           title: m.title,
           description: m.description,
-          endDate: m.endDate
-            ? Math.floor(new Date(m.endDate).getTime() / 1000)
-            : 0,
+          endDate: m.endDate ? Math.floor(new Date(m.endDate).getTime() / 1000) : 0,
           createdAt: Math.floor(Date.now() / 1000),
         })),
         createdAt: Math.floor(Date.now() / 1000),
@@ -1222,8 +1257,8 @@ function MilestoneMetadataUpload({
       </div>
       <p className="mb-2 text-muted-fg">
         Optional. Uploads milestone titles, descriptions, and dates as JSON so the
-        SmartInvoice UI can show them off-chain. Without this the escrow still executes
-        — only the off-chain display loses context.
+        SmartInvoice UI can show them off-chain. Without this the escrow still executes —
+        only the off-chain display loses context.
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -1232,7 +1267,11 @@ function MilestoneMetadataUpload({
           disabled={uploading}
           className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-[12px] font-semibold text-accent-strong hover:bg-accent/20 disabled:opacity-50"
         >
-          {uploading ? 'Uploading…' : draft.ipfsCid ? 'Re-upload metadata' : 'Upload metadata to IPFS'}
+          {uploading
+            ? 'Uploading…'
+            : draft.ipfsCid
+              ? 'Re-upload metadata'
+              : 'Upload metadata to IPFS'}
         </button>
         {draft.ipfsCid && (
           <button
@@ -1259,24 +1298,28 @@ function WalletConnectFields({
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-md border border-border bg-surface-2 px-3 py-3 text-[12.5px]">
-        <div className="mb-2 font-semibold text-fg">How to capture a WalletConnect transaction</div>
+        <div className="mb-2 font-semibold text-fg">
+          How to capture a WalletConnect transaction
+        </div>
         <ol className="ml-5 list-decimal space-y-1 text-muted-fg">
           <li>
-            Open the dApp you want to interact with and choose <strong>Connect Wallet</strong> →{' '}
-            <strong>WalletConnect</strong>.
+            Open the dApp you want to interact with and choose{' '}
+            <strong>Connect Wallet</strong> → <strong>WalletConnect</strong>.
           </li>
           <li>
-            Pair using a wallet that lets you see and copy raw transaction data before signing
-            (Safe, Frame, Rabby, or MetaMask).
+            Pair using a wallet that lets you see and copy raw transaction data before
+            signing (Safe, Frame, Rabby, or MetaMask).
           </li>
           <li>
             Trigger the action in the dApp — when your wallet prompts to sign, copy{' '}
-            <span className="font-mono">to</span>, <span className="font-mono">value</span>, and{' '}
+            <span className="font-mono">to</span>,{' '}
+            <span className="font-mono">value</span>, and{' '}
             <span className="font-mono">data</span>.
           </li>
           <li>
-            Cancel the wallet prompt (so your personal wallet doesn&apos;t send it) and paste the
-            values below — the proposal will execute the same call from the treasury.
+            Cancel the wallet prompt (so your personal wallet doesn&apos;t send it) and
+            paste the values below — the proposal will execute the same call from the
+            treasury.
           </li>
         </ol>
         <div className="mt-2 text-[11.5px] text-muted-fg">
@@ -1300,7 +1343,9 @@ function WalletConnectFields({
             value={draft.target}
             onChange={(e) => onChange({ ...draft, target: e.target.value })}
             placeholder="0x…"
-            className={textInputClass(draft.target.length > 0 && !isAddress(draft.target))}
+            className={textInputClass(
+              draft.target.length > 0 && !isAddress(draft.target)
+            )}
           />
         </Field>
         <Field label="Value (ETH)">
@@ -1347,7 +1392,9 @@ function DroposalFields({
           value={draft.zoraNftCreator}
           onChange={(e) => onChange({ ...draft, zoraNftCreator: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.zoraNftCreator.length > 0 && !isAddress(draft.zoraNftCreator))}
+          className={textInputClass(
+            draft.zoraNftCreator.length > 0 && !isAddress(draft.zoraNftCreator)
+          )}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
@@ -1404,7 +1451,9 @@ function DroposalFields({
             type="text"
             inputMode="numeric"
             value={draft.editionSize}
-            onChange={(e) => onChange({ ...draft, editionSize: e.target.value.replace(/\D/g, '') })}
+            onChange={(e) =>
+              onChange({ ...draft, editionSize: e.target.value.replace(/\D/g, '') })
+            }
             placeholder="Unlimited"
             className={textInputClass(false)}
           />
@@ -1415,7 +1464,10 @@ function DroposalFields({
             inputMode="numeric"
             value={draft.mintLimitPerAddress}
             onChange={(e) =>
-              onChange({ ...draft, mintLimitPerAddress: e.target.value.replace(/\D/g, '') })
+              onChange({
+                ...draft,
+                mintLimitPerAddress: e.target.value.replace(/\D/g, ''),
+              })
             }
             placeholder="No limit"
             className={textInputClass(false)}
@@ -1505,7 +1557,9 @@ function StreamFields({
           value={draft.sablierLL}
           onChange={(e) => onChange({ ...draft, sablierLL: e.target.value })}
           placeholder="0x…"
-          className={textInputClass(draft.sablierLL.length > 0 && !isAddress(draft.sablierLL))}
+          className={textInputClass(
+            draft.sablierLL.length > 0 && !isAddress(draft.sablierLL)
+          )}
         />
       </Field>
       {daoConfig.treasuryTokens.length > 0 && (
@@ -1514,7 +1568,8 @@ function StreamFields({
             Quick pick
           </span>
           {daoConfig.treasuryTokens.map((t) => {
-            const active = isAddress(draft.token) && tokenKey(t.address) === tokenKey(draft.token)
+            const active =
+              isAddress(draft.token) && tokenKey(t.address) === tokenKey(draft.token)
             return (
               <button
                 key={t.address}
@@ -1548,7 +1603,9 @@ function StreamFields({
             value={draft.recipient}
             onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
             placeholder="0x…"
-            className={textInputClass(draft.recipient.length > 0 && !isAddress(draft.recipient))}
+            className={textInputClass(
+              draft.recipient.length > 0 && !isAddress(draft.recipient)
+            )}
           />
         </Field>
       </div>
@@ -1556,7 +1613,8 @@ function StreamFields({
         <div className="text-[12px] text-muted-fg">
           {meta ? (
             <>
-              Token: <span className="text-fg">{meta.symbol ?? '—'}</span> · {meta.decimals} decimals
+              Token: <span className="text-fg">{meta.symbol ?? '—'}</span> ·{' '}
+              {meta.decimals} decimals
             </>
           ) : (
             <>Reading token metadata…</>
@@ -1609,7 +1667,9 @@ function StreamFields({
         >
           <span
             className="absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-            style={{ transform: draft.cancelable ? 'translateX(18px)' : 'translateX(2px)' }}
+            style={{
+              transform: draft.cancelable ? 'translateX(18px)' : 'translateX(2px)',
+            }}
           />
         </button>
         <span className="text-[12.5px] text-muted-fg">
@@ -1658,13 +1718,14 @@ function CustomLikeFields({
           {draft.kind === 'add_artwork'
             ? 'Adding new traits or variants needs the full layer folder uploaded to IPFS in the expected '
             : 'Replacing artwork needs the full layer folder uploaded to IPFS in the expected '}
-          <span className="font-mono">collection / trait / variant</span> structure, batched into
-          calls to <span className="font-mono">{fnName}()</span> on the metadata renderer
-          (max 500 items per tx).
+          <span className="font-mono">collection / trait / variant</span> structure,
+          batched into calls to <span className="font-mono">{fnName}()</span> on the
+          metadata renderer (max 500 items per tx).
         </p>
         <p className="mt-2 text-muted-fg">
-          The cleanest way to generate this calldata today is to use nouns.build&apos;s artwork
-          tools{nounsUrl ? ', then paste the resulting target + calldata back here.' : '.'}
+          The cleanest way to generate this calldata today is to use nouns.build&apos;s
+          artwork tools
+          {nounsUrl ? ', then paste the resulting target + calldata back here.' : '.'}
         </p>
         {nounsUrl && (
           <a

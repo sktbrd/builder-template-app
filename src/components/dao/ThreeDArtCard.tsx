@@ -13,12 +13,7 @@ type Props = {
   depth?: number
 }
 
-export function ThreeDArtCard({
-  children,
-  className,
-  maxTilt = 12,
-  depth = 30,
-}: Props) {
+export function ThreeDArtCard({ children, className, maxTilt = 12, depth = 30 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const [hovered, setHovered] = useState(false)

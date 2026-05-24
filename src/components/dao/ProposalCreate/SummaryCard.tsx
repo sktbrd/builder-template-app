@@ -89,7 +89,9 @@ export function SummaryCard({ draft, index, tokenMeta, onEdit, onRemove }: Props
           <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
             Tx {index + 1}
           </span>
-          <span className="text-sm font-semibold text-fg">{TX_KIND_LABELS[draft.kind]}</span>
+          <span className="text-sm font-semibold text-fg">
+            {TX_KIND_LABELS[draft.kind]}
+          </span>
         </div>
         <DraftSummary draft={draft} tokenMeta={tokenMeta} />
       </div>
@@ -125,7 +127,9 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
   if (draft.kind === 'eth') {
     return (
       <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
-        <span className="font-semibold text-fg">{formatNumber(draft.valueEth) || '0'} ETH</span>
+        <span className="font-semibold text-fg">
+          {formatNumber(draft.valueEth) || '0'} ETH
+        </span>
         <span className="text-muted-fg">to</span>
         {draft.recipient ? (
           <WalletPill address={draft.recipient} link={false} size="xs" />
@@ -304,7 +308,9 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
         {total > 0 && (
           <>
             <span className="text-muted-fg">·</span>
-            <span className="font-semibold text-fg">{formatNumber(total.toString())}</span>
+            <span className="font-semibold text-fg">
+              {formatNumber(total.toString())}
+            </span>
           </>
         )}
       </div>
@@ -314,7 +320,9 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
   if (draft.kind === 'droposal') {
     return (
       <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
-        <span className="font-semibold text-fg truncate">{draft.name || '(no name)'}</span>
+        <span className="font-semibold text-fg truncate">
+          {draft.name || '(no name)'}
+        </span>
         {draft.symbol && (
           <span className="font-mono text-[11px] text-muted-fg">({draft.symbol})</span>
         )}
@@ -325,7 +333,9 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
         {draft.priceEth && draft.priceEth !== '0' && (
           <>
             <span className="text-muted-fg">·</span>
-            <span className="font-semibold text-fg">{formatNumber(draft.priceEth)} ETH</span>
+            <span className="font-semibold text-fg">
+              {formatNumber(draft.priceEth)} ETH
+            </span>
           </>
         )}
       </div>
@@ -352,7 +362,10 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
 
   // custom + all custom-like kinds
   if (draft.kind === 'custom' || CUSTOM_LIKE_KINDS.has(draft.kind)) {
-    const d = draft as Extract<TxDraft, { target: string; valueEth: string; calldata: string }>
+    const d = draft as Extract<
+      TxDraft,
+      { target: string; valueEth: string; calldata: string }
+    >
     return (
       <div className="flex flex-col gap-1 text-[12.5px]">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -371,7 +384,9 @@ function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMe
           {d.valueEth && d.valueEth !== '0' && (
             <>
               <span className="text-muted-fg">·</span>
-              <span className="font-semibold text-fg">{formatNumber(d.valueEth)} ETH</span>
+              <span className="font-semibold text-fg">
+                {formatNumber(d.valueEth)} ETH
+              </span>
             </>
           )}
         </div>

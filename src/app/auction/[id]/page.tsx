@@ -153,7 +153,8 @@ export default async function AuctionPage({
 }
 
 function Tabs({ tokenId, isChartView }: { tokenId: number; isChartView: boolean }) {
-  const activeClass = '-mb-px border-b-2 border-fg px-0 py-2.5 text-sm font-semibold text-fg'
+  const activeClass =
+    '-mb-px border-b-2 border-fg px-0 py-2.5 text-sm font-semibold text-fg'
   const inactiveClass =
     '-mb-px border-b-2 border-transparent px-0 py-2.5 text-sm font-semibold text-muted-fg hover:text-fg'
   return (

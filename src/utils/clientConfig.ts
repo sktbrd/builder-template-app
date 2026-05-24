@@ -27,7 +27,10 @@ export function createWagmiConfig() {
     )
   }
 
-  const chains = (daoChain.id === mainnet.id ? [daoChain] : [daoChain, mainnet]) as [typeof daoChain, ...typeof daoChain[]]
+  const chains = (daoChain.id === mainnet.id ? [daoChain] : [daoChain, mainnet]) as [
+    typeof daoChain,
+    ...(typeof daoChain)[],
+  ]
 
   return getDefaultConfig({
     appName: 'Builder Template',

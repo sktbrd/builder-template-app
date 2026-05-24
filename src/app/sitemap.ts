@@ -10,7 +10,9 @@ function resolveBase(): string {
     process.env.VERCEL_PROJECT_PRODUCTION_URL ||
     process.env.VERCEL_URL ||
     'http://localhost:3000'
-  return raw.startsWith('http') ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`
+  return raw.startsWith('http')
+    ? raw.replace(/\/$/, '')
+    : `https://${raw.replace(/\/$/, '')}`
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -19,10 +21,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const STATIC: MetadataRoute.Sitemap = [
     { url: BASE, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
-    { url: `${BASE}/auction/latest`, lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
-    { url: `${BASE}/proposals`, lastModified: now, changeFrequency: 'hourly', priority: 0.8 },
-    { url: `${BASE}/treasury`, lastModified: now, changeFrequency: 'daily', priority: 0.7 },
-    { url: `${BASE}/members`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
+    {
+      url: `${BASE}/auction/latest`,
+      lastModified: now,
+      changeFrequency: 'hourly',
+      priority: 0.9,
+    },
+    {
+      url: `${BASE}/proposals`,
+      lastModified: now,
+      changeFrequency: 'hourly',
+      priority: 0.8,
+    },
+    {
+      url: `${BASE}/treasury`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.7,
+    },
+    {
+      url: `${BASE}/members`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.6,
+    },
     { url: `${BASE}/coins`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
     { url: `${BASE}/feed`, lastModified: now, changeFrequency: 'hourly', priority: 0.5 },
     { url: `${BASE}/about`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },

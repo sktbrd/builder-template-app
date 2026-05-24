@@ -5,6 +5,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { ChevronDown, ChevronLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { type Address, parseEther } from 'viem'
 import {
@@ -17,11 +18,11 @@ import {
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
+import { CreatorCoinProposalModal } from '@/components/coins/CreatorCoinProposalModal'
 import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import type { TreasuryNft, TreasuryTokenHolding } from '@/lib/dao-data'
-import { useSearchParams } from 'next/navigation'
 import {
   emptyDraft,
   encodeDraftToTxs,
@@ -34,8 +35,6 @@ import {
   validateDraft,
 } from '@/lib/proposal-tx'
 import { composeDescription, parseWriteError } from '@/lib/proposal-validation'
-
-import { CreatorCoinProposalModal } from '@/components/coins/CreatorCoinProposalModal'
 
 import { DraftForm } from './ProposalCreate/DraftForm'
 import { Review } from './ProposalCreate/Review'
@@ -72,7 +71,10 @@ export function ProposalCreateForm({
   const ready = useWeb3Ready()
   if (!ready) return <ProposalCreateFormSkeleton />
   return (
-    <ProposalCreateFormInner treasuryNfts={treasuryNfts} treasuryTokens={treasuryTokens} />
+    <ProposalCreateFormInner
+      treasuryNfts={treasuryNfts}
+      treasuryTokens={treasuryTokens}
+    />
   )
 }
 
@@ -165,7 +167,8 @@ function ProposalCreateFormInner({
   // submit() on a successful proposal write.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const hasAny = title.trim().length > 0 || description.trim().length > 0 || drafts.length > 0
+    const hasAny =
+      title.trim().length > 0 || description.trim().length > 0 || drafts.length > 0
     const timer = window.setTimeout(() => {
       try {
         if (hasAny) {
@@ -349,7 +352,11 @@ function ProposalCreateFormInner({
       })
     )
     if (encoded.some((e) => e === null)) return
-    const flat = encoded.flat() as { target: string; valueEth: string; calldata: string }[]
+    const flat = encoded.flat() as {
+      target: string
+      valueEth: string
+      calldata: string
+    }[]
     let valuesWei: bigint[]
     try {
       valuesWei = flat.map((e) =>
@@ -619,65 +626,68 @@ function TransactionsStep({
   return (
     <>
       {creatorCoinOpen && (
-        <CreatorCoinProposalModal open={creatorCoinOpen} onClose={() => setCreatorCoinOpen(false)} />
+        <CreatorCoinProposalModal
+          open={creatorCoinOpen}
+          onClose={() => setCreatorCoinOpen(false)}
+        />
       )}
-    <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-        <h3 className="text-base font-bold">Add a transaction</h3>
-        <p className="mt-1 text-[12.5px] text-muted-fg">
-          Each call the proposal executes if it passes. Pick a type to start.
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {BASIC_KINDS.map((k) => (
-            <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen((v) => !v)}
-          className="mt-3 flex items-center gap-1.5 text-[12.5px] font-medium text-muted-fg hover:text-fg"
-        >
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
-          />
-          Advanced transactions
-        </button>
-
-        {advancedOpen && (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            {ADVANCED_KINDS.map((k) => (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <h3 className="text-base font-bold">Add a transaction</h3>
+          <p className="mt-1 text-[12.5px] text-muted-fg">
+            Each call the proposal executes if it passes. Pick a type to start.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {BASIC_KINDS.map((k) => (
               <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
             ))}
-            <TypeCard kind="creator_coin" onSelect={() => setCreatorCoinOpen(true)} />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="mt-3 flex items-center gap-1.5 text-[12.5px] font-medium text-muted-fg hover:text-fg"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+            />
+            Advanced transactions
+          </button>
+
+          {advancedOpen && (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {ADVANCED_KINDS.map((k) => (
+                <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
+              ))}
+              <TypeCard kind="creator_coin" onSelect={() => setCreatorCoinOpen(true)} />
+            </div>
+          )}
+        </div>
+
+        {drafts.length > 0 && (
+          <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+            <h3 className="text-base font-bold">
+              Queue{' '}
+              <span className="ml-1 text-[12.5px] font-normal text-muted-fg">
+                {drafts.length}
+              </span>
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2">
+              {drafts.map((d, i) => (
+                <li key={i}>
+                  <SummaryCard
+                    draft={d}
+                    index={i}
+                    tokenMeta={tokenMeta}
+                    onEdit={() => onOpenEdit(i)}
+                    onRemove={() => onRemove(i)}
+                  />
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
-
-      {drafts.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-          <h3 className="text-base font-bold">
-            Queue{' '}
-            <span className="ml-1 text-[12.5px] font-normal text-muted-fg">
-              {drafts.length}
-            </span>
-          </h3>
-          <ul className="mt-3 flex flex-col gap-2">
-            {drafts.map((d, i) => (
-              <li key={i}>
-                <SummaryCard
-                  draft={d}
-                  index={i}
-                  tokenMeta={tokenMeta}
-                  onEdit={() => onOpenEdit(i)}
-                  onRemove={() => onRemove(i)}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
     </>
   )
 }

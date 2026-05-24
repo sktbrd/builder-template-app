@@ -451,9 +451,7 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
  * is bounded by the same limit the caller passed to `getAllProposals` — i.e.
  * "recent window" reputation, not all-time.
  */
-export function computeProposerStats(
-  proposals: Proposal[]
-): Map<string, ProposerStats> {
+export function computeProposerStats(proposals: Proposal[]): Map<string, ProposerStats> {
   const out = new Map<string, ProposerStats>()
   for (const p of proposals) {
     const key = String(p.proposer).toLowerCase()
@@ -851,7 +849,7 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
     .filter((a) => a.winningBid?.amount)
     .map((a) => {
       const idStr = String(a.id)
-      const tokenPart = idStr.includes(':') ? idStr.split(':').pop() ?? '0' : idStr
+      const tokenPart = idStr.includes(':') ? (idStr.split(':').pop() ?? '0') : idStr
       const tokenId = Number.parseInt(tokenPart, 10) || 0
       const amountEth = Number(formatEther(BigInt(String(a.winningBid!.amount))))
       return {
@@ -871,9 +869,9 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   const proposalTxs: TreasuryTx[] = []
   for (const p of (proposalsResp?.proposals ?? []).filter((p) => p.executedAt)) {
     const transfers = decodePropTransfers(
-      (p.targets as unknown) as string[],
-      (p.calldatas as unknown) as string[],
-      (p.values as unknown) as string[],
+      p.targets as unknown as string[],
+      p.calldatas as unknown as string[],
+      p.values as unknown as string[],
       knownTokens
     )
     if (transfers.length === 0) continue
@@ -2034,7 +2032,7 @@ export async function getAuctionPriceHistory(days = 365): Promise<AuctionPricePo
     .filter((a) => a.settled && a.winningBid)
     .map((a) => {
       const idStr = String(a.id)
-      const tokenPart = idStr.includes(':') ? idStr.split(':').pop() ?? '0' : idStr
+      const tokenPart = idStr.includes(':') ? (idStr.split(':').pop() ?? '0') : idStr
       return {
         tokenId: Number.parseInt(tokenPart, 10) || 0,
         endTime: Number(a.endTime),

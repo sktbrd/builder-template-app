@@ -20,7 +20,8 @@ export default function NotFound() {
           Page not found
         </h1>
         <p className="mt-2 max-w-sm text-muted-fg">
-          This page doesn&apos;t exist or was moved. Head back to the {daoConfig.name} community hub.
+          This page doesn&apos;t exist or was moved. Head back to the {daoConfig.name}{' '}
+          community hub.
         </p>
       </div>
       <Link

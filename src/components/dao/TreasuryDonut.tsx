@@ -95,7 +95,10 @@ export function TreasuryDonut({ slices, totalUsd, size = 280, thickness = 42 }: 
             className="grid items-center gap-2.5 text-[13.5px]"
             style={{ gridTemplateColumns: '14px 1fr auto' }}
           >
-            <span className="h-3 w-3 shrink-0 rounded-[3px]" style={{ background: s.color }} />
+            <span
+              className="h-3 w-3 shrink-0 rounded-[3px]"
+              style={{ background: s.color }}
+            />
             <span>{s.name}</span>
             <span className="font-mono text-xs text-muted-fg">
               {((s.value / totalUsd) * 100).toFixed(1)}%

@@ -41,7 +41,12 @@ function shortAddr(addr: string) {
 function isSpamAsset(asset: string | null | undefined): boolean {
   if (!asset) return false
   const s = asset.toLowerCase()
-  if (/https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(s)) return true
+  if (
+    /https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(
+      s
+    )
+  )
+    return true
   if (/claim|airdrop|reward|visit|bonus|gift|winner|voucher|promo/.test(s)) return true
   if (/[*!?@#$%^&()\[\]{}<>]/.test(asset)) return true
   if (asset.length > 20) return true
@@ -73,41 +78,44 @@ export function TreasuryTransfers() {
 
   const explorerBase = EXPLORER_BASE[daoConfig.chainId] ?? 'https://basescan.org'
 
-  const load = useCallback(async (dir: DirFilter, reset: boolean) => {
-    if (reset) {
-      setLoading(true)
-      setError(null)
-      setTransfers([])
-      setNextPageKeyIn(undefined)
-      setNextPageKeyOut(undefined)
-    } else {
-      setLoadingMore(true)
-    }
+  const load = useCallback(
+    async (dir: DirFilter, reset: boolean) => {
+      if (reset) {
+        setLoading(true)
+        setError(null)
+        setTransfers([])
+        setNextPageKeyIn(undefined)
+        setNextPageKeyOut(undefined)
+      } else {
+        setLoadingMore(true)
+      }
 
-    const params = new URLSearchParams({ dir })
-    if (!reset) {
-      if (dir !== 'out' && nextPageKeyIn) params.set('pageKey', nextPageKeyIn)
-      if (dir !== 'in' && nextPageKeyOut) params.set('pageKey', nextPageKeyOut)
-    }
+      const params = new URLSearchParams({ dir })
+      if (!reset) {
+        if (dir !== 'out' && nextPageKeyIn) params.set('pageKey', nextPageKeyIn)
+        if (dir !== 'in' && nextPageKeyOut) params.set('pageKey', nextPageKeyOut)
+      }
 
-    try {
-      const res = await fetch(`/api/treasury/transfers?${params}`)
-      const data: ApiResponse = await res.json()
-      if (data.error) throw new Error(data.error)
-      setTransfers((prev) => reset ? data.transfers : [...prev, ...data.transfers])
-      setNextPageKeyIn(data.nextPageKeyIn)
-      setNextPageKeyOut(data.nextPageKeyOut)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }, [nextPageKeyIn, nextPageKeyOut])
+      try {
+        const res = await fetch(`/api/treasury/transfers?${params}`)
+        const data: ApiResponse = await res.json()
+        if (data.error) throw new Error(data.error)
+        setTransfers((prev) => (reset ? data.transfers : [...prev, ...data.transfers]))
+        setNextPageKeyIn(data.nextPageKeyIn)
+        setNextPageKeyOut(data.nextPageKeyOut)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
+      }
+    },
+    [nextPageKeyIn, nextPageKeyOut]
+  )
 
   useEffect(() => {
     load(dirFilter, true)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirFilter])
 
   const cleanTransfers = useMemo(
@@ -126,8 +134,7 @@ export function TreasuryTransfers() {
   }, [cleanTransfers, assetFilter])
 
   const hasMore =
-    (dirFilter !== 'out' && !!nextPageKeyIn) ||
-    (dirFilter !== 'in' && !!nextPageKeyOut)
+    (dirFilter !== 'out' && !!nextPageKeyIn) || (dirFilter !== 'in' && !!nextPageKeyOut)
 
   return (
     <section className="rounded-[14px] border border-border bg-surface px-6 py-[22px]">
@@ -140,7 +147,10 @@ export function TreasuryTransfers() {
             <button
               key={f}
               type="button"
-              onClick={() => { setDirFilter(f); setAssetFilter('all') }}
+              onClick={() => {
+                setDirFilter(f)
+                setAssetFilter('all')
+              }}
               className={
                 dirFilter === f
                   ? 'rounded-md bg-surface px-3 py-1 text-[12px] font-semibold text-fg shadow-sm'
@@ -156,7 +166,9 @@ export function TreasuryTransfers() {
       {/* Asset filter chips */}
       {assets.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
-          <Chip active={assetFilter === 'all'} onClick={() => setAssetFilter('all')}>All assets</Chip>
+          <Chip active={assetFilter === 'all'} onClick={() => setAssetFilter('all')}>
+            All assets
+          </Chip>
           {assets.map((a) => (
             <Chip key={a} active={assetFilter === a} onClick={() => setAssetFilter(a)}>
               {a}
@@ -262,7 +274,8 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
         className="shrink-0 font-mono font-semibold tabular-nums text-[13px]"
         style={{ color: isIn ? '#5fd28a' : '#f06464' }}
       >
-        {isIn ? '+' : '−'}{tx.amount} <span className="font-normal">{tx.asset}</span>
+        {isIn ? '+' : '−'}
+        {tx.amount} <span className="font-normal">{tx.asset}</span>
       </span>
 
       {/* time — hidden on mobile */}

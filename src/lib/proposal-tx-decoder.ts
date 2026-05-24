@@ -11,10 +11,10 @@
  */
 import {
   type Address,
-  type Hex,
   decodeFunctionData,
   formatEther,
   formatUnits,
+  type Hex,
   isAddress,
   isHex,
 } from 'viem'
@@ -218,10 +218,7 @@ export type RawProposalTx = {
   valueWei: bigint
 }
 
-export function decodeProposalTx(
-  raw: RawProposalTx,
-  chainId: number
-): DecodedProposalTx {
+export function decodeProposalTx(raw: RawProposalTx, chainId: number): DecodedProposalTx {
   const calldata = normalizeHex(raw.calldata) ?? '0x'
   const valueWei = raw.valueWei
   const isEthOnly = calldata === '0x'

@@ -15,7 +15,8 @@ export type TreasuryNft = {
 }
 
 function resolveIpfs(uri: string): string {
-  if (uri.startsWith('ipfs://')) return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
+  if (uri.startsWith('ipfs://'))
+    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
   return uri
 }
 
@@ -57,7 +58,9 @@ function NftGalleryDialog({
   }, [limit, nfts.length])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -65,7 +68,9 @@ function NftGalleryDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[16px] border border-border bg-surface shadow-2xl">
         {/* Header */}
@@ -126,7 +131,7 @@ function NftGalleryDialog({
 
 function encodeTransferCalldata(from: string, to: string, tokenId: number): string {
   const padAddr = (a: string) => a.replace(/^0x/, '').toLowerCase().padStart(64, '0')
-  const padNum  = (n: number) => n.toString(16).padStart(64, '0')
+  const padNum = (n: number) => n.toString(16).padStart(64, '0')
   // safeTransferFrom(address,address,uint256) selector = 0x42842e0e
   return '0x42842e0e' + padAddr(from) + padAddr(to) + padNum(tokenId)
 }
@@ -137,7 +142,9 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -150,11 +157,16 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
     chainId: 1,
   })
 
-  const displayRecipient = recipientEns ?? (isValid ? `${recipient.slice(0, 6)}…${recipient.slice(-4)}` : '')
+  const displayRecipient =
+    recipientEns ?? (isValid ? `${recipient.slice(0, 6)}…${recipient.slice(-4)}` : '')
 
   const copy = () => {
     if (!isValid) return
-    const data = encodeTransferCalldata(daoConfig.addresses.treasury, recipient, nft.tokenId)
+    const data = encodeTransferCalldata(
+      daoConfig.addresses.treasury,
+      recipient,
+      nft.tokenId
+    )
     navigator.clipboard.writeText(data)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -164,7 +176,12 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
     if (!isValid) return
     const tokenName = nft.name || `${daoConfig.name} #${nft.tokenId}`
     const title = `Send ${tokenName} to ${displayRecipient || recipient}`
-    const description = buildProposalDescription(tokenName, recipient, displayRecipient, nft)
+    const description = buildProposalDescription(
+      tokenName,
+      recipient,
+      displayRecipient,
+      nft
+    )
 
     const params = new URLSearchParams({
       title,
@@ -181,7 +198,9 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div className="w-full max-w-sm overflow-hidden rounded-[16px] border border-border bg-surface shadow-2xl">
         {/* Image */}
@@ -239,7 +258,11 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
                 disabled={!isValid}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-[12.5px] font-medium hover:bg-surface-3 disabled:opacity-40"
               >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
                 {copied ? 'Copied!' : 'Copy calldata'}
               </button>
               <button
@@ -355,9 +378,7 @@ export function NftSection({ nfts, count }: { nfts: TreasuryNft[]; count: number
           onSelect={openDetail}
         />
       )}
-      {selected && (
-        <NftDetailDialog nft={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <NftDetailDialog nft={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }
