@@ -20,6 +20,7 @@ import { useWeb3Ready } from '@/app/web3-providers'
 import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
+import type { TreasuryNft, TreasuryTokenHolding } from '@/lib/dao-data'
 import { useSearchParams } from 'next/navigation'
 import {
   emptyDraft,
@@ -58,10 +59,20 @@ const ADVANCED_KINDS: TxKind[] = [
   'replace_artwork',
 ]
 
-export function ProposalCreateForm() {
+type ProposalCreateFormProps = {
+  treasuryNfts?: TreasuryNft[]
+  treasuryTokens?: TreasuryTokenHolding[]
+}
+
+export function ProposalCreateForm({
+  treasuryNfts = [],
+  treasuryTokens = [],
+}: ProposalCreateFormProps) {
   const ready = useWeb3Ready()
   if (!ready) return <ProposalCreateFormSkeleton />
-  return <ProposalCreateFormInner />
+  return (
+    <ProposalCreateFormInner treasuryNfts={treasuryNfts} treasuryTokens={treasuryTokens} />
+  )
 }
 
 function ProposalCreateFormSkeleton() {
@@ -73,7 +84,13 @@ type EditorState =
   | { mode: 'new'; draft: TxDraft }
   | { mode: 'edit'; index: number; draft: TxDraft }
 
-function ProposalCreateFormInner() {
+function ProposalCreateFormInner({
+  treasuryNfts,
+  treasuryTokens,
+}: {
+  treasuryNfts: TreasuryNft[]
+  treasuryTokens: TreasuryTokenHolding[]
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -82,6 +99,17 @@ function ProposalCreateFormInner() {
   const [title, setTitle] = useState(() => searchParams.get('title') ?? '')
   const [description, setDescription] = useState(() => searchParams.get('description') ?? '')
   const [drafts, setDrafts] = useState<TxDraft[]>(() => {
+    const kind = searchParams.get('tx_kind')
+    if (kind === 'nft') {
+      return [
+        {
+          kind: 'nft' as const,
+          contract: searchParams.get('tx_contract') ?? '',
+          tokenId: searchParams.get('tx_token_id') ?? '',
+          recipient: searchParams.get('tx_recipient') ?? '',
+        },
+      ]
+    }
     const target = searchParams.get('tx_target')
     const calldata = searchParams.get('tx_calldata')
     if (target && calldata) {
@@ -269,7 +297,13 @@ function ProposalCreateFormInner() {
   }
 
   // ── Editor helpers
-  const openNew = (kind: TxKind) => setEditor({ mode: 'new', draft: emptyDraft(kind) })
+  const openNew = (kind: TxKind) => {
+    let draft = emptyDraft(kind)
+    if (draft.kind === 'nft') {
+      draft = { ...draft, contract: daoConfig.addresses.token }
+    }
+    setEditor({ mode: 'new', draft })
+  }
   const openEdit = (i: number) => setEditor({ mode: 'edit', index: i, draft: drafts[i] })
   const cancelEdit = () => setEditor({ mode: 'list' })
   const saveEdit = () => {
@@ -339,6 +373,8 @@ function ProposalCreateFormInner() {
         <TransactionsStep
           drafts={drafts}
           tokenMeta={tokenMeta}
+          treasuryNfts={treasuryNfts}
+          treasuryTokens={treasuryTokens}
           editor={editor}
           onOpenNew={openNew}
           onOpenEdit={openEdit}
@@ -459,6 +495,8 @@ function DetailsStep({
 function TransactionsStep({
   drafts,
   tokenMeta,
+  treasuryNfts,
+  treasuryTokens,
   editor,
   onOpenNew,
   onOpenEdit,
@@ -469,6 +507,8 @@ function TransactionsStep({
 }: {
   drafts: TxDraft[]
   tokenMeta: TokenMetaMap
+  treasuryNfts: TreasuryNft[]
+  treasuryTokens: TreasuryTokenHolding[]
   editor: EditorState
   onOpenNew: (kind: TxKind) => void
   onOpenEdit: (i: number) => void
@@ -489,6 +529,8 @@ function TransactionsStep({
           onSave={onSaveEdit}
           onCancel={onCancelEdit}
           tokenMeta={tokenMeta}
+          treasuryNfts={treasuryNfts}
+          treasuryTokens={treasuryTokens}
           saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Add to queue'}
         />
       </div>

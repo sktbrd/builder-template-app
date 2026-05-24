@@ -127,8 +127,8 @@ function NftGalleryDialog({
 function encodeTransferCalldata(from: string, to: string, tokenId: number): string {
   const padAddr = (a: string) => a.replace(/^0x/, '').toLowerCase().padStart(64, '0')
   const padNum  = (n: number) => n.toString(16).padStart(64, '0')
-  // transferFrom(address,address,uint256) selector = 0x23b872dd
-  return '0x23b872dd' + padAddr(from) + padAddr(to) + padNum(tokenId)
+  // safeTransferFrom(address,address,uint256) selector = 0x42842e0e
+  return '0x42842e0e' + padAddr(from) + padAddr(to) + padNum(tokenId)
 }
 
 function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => void }) {
@@ -164,14 +164,15 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
     if (!isValid) return
     const tokenName = nft.name || `${daoConfig.name} #${nft.tokenId}`
     const title = `Send ${tokenName} to ${displayRecipient || recipient}`
-    const calldata = encodeTransferCalldata(daoConfig.addresses.treasury, recipient, nft.tokenId)
     const description = buildProposalDescription(tokenName, recipient, displayRecipient, nft)
 
     const params = new URLSearchParams({
       title,
       description,
-      tx_target: daoConfig.addresses.token,
-      tx_calldata: calldata,
+      tx_kind: 'nft',
+      tx_contract: daoConfig.addresses.token,
+      tx_token_id: String(nft.tokenId),
+      tx_recipient: recipient,
     })
     router.push(`/proposals/new?${params.toString()}`)
     onClose()
@@ -283,11 +284,11 @@ _Edit this section: explain why the DAO should send this token. Examples: a gran
 | Token ID | #${nft.tokenId} |
 | Minted | ${fmtDate(nft.mintedAt)} |
 | Recipient | \`${recipientAddr}\` |
-| Action | \`transferFrom(treasury, recipient, tokenId)\` |
+| Action | \`safeTransferFrom(treasury, recipient, tokenId)\` |
 
 ## Transaction
 
-The proposal encodes a single \`transferFrom\` call on the ${daoConfig.name} token contract. No ETH is transferred. The transaction will fail if the treasury no longer holds token #${nft.tokenId} at execution time.
+The proposal encodes a single \`safeTransferFrom\` call on the ${daoConfig.name} token contract. No ETH is transferred. The transaction will fail if the treasury no longer holds token #${nft.tokenId} at execution time.
 `
 }
 

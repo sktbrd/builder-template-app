@@ -4,6 +4,7 @@ import { PUBLIC_DEFAULT_CHAINS } from '@buildeross/constants/chains'
 import { erc20Abi, tokenAbi } from '@buildeross/sdk/contract'
 import {
   Auction_OrderBy,
+  FeedEventType,
   getBids,
   getProposals,
   OrderDirection,
@@ -290,12 +291,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     historyResp?.dao?.auctions ?? []
   )
 
-  // Build the activity feed from real events: latest bids on the current
-  // auction + the last few proposals created. Merged & sorted by timestamp.
-  const recentActivity = await buildRecentActivity(
-    currentAuction?.tokenId,
-    proposalsResp.proposals
-  )
+  // Build the activity feed from real events: bids placed in the last
+  // 30 days + recent proposals. Merged & sorted by actual timestamp.
+  const recentActivity = await buildRecentActivity(proposalsResp.proposals)
 
   return {
     totalSupply,
@@ -310,41 +308,61 @@ export async function getDashboardData(): Promise<DashboardData> {
 }
 
 async function buildRecentActivity(
-  currentTokenId: number | undefined,
   proposals: Proposal[]
 ): Promise<DashboardActivityItem[]> {
-  // Fetch recent bids on the live auction (if any).
-  const bidsRaw = currentTokenId
-    ? await safeFetch(
-        'dashboard.activityBids',
-        () => getBids(chainId, daoConfig.addresses.token, String(currentTokenId)),
-        [] as Awaited<ReturnType<typeof getBids>>
-      )
-    : []
+  const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 30
 
-  // Bid timestamps aren't in the AuctionBid fragment; we approximate by
-  // ordering by amount desc (which is also chronological in normal auctions
-  // — each new bid must exceed the previous). Unknown gap, so label as
-  // "recent" rather than minute-precise.
-  // getBids returns amount as ETH-formatted strings, not wei.
-  const bidEvents: DashboardActivityItem[] = (bidsRaw ?? []).slice(0, 4).map((b, i) => ({
-    type: 'bid' as const,
-    who: short(b.bidder),
-    what: `bid ${trimDec(String(b.amount), 4)} ETH on #${currentTokenId}`,
-    timeAgo: i === 0 ? 'just now' : 'recent',
-    href: `/auction/${currentTokenId}`,
-  }))
+  // feedEvents carries real per-bid timestamps; getBids does not.
+  const bidsResp = await safeFetch(
+    'dashboard.activityBids',
+    () =>
+      SubgraphSDK.connect(chainId).feedEvents({
+        first: 50,
+        where: {
+          dao: tokenAddressLc,
+          type: FeedEventType.AuctionBidPlaced,
+          timestamp_gte: BigInt(thirtyDaysAgo).toString() as unknown as bigint,
+        },
+      }),
+    { feedEvents: [] } as Awaited<
+      ReturnType<ReturnType<typeof SubgraphSDK.connect>['feedEvents']>
+    >
+  )
 
-  const propEvents: DashboardActivityItem[] = proposals.slice(0, 4).map((p) => ({
-    type: 'prop' as const,
-    who: short(p.proposer),
-    what: `created proposal #${p.proposalNumber}`,
-    timeAgo: relativeTimeAgo(Number(p.timeCreated) * 1000),
-    href: `/proposals/${Number(p.proposalNumber)}`,
-  }))
+  type FeedEvt = (typeof bidsResp.feedEvents)[number]
+  type BidEvt = Extract<FeedEvt, { __typename: 'AuctionBidPlacedEvent' }>
 
-  // Naive interleave: take the freshest 5 across both sources.
-  return [...bidEvents, ...propEvents].slice(0, 5)
+  const bidEvents = (bidsResp.feedEvents ?? [])
+    .filter((e): e is BidEvt => e.__typename === 'AuctionBidPlacedEvent')
+    .map((e) => {
+      const tokenId = Number(e.auction.token.tokenId)
+      const amountEth = trimDec(formatEther(BigInt(String(e.bid.amount))), 4)
+      const ts = Number(e.timestamp)
+      return {
+        type: 'bid' as const,
+        who: short(e.bid.bidder),
+        what: `bid ${amountEth} ETH on #${tokenId}`,
+        timeAgo: relativeTimeAgo(ts * 1000),
+        href: `/auction/${tokenId}`,
+        _ts: ts,
+      }
+    })
+
+  const propEvents = proposals
+    .filter((p) => Number(p.timeCreated) >= thirtyDaysAgo)
+    .map((p) => ({
+      type: 'prop' as const,
+      who: short(p.proposer),
+      what: `created proposal #${p.proposalNumber}`,
+      timeAgo: relativeTimeAgo(Number(p.timeCreated) * 1000),
+      href: `/proposals/${Number(p.proposalNumber)}`,
+      _ts: Number(p.timeCreated),
+    }))
+
+  return [...bidEvents, ...propEvents]
+    .sort((a, b) => b._ts - a._ts)
+    .slice(0, 15)
+    .map(({ _ts: _, ...rest }) => rest)
 }
 
 function relativeTimeAgo(ms: number): string {
@@ -793,8 +811,9 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   const auctionTxs: TreasuryTx[] = (historyResp?.dao?.auctions ?? [])
     .filter((a) => a.winningBid?.amount)
     .map((a) => {
-      const parts = String(a.id).split('-')
-      const tokenId = parts[parts.length - 1]
+      const idStr = String(a.id)
+      const tokenPart = idStr.includes(':') ? idStr.split(':').pop() ?? '0' : idStr
+      const tokenId = Number.parseInt(tokenPart, 10) || 0
       const amountEth = Number(formatEther(BigInt(String(a.winningBid!.amount))))
       return {
         dir: 'in' as const,
@@ -841,7 +860,7 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
 
   const recentTxs = [...auctionTxs, ...proposalTxs]
     .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 12)
+    .slice(0, 16)
 
   return {
     treasuryEth,
@@ -1900,4 +1919,85 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
     isLatest,
     nowUnixSec,
   }
+}
+
+export type AuctionPricePoint = {
+  /** Token ID parsed from the subgraph auction id (`<dao>:<tokenId>`). */
+  tokenId: number
+  /** Unix seconds. */
+  endTime: number
+  /** Winning bid in ETH. */
+  ethAmount: number
+}
+
+/**
+ * Auction price history for the chart view. Settled auctions only,
+ * sorted oldest-to-newest. Bounded by `days` so the SVG point count
+ * stays reasonable on long-lived DAOs.
+ */
+/**
+ * Lightweight ERC-20 treasury holdings — used by the "Send ERC-20" proposal
+ * form to render a quick-pick row with live balances. Returns only tokens
+ * the treasury actually holds, sorted by balance desc.
+ */
+export async function getTreasuryTokenHoldings(): Promise<TreasuryTokenHolding[]> {
+  const treasuryAddrLc = daoConfig.addresses.treasury.toLowerCase() as `0x${string}`
+  return fetchTreasuryTokenHoldings(treasuryAddrLc)
+}
+
+/**
+ * Lightweight version of the treasury NFT query — just the NFTs, no balances,
+ * auctions, or proposal data. Used by the "Send NFT" proposal form.
+ */
+export async function getTreasuryNftHoldings(): Promise<TreasuryNft[]> {
+  const treasuryAddrLc = daoConfig.addresses.treasury.toLowerCase()
+  const resp = await safeFetch(
+    'treasuryNftHoldings',
+    () =>
+      SubgraphSDK.connect(chainId).tokens({
+        where: { dao: tokenAddressLc, owner: treasuryAddrLc } as never,
+        orderBy: Token_OrderBy.MintedAt,
+        orderDirection: OrderDirection.Desc,
+        first: 500,
+      }),
+    { tokens: [] } as Awaited<
+      ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+    >
+  )
+  return (resp.tokens ?? []).map((t) => ({
+    tokenId: Number(t.tokenId),
+    name: t.name,
+    image: t.image ?? null,
+    mintedAt: Number(t.mintedAt),
+  }))
+}
+
+export async function getAuctionPriceHistory(days = 365): Promise<AuctionPricePoint[]> {
+  const startTime = Math.floor(Date.now() / 1000) - days * 86400
+  const resp = await safeFetch(
+    'auctionPriceHistory',
+    () =>
+      SubgraphSDK.connect(chainId).auctionHistory({
+        daoId: tokenAddressLc,
+        startTime: BigInt(startTime).toString() as unknown as bigint,
+        orderBy: Auction_OrderBy.EndTime,
+        orderDirection: OrderDirection.Asc,
+        first: 1000,
+      }),
+    { dao: null } as Awaited<
+      ReturnType<ReturnType<typeof SubgraphSDK.connect>['auctionHistory']>
+    >
+  )
+  const auctions = resp?.dao?.auctions ?? []
+  return auctions
+    .filter((a) => a.settled && a.winningBid)
+    .map((a) => {
+      const idStr = String(a.id)
+      const tokenPart = idStr.includes(':') ? idStr.split(':').pop() ?? '0' : idStr
+      return {
+        tokenId: Number.parseInt(tokenPart, 10) || 0,
+        endTime: Number(a.endTime),
+        ethAmount: Number(formatEther(BigInt(a.winningBid!.amount))),
+      }
+    })
 }

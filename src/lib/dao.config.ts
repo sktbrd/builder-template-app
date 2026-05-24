@@ -72,6 +72,16 @@ export type DaoConfig = {
   socials: DaoSocials
   /** ERC-20 contracts to surface on /treasury. See lib/treasury-tokens.ts. */
   treasuryTokens: TreasuryToken[]
+  /**
+   * Extra ERC-721 collections the treasury holds (besides the DAO token).
+   * Shown as quick-pick pills in the "Send NFT" proposal form.
+   */
+  treasuryNftCollections: TreasuryNftCollection[]
+}
+
+export type TreasuryNftCollection = {
+  symbol: string
+  address: `0x${string}`
 }
 
 const T = THEME_OVERRIDES as Partial<{
@@ -139,6 +149,14 @@ export const daoConfig: DaoConfig = {
   // ERC-20 tokens shown on /treasury. Default to common Base stables; forks
   // on other chains should swap for ETHEREUM_COMMON_TOKENS or list manually.
   treasuryTokens: ONCHAIN_CONFIG.chain.id === 8453 ? BASE_COMMON_TOKENS : [],
+
+  // ── Treasury NFT collections ─────────────────────
+  // External ERC-721 collections held by the treasury — surfaced as
+  // quick-pick pills in the "Send NFT" proposal form. The DAO governance
+  // token is always available implicitly.
+  treasuryNftCollections: [
+    // { symbol: 'BasePaint', address: '0xBa…' },
+  ],
 }
 
 /**
