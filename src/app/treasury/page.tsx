@@ -106,7 +106,7 @@ export default async function TreasuryPage() {
       </div>
 
       {/* ── Two-column grid ── */}
-      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[380px_1fr]">
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr]">
 
         {/* Left column: donut + NFT mini-grid */}
         <div className="flex flex-col gap-4">
@@ -128,7 +128,7 @@ export default async function TreasuryPage() {
         </div>
 
         {/* Right column: asset rows + tx card */}
-        <div className="flex flex-col gap-4">
+        <div className="flex min-h-full flex-col gap-4">
 
           {/* Asset rows */}
           <div className="flex flex-col gap-3">
@@ -162,7 +162,9 @@ export default async function TreasuryPage() {
           </div>
 
           {/* Recent transactions */}
-          <TxCard txs={data.recentTxs} explorer={explorer} treasuryAddress={data.treasuryAddress} />
+          <div className="flex flex-1 flex-col">
+            <TxCard txs={data.recentTxs} explorer={explorer} treasuryAddress={data.treasuryAddress} />
+          </div>
         </div>
       </div>
 
@@ -239,13 +241,13 @@ function TxCard({
   treasuryAddress: string
 }) {
   return (
-    <div className="rounded-[14px] border border-border bg-surface px-6 py-[22px]">
+    <div className="flex h-full flex-col rounded-[14px] border border-border bg-surface px-6 py-[22px]">
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <h3 className="text-base font-bold">Recent transactions</h3>
         <span className="text-[12.5px] text-muted-fg">From treasury safe · last 30 days</span>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex flex-1 flex-col">
         {txs.length === 0 && (
           <div className="py-8 text-center text-sm text-muted-fg">
             No transactions in the last 30 days.
@@ -294,7 +296,7 @@ function TxCard({
         ))}
       </div>
 
-      <div className="mt-3.5 flex justify-end">
+      <div className="mt-auto flex justify-end pt-3.5">
         <a
           href={`${explorer.base}/address/${treasuryAddress}`}
           target="_blank"

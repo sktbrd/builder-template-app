@@ -46,7 +46,7 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
       className="group flex flex-col rounded-xl border border-border bg-surface text-left text-fg transition-[transform,border-color] hover:-translate-y-px hover:border-border-strong overflow-hidden"
     >
       {tweaks.showProposalThumbnails && (
-        <div className="relative h-[88px] w-full shrink-0 overflow-hidden">
+        <div className="relative h-[140px] w-full shrink-0 overflow-hidden">
           {p.thumbnail ? (
             <Image src={p.thumbnail} alt="" fill className="object-cover" unoptimized />
           ) : (

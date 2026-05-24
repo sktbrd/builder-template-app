@@ -35,6 +35,19 @@ function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
+// Defense-in-depth: the server route filters these too, but a stale edge
+// cache could still serve spam dust where the token symbol smuggles URLs or
+// marketing copy. Catch it before it makes it into the chip row.
+function isSpamAsset(asset: string | null | undefined): boolean {
+  if (!asset) return false
+  const s = asset.toLowerCase()
+  if (/https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(s)) return true
+  if (/claim|airdrop|reward|visit|bonus|gift|winner|voucher|promo/.test(s)) return true
+  if (/[*!?@#$%^&()\[\]{}<>]/.test(asset)) return true
+  if (asset.length > 20) return true
+  return false
+}
+
 function relativeTime(ts: number): string {
   if (!ts) return ''
   const diff = Math.floor(Date.now() / 1000) - ts
@@ -97,15 +110,20 @@ export function TreasuryTransfers() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirFilter])
 
+  const cleanTransfers = useMemo(
+    () => transfers.filter((t) => !isSpamAsset(t.asset)),
+    [transfers]
+  )
+
   const assets = useMemo(() => {
     const seen = new Set<string>()
-    for (const t of transfers) seen.add(t.asset)
+    for (const t of cleanTransfers) seen.add(t.asset)
     return Array.from(seen).sort()
-  }, [transfers])
+  }, [cleanTransfers])
 
   const visible = useMemo(() => {
-    return transfers.filter((t) => assetFilter === 'all' || t.asset === assetFilter)
-  }, [transfers, assetFilter])
+    return cleanTransfers.filter((t) => assetFilter === 'all' || t.asset === assetFilter)
+  }, [cleanTransfers, assetFilter])
 
   const hasMore =
     (dirFilter !== 'out' && !!nextPageKeyIn) ||

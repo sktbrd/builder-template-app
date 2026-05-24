@@ -155,7 +155,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/80 backdrop-blur-md backdrop-saturate-150">
       <div className="mx-auto flex max-w-[1180px] items-center gap-6 px-6 py-3">
-        <Link href="/" className="flex items-center gap-2.5 text-base font-bold">
+        <Link href="/" className="flex flex-1 items-center gap-2.5 text-base font-bold">
           <DaoAvatar
             image={daoConfig.image}
             alt={daoConfig.name}
@@ -167,7 +167,7 @@ export function Header() {
           <ChainPill chainName={chainName} />
         </Link>
 
-        <nav className="ml-auto hidden items-center gap-1 md:flex">
+        <nav className="hidden items-center gap-1 md:flex">
           {navItems.map((item) => {
             const active = item.match(pathname)
             return (
@@ -188,7 +188,7 @@ export function Header() {
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 md:ml-0">
+        <div className="flex flex-1 items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}

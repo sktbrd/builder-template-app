@@ -82,6 +82,20 @@ async function fetchTransfers(
   }
 }
 
+// Heuristic spam filter: airdropped phishing tokens that smuggle URLs or
+// promo phrases into the token symbol field. Real ERC-20 symbols are short
+// and alphanumeric, so anything with a domain, marketing language, or
+// special punctuation is almost certainly hostile dust.
+function isSpamAsset(asset: string | null): boolean {
+  if (!asset) return false
+  const s = asset.toLowerCase()
+  if (/https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(s)) return true
+  if (/claim|airdrop|reward|visit|bonus|gift|winner|voucher|promo/.test(s)) return true
+  if (/[*!?@#$%^&()\[\]{}<>]/.test(asset)) return true
+  if (asset.length > 20) return true
+  return false
+}
+
 function formatAmount(t: AlchemyTransfer): { amount: string; amountNum: number } {
   if (t.value !== null && t.value !== undefined) {
     const n = t.value
@@ -128,23 +142,25 @@ export async function GET(req: Request) {
     const nextPageKeyOut = dir === 'in'  ? undefined : results[dir === 'all' ? 1 : 0]?.pageKey
 
     const normalize = (list: AlchemyTransfer[], direction: 'in' | 'out'): Transfer[] =>
-      list.map((t) => {
-        const { amount, amountNum } = formatAmount(t)
-        const ts = t.metadata.blockTimestamp
-          ? Math.floor(new Date(t.metadata.blockTimestamp).getTime() / 1000)
-          : 0
-        return {
-          hash: t.hash,
-          dir: direction,
-          from: t.from,
-          to: t.to ?? '',
-          asset: t.asset ?? 'ETH',
-          amount,
-          amountNum,
-          timestamp: ts,
-          blockNum: parseInt(t.blockNum, 16),
-        }
-      })
+      list
+        .filter((t) => !isSpamAsset(t.asset))
+        .map((t) => {
+          const { amount, amountNum } = formatAmount(t)
+          const ts = t.metadata.blockTimestamp
+            ? Math.floor(new Date(t.metadata.blockTimestamp).getTime() / 1000)
+            : 0
+          return {
+            hash: t.hash,
+            dir: direction,
+            from: t.from,
+            to: t.to ?? '',
+            asset: t.asset ?? 'ETH',
+            amount,
+            amountNum,
+            timestamp: ts,
+            blockNum: parseInt(t.blockNum, 16),
+          }
+        })
 
     const all: Transfer[] = [
       ...normalize(rawIn, 'in'),
