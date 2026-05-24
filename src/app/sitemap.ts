@@ -1,32 +1,55 @@
 import type { MetadataRoute } from 'next'
 
-import { getAllProposals } from '@/lib/dao-data'
+import { getAllProposals, getAuctionPriceHistory } from '@/lib/dao-data'
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
+export const revalidate = 3600
 
-const STATIC: MetadataRoute.Sitemap = [
-  { url: BASE, changeFrequency: 'daily', priority: 1.0 },
-  { url: `${BASE}/auction/latest`, changeFrequency: 'hourly', priority: 0.9 },
-  { url: `${BASE}/proposals`, changeFrequency: 'hourly', priority: 0.8 },
-  { url: `${BASE}/treasury`, changeFrequency: 'daily', priority: 0.7 },
-  { url: `${BASE}/members`, changeFrequency: 'daily', priority: 0.6 },
-  { url: `${BASE}/about`, changeFrequency: 'weekly', priority: 0.5 },
-  { url: `${BASE}/feed`, changeFrequency: 'hourly', priority: 0.5 },
-]
+function resolveBase(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.VERCEL_URL ||
+    'http://localhost:3000'
+  return raw.startsWith('http') ? raw.replace(/\/$/, '') : `https://${raw.replace(/\/$/, '')}`
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  let proposalUrls: MetadataRoute.Sitemap = []
+  const BASE = resolveBase()
+  const now = new Date()
 
-  try {
-    const proposals = await getAllProposals(200)
-    proposalUrls = proposals.map((p) => ({
-      url: `${BASE}/proposals/${p.proposalNumber}`,
-      changeFrequency: 'weekly' as const,
-      priority: 0.6,
-    }))
-  } catch {
-    // sitemap degrades gracefully
-  }
+  const STATIC: MetadataRoute.Sitemap = [
+    { url: BASE, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${BASE}/auction/latest`, lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${BASE}/proposals`, lastModified: now, changeFrequency: 'hourly', priority: 0.8 },
+    { url: `${BASE}/treasury`, lastModified: now, changeFrequency: 'daily', priority: 0.7 },
+    { url: `${BASE}/members`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${BASE}/coins`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${BASE}/feed`, lastModified: now, changeFrequency: 'hourly', priority: 0.5 },
+    { url: `${BASE}/about`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+  ]
 
-  return [...STATIC, ...proposalUrls]
+  const [proposalUrls, auctionUrls] = await Promise.all([
+    getAllProposals(200)
+      .then((proposals) =>
+        proposals.map<MetadataRoute.Sitemap[number]>((p) => ({
+          url: `${BASE}/proposals/${p.proposalNumber}`,
+          lastModified: now,
+          changeFrequency: 'weekly',
+          priority: 0.6,
+        }))
+      )
+      .catch(() => [] as MetadataRoute.Sitemap),
+    getAuctionPriceHistory(365)
+      .then((points) =>
+        points.map<MetadataRoute.Sitemap[number]>((p) => ({
+          url: `${BASE}/auction/${p.tokenId}`,
+          lastModified: new Date(p.endTime * 1000),
+          changeFrequency: 'monthly',
+          priority: 0.5,
+        }))
+      )
+      .catch(() => [] as MetadataRoute.Sitemap),
+  ])
+
+  return [...STATIC, ...proposalUrls, ...auctionUrls]
 }

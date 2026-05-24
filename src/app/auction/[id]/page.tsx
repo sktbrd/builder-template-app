@@ -4,25 +4,39 @@ import { notFound } from 'next/navigation'
 
 import { AuctionArt } from '@/components/dao/AuctionArt'
 import { AuctionPoller } from '@/components/dao/AuctionPoller'
+import { AuctionPriceChart } from '@/components/dao/AuctionPriceChart'
 import { BidForm } from '@/components/dao/BidForm'
 import { BidHistory } from '@/components/dao/BidHistory'
 import { SettleAuctionAction } from '@/components/dao/SettleAuctionAction'
+import { ThreeDArtCard } from '@/components/dao/ThreeDArtCard'
 import { TimeAlert } from '@/components/dao/TimeAlert'
 import { VotingPowerExplainer } from '@/components/dao/VotingPowerExplainer'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
-import { getAuctionPageData } from '@/lib/dao-data'
+import { getAuctionPageData, getAuctionPriceHistory } from '@/lib/dao-data'
 import { cn } from '@/lib/utils'
 
 export const revalidate = 30
 
 type Params = Promise<{ id: string }>
+type SearchParams = Promise<{ view?: string }>
 
-export default async function AuctionPage({ params }: { params: Params }) {
+export default async function AuctionPage({
+  params,
+  searchParams,
+}: {
+  params: Params
+  searchParams: SearchParams
+}) {
   const { id } = await params
+  const { view } = await searchParams
   const tokenId = parseInt(id, 10)
   if (!Number.isFinite(tokenId) || tokenId < 0) notFound()
 
-  const data = await getAuctionPageData(tokenId)
+  const isChartView = view === 'chart'
+  const [data, chartData] = await Promise.all([
+    getAuctionPageData(tokenId),
+    isChartView ? getAuctionPriceHistory(365) : Promise.resolve(null),
+  ])
   const tokenLabel = daoConfig.name.split(' ')[0]
   const palette = fallbackArtPalette()
 
@@ -44,19 +58,23 @@ export default async function AuctionPage({ params }: { params: Params }) {
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_0.85fr]">
         <div>
-          <Tabs />
-          <div className="aspect-square overflow-hidden rounded-xl border border-border bg-surface-2">
-            {data.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resolveIpfs(data.image)}
-                alt={data.name ?? `${tokenLabel} #${data.tokenId}`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <AuctionArt palette={palette} />
-            )}
-          </div>
+          <Tabs tokenId={tokenId} isChartView={isChartView} />
+          {isChartView && chartData ? (
+            <AuctionPriceChart data={chartData} />
+          ) : (
+            <ThreeDArtCard>
+              {data.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={resolveIpfs(data.image)}
+                  alt={data.name ?? `${tokenLabel} #${data.tokenId}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <AuctionArt palette={palette} />
+              )}
+            </ThreeDArtCard>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 pt-3">
@@ -134,23 +152,28 @@ export default async function AuctionPage({ params }: { params: Params }) {
   )
 }
 
-function Tabs() {
+function Tabs({ tokenId, isChartView }: { tokenId: number; isChartView: boolean }) {
+  const activeClass = '-mb-px border-b-2 border-fg px-0 py-2.5 text-sm font-semibold text-fg'
+  const inactiveClass =
+    '-mb-px border-b-2 border-transparent px-0 py-2.5 text-sm font-semibold text-muted-fg hover:text-fg'
   return (
     <div className="mb-4 flex gap-4 border-b border-border">
-      <button
-        className="-mb-px border-b-2 border-fg px-0 py-2.5 text-sm font-semibold text-fg"
-        aria-current="page"
+      <Link
+        href={`/auction/${tokenId}`}
+        scroll={false}
+        className={isChartView ? inactiveClass : activeClass}
+        aria-current={isChartView ? undefined : 'page'}
       >
         Auction
-      </button>
-      <button
-        type="button"
-        disabled
-        className="-mb-px border-b-2 border-transparent px-0 py-2.5 text-sm font-semibold text-muted-fg disabled:opacity-50"
-        title="Coming soon"
+      </Link>
+      <Link
+        href={`/auction/${tokenId}?view=chart`}
+        scroll={false}
+        className={isChartView ? activeClass : inactiveClass}
+        aria-current={isChartView ? 'page' : undefined}
       >
         Chart
-      </button>
+      </Link>
     </div>
   )
 }
