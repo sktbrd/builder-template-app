@@ -74,7 +74,7 @@ function IndexingState({
             : "The Builder subgraph still hasn't indexed this coin. If you deployed via this template the wait can occasionally stretch — try refreshing in a few minutes, or jump to Zora to confirm the coin lives on-chain."}
         </p>
       </div>
-      <div className="font-mono text-[12px] text-muted-fg">{address}</div>
+      <div className="break-all font-mono text-[12px] text-muted-fg">{address}</div>
       <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
         {zoraUrl && (
           <a href={zoraUrl} target="_blank" rel="noopener noreferrer">

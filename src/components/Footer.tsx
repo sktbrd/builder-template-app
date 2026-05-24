@@ -12,8 +12,8 @@ const CHAIN_NAMES: Record<number, string> = {
 export function Footer() {
   const chainName = CHAIN_NAMES[daoConfig.chainId] ?? `Chain ${daoConfig.chainId}`
   return (
-    <footer className="border-t border-border px-6 py-6 text-center text-[13px] text-muted-fg">
-      <div>
+    <footer className="border-t border-border text-[13px] text-muted-fg">
+      <div className="mx-auto max-w-[1180px] px-6 py-6 text-center">
         {daoConfig.name} · {chainName} ·{' '}
         <Link href="/about" className="text-inherit hover:underline">
           Built with Builder

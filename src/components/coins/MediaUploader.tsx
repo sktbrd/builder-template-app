@@ -139,7 +139,7 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
           onClick={() => inputRef.current?.click()}
           disabled={disabled}
           className={cn(
-            'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-2 px-6 py-10 text-center transition-colors hover:border-accent/60 hover:bg-surface-3',
+            'mx-auto flex w-full max-w-md flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-2 px-6 py-10 text-center transition-colors hover:border-accent/60 hover:bg-surface-3',
             disabled &&
               'cursor-not-allowed opacity-60 hover:border-border hover:bg-surface-2',
             error && 'border-destructive'
@@ -160,7 +160,7 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
         />
         {error && <p className="mt-2 text-[12px] text-destructive">{error}</p>}
         {pendingVideo && (
-          <ModalShell>
+          <ModalShell onDismiss={handleThumbnailCancel}>
             <VideoThumbnailSelector
               videoFile={pendingVideo}
               onThumbnailSelected={handleThumbnailSelected}
@@ -174,7 +174,12 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3',
+          value.kind === 'video' && 'sm:grid-cols-2'
+        )}
+      >
         <div>
           <div className="mb-1.5 text-[12px] font-medium text-muted-fg">Media</div>
           <div className="relative overflow-hidden rounded-xl border border-border bg-surface-2">
@@ -194,13 +199,13 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
                 className="aspect-video w-full bg-black object-contain"
               />
             ) : null}
-            <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
+            <div className="absolute left-2 top-2 inline-flex max-w-[calc(100%-7rem)] items-center gap-1 rounded bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
               {value.kind === 'image' ? (
-                <ImageIcon className="h-3 w-3" />
+                <ImageIcon className="h-3 w-3 shrink-0" />
               ) : (
-                <Video className="h-3 w-3" />
+                <Video className="h-3 w-3 shrink-0" />
               )}
-              {value.file.name}
+              <span className="truncate">{value.file.name}</span>
             </div>
             <Button
               type="button"
@@ -246,7 +251,7 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
       </div>
 
       {pendingVideo && (
-        <ModalShell>
+        <ModalShell onDismiss={handleThumbnailCancel}>
           <VideoThumbnailSelector
             videoFile={pendingVideo}
             onThumbnailSelected={handleThumbnailSelected}
@@ -258,10 +263,21 @@ export function MediaUploader({ value, onChange, disabled }: Props) {
   )
 }
 
-function ModalShell({ children }: { children: React.ReactNode }) {
+function ModalShell({
+  children,
+  onDismiss,
+}: {
+  children: React.ReactNode
+  onDismiss?: () => void
+}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-2xl">{children}</div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onDismiss}
+    >
+      <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
     </div>
   )
 }

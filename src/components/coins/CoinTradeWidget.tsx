@@ -247,38 +247,42 @@ function CoinTradeWidgetInner({
         </div>
       </div>
 
-      <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 focus-within:border-accent">
-        <input
-          inputMode="decimal"
-          placeholder="0.0"
-          value={amount}
-          onChange={(e) => {
-            const v = e.target.value.replace(',', '.')
-            if (v === '' || /^\d*\.?\d*$/.test(v)) setAmount(v)
-          }}
-          disabled={phase === 'submitting' || phase === 'mining' || phase === 'done'}
-          className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-muted-fg/60"
-        />
-        {isBuying && options.length > 1 ? (
-          <select
-            value={selectedPaymentToken}
-            onChange={(e) => setSelectedPaymentToken(e.target.value as Address)}
-            className="bg-transparent text-[12.5px] font-semibold text-muted-fg outline-none"
-          >
-            {options.map((o) => (
-              <option key={o.token.address} value={o.token.address}>
-                {o.token.symbol}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-[12.5px] font-semibold text-muted-fg">{inputUnit}</span>
-        )}
-      </label>
+      <div className="max-w-xs">
+        <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 focus-within:border-accent">
+          <input
+            inputMode="decimal"
+            placeholder="0.0"
+            value={amount}
+            onChange={(e) => {
+              const v = e.target.value.replace(',', '.')
+              if (v === '' || /^\d*\.?\d*$/.test(v)) setAmount(v)
+            }}
+            disabled={phase === 'submitting' || phase === 'mining' || phase === 'done'}
+            className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-muted-fg/60"
+          />
+          {isBuying && options.length > 1 ? (
+            <select
+              value={selectedPaymentToken}
+              onChange={(e) => setSelectedPaymentToken(e.target.value as Address)}
+              className="max-w-[8rem] shrink-0 truncate bg-transparent text-[12.5px] font-semibold text-muted-fg outline-none"
+            >
+              {options.map((o) => (
+                <option key={o.token.address} value={o.token.address}>
+                  {o.token.symbol}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="max-w-[8rem] shrink-0 truncate text-[12.5px] font-semibold text-muted-fg">
+              {inputUnit}
+            </span>
+          )}
+        </label>
+      </div>
 
-      <div className="flex items-center justify-between text-[11.5px] text-muted-fg">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11.5px] text-muted-fg">
         {userAddress && inputBalance != null ? (
-          <span>
+          <span className="min-w-0 break-words">
             Balance:{' '}
             <span className="font-mono">
               {formatShortAmount(inputBalance)} {inputUnit}
@@ -293,13 +297,13 @@ function CoinTradeWidgetInner({
             </button>
           </span>
         ) : (
-          <span>
+          <span className="min-w-0 break-words">
             {isBuying ? 'Spend' : 'Sell'} {inputUnit} for {outputUnit}. Slippage 5%.
           </span>
         )}
-        {amountValid && quoteLoading && <span>Quoting…</span>}
+        {amountValid && quoteLoading && <span className="min-w-0">Quoting…</span>}
         {amountValid && !quoteLoading && amountOut != null && amountOut > BigInt(0) && (
-          <span className="font-mono">
+          <span className="min-w-0 break-words font-mono">
             ≈ {formatShortAmount(amountOut)} {outputUnit}
           </span>
         )}

@@ -55,7 +55,7 @@ export function CoinDetail({ coin }: Props) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[3fr_2fr] lg:grid-cols-[2fr_1fr]">
         <div className="overflow-hidden rounded-xl border border-border bg-surface-2">
           {animation ? (
             <video
@@ -91,7 +91,7 @@ export function CoinDetail({ coin }: Props) {
               {coin.symbol ? `$${coin.symbol}` : ''}
             </div>
             {metadata?.description && (
-              <p className="mt-3 text-sm text-muted-fg whitespace-pre-wrap">
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-fg">
                 {metadata.description}
               </p>
             )}
@@ -174,8 +174,12 @@ export function CoinDetail({ coin }: Props) {
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-[12px] uppercase tracking-wider text-muted-fg">{label}</span>
-      <div className="min-w-0 truncate text-right">{children}</div>
+      <span className="shrink-0 text-[12px] uppercase tracking-wider text-muted-fg">
+        {label}
+      </span>
+      <div className="flex min-w-0 max-w-full justify-end overflow-hidden text-right [&_*]:min-w-0">
+        {children}
+      </div>
     </div>
   )
 }
@@ -184,11 +188,14 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="shrink-0 text-[12px] uppercase tracking-wider text-muted-fg">
+      <span className="min-w-0 flex-1 text-[12px] uppercase tracking-wider text-muted-fg">
         {label}
       </span>
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-mono text-[12.5px]" title={value}>
+        <span
+          className="min-w-0 break-all font-mono text-[12.5px]"
+          title={value}
+        >
           {shortValue(value)}
         </span>
         <button

@@ -555,12 +555,17 @@ function CustomFields({
         </Field>
       </div>
       <Field label="Calldata (hex)">
-        <input
-          type="text"
+        <textarea
           value={draft.calldata}
           onChange={(e) => onChange({ ...draft, calldata: e.target.value })}
           placeholder="0x"
-          className={textInputClass(!!draft.calldata && !isHex(draft.calldata))}
+          rows={3}
+          className={
+            'w-full rounded-md border bg-surface px-3 py-2 font-mono text-xs outline-none resize-none ' +
+            (!!draft.calldata && !isHex(draft.calldata)
+              ? 'border-warning focus:border-warning'
+              : 'border-border focus:border-accent')
+          }
         />
       </Field>
     </div>
@@ -960,7 +965,7 @@ function AirdropFields({
                   type="button"
                   onClick={() => removeRecipient(i)}
                   aria-label="Remove recipient"
-                  className="rounded-md border border-border bg-surface px-2 py-1.5 text-[11px] text-muted-fg hover:text-fg sm:self-stretch"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-muted-fg hover:text-fg sm:self-stretch"
                 >
                   ×
                 </button>
@@ -1760,12 +1765,17 @@ function CustomLikeFields({
         </Field>
       </div>
       <Field label="Calldata (hex)">
-        <input
-          type="text"
+        <textarea
           value={draft.calldata}
           onChange={(e) => onChange({ ...draft, calldata: e.target.value })}
           placeholder="0x"
-          className={textInputClass(!!draft.calldata && !isHex(draft.calldata))}
+          rows={3}
+          className={
+            'w-full rounded-md border bg-surface px-3 py-2 font-mono text-xs outline-none resize-none ' +
+            (!!draft.calldata && !isHex(draft.calldata)
+              ? 'border-warning focus:border-warning'
+              : 'border-border focus:border-accent')
+          }
         />
       </Field>
     </div>

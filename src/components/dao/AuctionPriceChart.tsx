@@ -166,7 +166,6 @@ function Chart({
     <div className="relative">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        preserveAspectRatio="none"
         className="h-[240px] w-full touch-none"
         onPointerMove={handleMove}
         onPointerLeave={onLeave}

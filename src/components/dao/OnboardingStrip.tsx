@@ -21,11 +21,11 @@ export function OnboardingStrip({ daoName, tagline }: Props) {
           </p>
         </div>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <Button asChild variant="secondary" size="sm">
+      <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row">
+        <Button asChild variant="secondary" size="sm" className="w-full sm:w-auto">
           <Link href="/proposals">View proposals</Link>
         </Button>
-        <Button asChild variant="ghost" size="sm">
+        <Button asChild variant="ghost" size="sm" className="w-full sm:w-auto">
           <Link href="/about">Learn more</Link>
         </Button>
       </div>

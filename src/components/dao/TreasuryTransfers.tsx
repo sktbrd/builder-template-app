@@ -153,8 +153,8 @@ export function TreasuryTransfers() {
               }}
               className={
                 dirFilter === f
-                  ? 'rounded-md bg-surface px-3 py-1 text-[12px] font-semibold text-fg shadow-sm'
-                  : 'rounded-md px-3 py-1 text-[12px] font-medium text-muted-fg hover:text-fg'
+                  ? 'rounded-md bg-surface px-3 py-2 text-[12px] font-semibold text-fg shadow-sm'
+                  : 'rounded-md px-3 py-2 text-[12px] font-medium text-muted-fg hover:text-fg'
               }
             >
               {f === 'all' ? 'All' : f === 'in' ? '↓ In' : '↑ Out'}
@@ -227,7 +227,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-0.5 text-[12px] font-medium transition-colors ${
+      className={`rounded-full border px-3 py-2 text-[12px] font-medium transition-colors ${
         active
           ? 'border-accent bg-accent text-accent-fg'
           : 'border-border bg-surface-2 text-muted-fg hover:text-fg'

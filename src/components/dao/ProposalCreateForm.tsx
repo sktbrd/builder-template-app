@@ -516,7 +516,7 @@ function DetailsStep({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <label className="block text-base font-bold">Title</label>
         <input
           type="text"
@@ -528,7 +528,7 @@ function DetailsStep({
         />
       </div>
 
-      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <label className="block text-base font-bold">Description</label>
           <div className="flex gap-1 rounded-md border border-border bg-surface-2 p-0.5">
@@ -608,7 +608,7 @@ function TransactionsStep({
 
   if (editor.mode !== 'list') {
     return (
-      <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <DraftForm
           draft={editor.draft}
           onChange={onEditorChange}
@@ -632,7 +632,7 @@ function TransactionsStep({
         />
       )}
       <div className="flex flex-col gap-4">
-        <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+        <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
           <h3 className="text-base font-bold">Add a transaction</h3>
           <p className="mt-1 text-[12.5px] text-muted-fg">
             Each call the proposal executes if it passes. Pick a type to start.
@@ -665,7 +665,7 @@ function TransactionsStep({
         </div>
 
         {drafts.length > 0 && (
-          <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
             <h3 className="text-base font-bold">
               Queue{' '}
               <span className="ml-1 text-[12.5px] font-normal text-muted-fg">
@@ -708,7 +708,7 @@ function PreviewStep({
   onIncludeDecodedSummaryChange: (next: boolean) => void
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+    <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
       <Review
         title={title}
         description={description}
@@ -756,8 +756,8 @@ function StepFooter({
   const isPreview = step === 'preview'
 
   return (
-    <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Button
           variant="outline"
           onClick={onBack}

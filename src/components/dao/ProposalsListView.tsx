@@ -62,20 +62,20 @@ export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] 
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex min-w-[280px] flex-1 items-center rounded-md border border-border bg-surface px-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+        <div className="flex w-full min-w-0 flex-1 items-center rounded-md border border-border bg-surface px-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 sm:w-auto sm:min-w-[280px]">
           <Search className="h-4 w-4 text-muted-fg" />
           <input
             type="text"
             placeholder="Search proposals…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="ml-2 flex-1 border-0 bg-transparent py-2.5 text-sm outline-none"
+            className="ml-2 min-h-11 flex-1 border-0 bg-transparent py-2.5 text-base outline-none sm:min-h-0 sm:text-sm"
           />
         </div>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as StatusFilter)}
-          className="h-10 rounded-md border border-border bg-surface px-3.5 text-sm outline-none focus:border-accent"
+          className="h-11 w-full rounded-md border border-border bg-surface px-3.5 text-base outline-none focus:border-accent sm:h-10 sm:w-auto sm:text-sm"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>

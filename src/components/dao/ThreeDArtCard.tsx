@@ -60,7 +60,7 @@ export function ThreeDArtCard({ children, className, maxTilt = 12, depth = 30 }:
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={handleLeave}
         className={cn(
-          'relative aspect-square overflow-hidden rounded-xl border border-border bg-surface-2',
+          'relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-surface-2 md:aspect-square',
           'transition-transform duration-200 ease-out will-change-transform',
           '[transform-style:preserve-3d]',
           '[transform:rotateX(var(--rx,0deg))_rotateY(var(--ry,0deg))]'

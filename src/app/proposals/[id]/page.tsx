@@ -50,7 +50,13 @@ export default async function ProposalDetailPage({ params }: { params: Params })
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[1fr_360px]">
+      <div
+        className={
+          showVotePanel
+            ? 'grid grid-cols-1 items-start gap-7 lg:grid-cols-[1fr_360px]'
+            : 'flex flex-col gap-7'
+        }
+      >
         <div className="flex flex-col gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
@@ -75,7 +81,13 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             </div>
           </div>
 
-          <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          {/* When the sidebar grid is collapsed (terminal-state proposals),
+              ProposalActions still needs a home — render it inline above the
+              body sections so it remains discoverable for proposer/vetoer
+              viewers without reserving an empty 360px column. */}
+          {!showVotePanel && <ProposalActions detail={detail} />}
+
+          <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
             <h3 className="mb-3 text-base font-bold">Vote summary</h3>
             <VoteBar
               forV={p.forVotes}
@@ -90,7 +102,7 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
             <h3 className="mb-3 text-base font-bold">Description</h3>
             {description ? (
               <Markdown>{description}</Markdown>
@@ -99,7 +111,7 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             )}
           </section>
 
-          <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
             <h3 className="mb-3 text-base font-bold">
               Transactions
               <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
@@ -118,7 +130,7 @@ export default async function ProposalDetailPage({ params }: { params: Params })
             />
           </section>
 
-          <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+          <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
             <h3 className="mb-3 text-base font-bold">
               Votes
               <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
@@ -129,23 +141,23 @@ export default async function ProposalDetailPage({ params }: { params: Params })
           </section>
 
           {showPropdates ? (
-            <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+            <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
               <h3 className="mb-3 text-base font-bold">Propdates</h3>
               <PropdateThread proposalIdHash={detail.proposalIdHash} />
             </section>
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-4">
-          {showVotePanel && (
+        {showVotePanel && (
+          <div className="flex flex-col gap-4">
             <VotePanel
               proposalIdHash={detail.proposalIdHash}
               voteStart={detail.voteStart}
               active={isActive}
             />
-          )}
-          <ProposalActions detail={detail} />
-        </div>
+            <ProposalActions detail={detail} />
+          </div>
+        )}
       </div>
     </div>
   )

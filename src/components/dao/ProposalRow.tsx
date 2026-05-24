@@ -14,7 +14,7 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
   return (
     <Link
       href={`/proposals/${p.id}`}
-      className="group flex items-center gap-4 rounded-lg px-3 py-3 transition-colors hover:bg-surface-2"
+      className="group flex items-center gap-2 rounded-lg px-3 py-3 transition-colors hover:bg-surface-2 sm:gap-4"
     >
       <span className="w-10 shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-muted-fg">
         #{p.id}
@@ -24,7 +24,7 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
         <p className="truncate text-sm font-semibold leading-5 text-fg group-hover:text-accent-strong">
           {p.title}
         </p>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[11px] leading-4 text-muted-fg">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-muted-fg">
           <span
             className={
               p.proposerEns
@@ -72,7 +72,7 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
         </p>
       </div>
 
-      <div className="flex w-[88px] shrink-0 justify-end">
+      <div className="flex w-auto shrink-0 justify-end sm:w-[88px]">
         <StatusBadge status={p.status} />
       </div>
     </Link>

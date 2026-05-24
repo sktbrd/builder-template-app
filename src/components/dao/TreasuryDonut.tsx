@@ -40,8 +40,8 @@ export function TreasuryDonut({ slices, totalUsd, size = 280, thickness = 42 }: 
 
   return (
     <div>
-      <div className="relative mx-auto" style={{ width: size, height: size }}>
-        <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <div className="relative mx-auto w-full" style={{ maxWidth: size, aspectRatio: '1 / 1' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} className="block h-auto w-full">
           <circle
             cx={size / 2}
             cy={size / 2}

@@ -84,7 +84,7 @@ function NftGalleryDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-fg hover:bg-surface-2 hover:text-fg"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted-fg hover:bg-surface-2 hover:text-fg"
           >
             <X className="h-4 w-4" />
           </button>
@@ -220,7 +220,7 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+            className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
           >
             <X className="h-4 w-4" />
           </button>
@@ -246,7 +246,7 @@ function NftDetailDialog({ nft, onClose }: { nft: TreasuryNft; onClose: () => vo
               placeholder="Recipient address (0x…)"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[12.5px] outline-none placeholder:text-muted-fg/50 focus:border-accent"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[16px] outline-none placeholder:text-muted-fg/50 focus:border-accent"
             />
             {recipientEns && (
               <p className="mt-1 text-[11.5px] text-accent">{recipientEns}</p>

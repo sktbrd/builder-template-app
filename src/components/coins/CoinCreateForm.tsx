@@ -72,7 +72,9 @@ export function CoinCreateForm() {
 }
 
 function Skeleton() {
-  return <div className="h-[680px] animate-pulse rounded-xl bg-surface-2" />
+  return (
+    <div className="mx-auto h-[680px] w-full max-w-2xl animate-pulse rounded-xl bg-surface-2" />
+  )
 }
 
 function CoinCreateFormInner() {
@@ -290,7 +292,7 @@ function CoinCreateFormInner() {
   }
 
   return (
-    <div className="flex flex-col gap-6 rounded-xl border border-border bg-surface px-6 py-7">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 rounded-xl border border-border bg-surface px-6 py-7">
       <div>
         <h2 className="text-xl font-bold">Create a coin</h2>
         <p className="mt-1 text-sm text-muted-fg">
@@ -445,7 +447,7 @@ function NoCreatorCoinBlocker() {
   const [modalOpen, setModalOpen] = useState(false)
   return (
     <>
-      <div className="flex flex-col gap-4 rounded-xl border border-dashed border-border bg-surface-2 px-6 py-10 text-center">
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 rounded-xl border border-dashed border-border bg-surface-2 px-6 py-10 text-center">
         <h3 className="text-base font-bold">
           {daoConfig.name} doesn&apos;t have a creator coin yet
         </h3>
@@ -501,13 +503,13 @@ function SuccessCard({
   txHash: Hex | undefined
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface px-6 py-10 text-center">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-xl border border-border bg-surface px-6 py-10 text-center">
       <h3 className="text-lg font-bold">Coin deployed ✓</h3>
       <p className="text-sm text-muted-fg">Redirecting…</p>
       <div className="mx-auto flex flex-col gap-1 text-[12px] text-muted-fg">
         {coinAddress && (
           <div>
-            Coin: <span className="font-mono">{coinAddress}</span>
+            Coin: <span className="font-mono">{shorten(coinAddress)}</span>
           </div>
         )}
         {txHash && (
@@ -522,7 +524,7 @@ function SuccessCard({
 
 function Notice({ title, body }: { title: string; body: string }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface px-6 py-10 text-center">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-2 rounded-xl border border-border bg-surface px-6 py-10 text-center">
       <h3 className="text-base font-bold">{title}</h3>
       <p className="text-sm text-muted-fg">{body}</p>
       <div className="mx-auto mt-2">

@@ -114,7 +114,7 @@ export function EventTypeChip({ category }: { category: EventCategory }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide',
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide',
         cfg.toneClass
       )}
     >
@@ -130,7 +130,7 @@ export { X as DismissIcon }
 
 export function QuoteBlock({ children }: { children: React.ReactNode }) {
   return (
-    <blockquote className="mt-2 border-l-2 border-border-strong bg-surface-2/60 py-1.5 pl-3 pr-2 text-sm leading-snug text-fg-2">
+    <blockquote className="mt-2 border-l-2 border-border-strong bg-surface-2/60 py-1.5 pl-3 pr-2 text-sm leading-snug text-fg-2 break-words [overflow-wrap:anywhere]">
       {children}
     </blockquote>
   )

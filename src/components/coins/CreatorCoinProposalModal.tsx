@@ -284,8 +284,16 @@ function ModalContent({ onClose }: { onClose: () => void }) {
     phase === 'preparing' || phase === 'sign' || phase === 'mine' || phase === 'done'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-y-auto rounded-t-xl border border-border bg-surface shadow-2xl sm:rounded-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      onClick={() => {
+        if (!disabled) onClose()
+      }}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-y-auto rounded-t-xl border border-border bg-surface shadow-2xl sm:rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-6 py-4">
           <div>
             <h2 className="text-base font-bold">
@@ -299,7 +307,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-muted-fg hover:bg-surface-2 hover:text-fg"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md p-1 text-muted-fg hover:bg-surface-2 hover:text-fg"
             aria-label="Close"
             disabled={disabled}
           >
