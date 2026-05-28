@@ -12,6 +12,12 @@ export function resolveIpfs(uri: string): string {
   return uri
 }
 
+/** "0xabc…1234" — short address for compact UI. */
+export function shortAddress(addr: string | null | undefined): string {
+  if (!addr || addr.length < 10) return addr ?? ''
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+}
+
 /** Short ETH display: "1234.5" → "1.2K", "12.456" → "12.5", "0.123" → "0.12" */
 export function formatEth(eth: string): string {
   const n = parseFloat(eth)

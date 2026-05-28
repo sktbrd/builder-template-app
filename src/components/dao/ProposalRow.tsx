@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import type { ProposalSummary } from '@/lib/dao-data'
+import { shortAddress } from '@/lib/utils'
 
 import { StatusBadge } from './StatusBadge'
 import { TreasuryInsufficientBadge } from './TreasuryInsufficientBadge'
@@ -77,9 +78,4 @@ export function ProposalRow({ p }: { p: ProposalSummary }) {
       </div>
     </Link>
   )
-}
-
-function shortAddress(addr: string): string {
-  if (!addr || addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }

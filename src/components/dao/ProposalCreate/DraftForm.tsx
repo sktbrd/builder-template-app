@@ -371,7 +371,7 @@ function NftFields({
 
   const collections = [
     { symbol: `${daoConfig.name} token`, address: daoToken },
-    ...daoConfig.treasuryNftCollections,
+    ...(daoConfig.treasuryNftCollections ?? []),
   ]
 
   const onPickCollection = (address: string) => {
@@ -856,6 +856,15 @@ function AirdropFields({
       .map((l) => l.trim())
       .filter(Boolean)
     if (lines.length === 0) return
+    const hasExisting = draft.recipients.some(
+      (r) => r.recipient.trim() || r.amount.trim()
+    )
+    if (hasExisting) {
+      const ok = window.confirm(
+        `Replace ${draft.recipients.length} existing recipient${draft.recipients.length === 1 ? '' : 's'} with the ${lines.length} pasted row${lines.length === 1 ? '' : 's'}?`
+      )
+      if (!ok) return
+    }
     const parsed: AirdropEntry[] = lines.map((line) => {
       const [addr, amt] = line.split(/[,\s]+/)
       return { recipient: addr ?? '', amount: amt ?? '' }
@@ -1391,17 +1400,6 @@ function DroposalFields({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Field label="Zora NFT Creator contract">
-        <input
-          type="text"
-          value={draft.zoraNftCreator}
-          onChange={(e) => onChange({ ...draft, zoraNftCreator: e.target.value })}
-          placeholder="0x…"
-          className={textInputClass(
-            draft.zoraNftCreator.length > 0 && !isAddress(draft.zoraNftCreator)
-          )}
-        />
-      </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
         <Field label="Edition name">
           <input

@@ -3,7 +3,7 @@
 import { useEnsData } from '@buildeross/hooks'
 import { bgForAddress } from '@buildeross/utils'
 
-import { cn } from '@/lib/utils'
+import { cn, shortAddress } from '@/lib/utils'
 
 type Size = 20 | 24 | 28 | 32
 
@@ -52,9 +52,4 @@ export function ActorIdentity({ address, size = 24, className }: ActorIdentityPr
       <span className="truncate">{displayName || shortAddress(address)}</span>
     </span>
   )
-}
-
-function shortAddress(addr: string): string {
-  if (!addr || addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }

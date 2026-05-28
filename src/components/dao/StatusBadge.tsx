@@ -52,11 +52,34 @@ const STYLES: Record<ProposalStatus, { color: string; bg: string; label: string 
 export function StatusBadge({
   status,
   className,
+  variant = 'badge',
 }: {
   status: ProposalStatus
   className?: string
+  /** `badge` = bordered pill; `chip` = solid chip with a leading dot (used on cards). */
+  variant?: 'badge' | 'chip'
 }) {
   const s = STYLES[status]
+  if (variant === 'chip') {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] font-mono text-[10.5px] font-semibold uppercase tracking-widest',
+          s.color,
+          s.bg,
+          className
+        )}
+      >
+        <span
+          className={cn(
+            'h-1.5 w-1.5 shrink-0 rounded-full bg-current',
+            status === 'active' && 'animate-pulse'
+          )}
+        />
+        {s.label}
+      </span>
+    )
+  }
   return (
     <span
       className={cn(

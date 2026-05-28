@@ -8,6 +8,7 @@
  */
 
 import { daoConfig } from './dao.config'
+import { resolveIpfs as resolveIpfsString } from './utils'
 
 export const OG_SIZE = { width: 1200, height: 630 } as const
 export const OG_CONTENT_TYPE = 'image/png'
@@ -44,10 +45,7 @@ function hexToRgba(hex: string, alpha: number): string {
 
 export function resolveIpfs(uri: string | null | undefined): string | null {
   if (!uri) return null
-  if (uri.startsWith('ipfs://')) {
-    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
-  }
-  return uri
+  return resolveIpfsString(uri)
 }
 
 export function trimEth(value: string, max = 4): string {

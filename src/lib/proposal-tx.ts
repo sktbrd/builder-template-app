@@ -208,15 +208,12 @@ export const CUSTOM_LIKE_KINDS = new Set<TxKind>([
 ])
 
 /**
- * Disperse.app contract address per supported chain. The same address is
- * shared across most EVM chains via CREATE2; Base is one of the exceptions.
- * Override via daoConfig if a fork needs a different deployer.
+ * Disperse.app contract address per supported chain. Same CREATE2 address
+ * across Builder's mainnet chains (Ethereum, Optimism, Base).
  */
 const DISPERSE_ADDRESSES: Record<number, `0x${string}` | undefined> = {
   1: '0xD152f549545093347A162Dce210e7293f1452150', // mainnet
   10: '0xD152f549545093347A162Dce210e7293f1452150', // optimism
-  137: '0xD152f549545093347A162Dce210e7293f1452150', // polygon
-  42161: '0xD152f549545093347A162Dce210e7293f1452150', // arbitrum
   8453: '0xD152f549545093347A162Dce210e7293f1452150', // base
 }
 
@@ -230,6 +227,22 @@ export function disperseAddress(chainId: number): `0x${string}` | null {
 
 export function isAirdropSupported(): boolean {
   return disperseAddress(daoConfig.chainId) !== null
+}
+
+/**
+ * Per-chain Zora NFT Creator proxy. Must stay in sync with the decoder's
+ * DROPOSAL_TARGET so encoded txs round-trip through proposal-tx-decoder.ts.
+ */
+const DROPOSAL_TARGETS: Record<number, `0x${string}` | undefined> = {
+  8453: '0x58c3ccb2dcb9384e5ab9111cd1a5dea916b0f33c', // base
+}
+
+export function droposalTarget(chainId: number): `0x${string}` | null {
+  return DROPOSAL_TARGETS[chainId] ?? null
+}
+
+export function isDroposalSupported(): boolean {
+  return droposalTarget(daoConfig.chainId) !== null
 }
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -311,8 +324,6 @@ export type TxDraftPauseAuction = {
 
 export type TxDraftDroposal = {
   kind: 'droposal'
-  /** Zora NFT Creator contract address (chain-specific, user-provided). */
-  zoraNftCreator: string
   name: string
   symbol: string
   description: string
@@ -448,7 +459,6 @@ export function emptyDraft(kind: TxKind): TxDraft {
   if (kind === 'droposal')
     return {
       kind: 'droposal',
-      zoraNftCreator: daoConfig.contractOverrides?.zoraNftCreator ?? '',
       name: '',
       symbol: '',
       description: '',
@@ -603,7 +613,7 @@ export function validateDraft(draft: TxDraft, tokenMeta: TokenMetaMap): string[]
     for (let i = 0; i < draft.milestones.length; i++) {
       const m = draft.milestones[i]
       if (!m.title.trim()) errs.push(`Milestone ${i + 1}: title required.`)
-      if (!m.amount.trim() || !isFiniteNumber(m.amount))
+      if (!m.amount.trim() || !isPositiveNumber(m.amount))
         errs.push(`Milestone ${i + 1}: amount must be a number > 0.`)
       if (!m.endDate) errs.push(`Milestone ${i + 1}: delivery date required.`)
       else {
@@ -650,7 +660,7 @@ export function validateDraft(draft: TxDraft, tokenMeta: TokenMetaMap): string[]
         if (seen.has(k)) errs.push(`Recipient ${i + 1}: duplicate address.`)
         seen.add(k)
       }
-      if (!r.amount.trim() || !isFiniteNumber(r.amount)) {
+      if (!r.amount.trim() || !isPositiveNumber(r.amount)) {
         errs.push(`Recipient ${i + 1}: amount must be a number > 0.`)
       }
     }
@@ -673,8 +683,11 @@ export function validateDraft(draft: TxDraft, tokenMeta: TokenMetaMap): string[]
   } else if (draft.kind === 'pause_auction') {
     // no fields to validate
   } else if (draft.kind === 'droposal') {
-    if (!draft.zoraNftCreator || !isAddress(draft.zoraNftCreator))
-      errs.push('Zora NFT Creator address is required.')
+    if (!isDroposalSupported()) {
+      errs.push(
+        'Zora NFT Creator is not deployed on this chain — droposals are unavailable.'
+      )
+    }
     if (!draft.name.trim()) errs.push('Edition name is required.')
     if (!draft.symbol.trim()) errs.push('Symbol is required.')
     if (!draft.fundsRecipient || !isAddress(draft.fundsRecipient))
@@ -975,7 +988,9 @@ export function encodeDraft(
   }
 
   if (draft.kind === 'droposal') {
-    if (!isAddress(draft.zoraNftCreator) || !isAddress(draft.fundsRecipient)) return null
+    const target = droposalTarget(daoConfig.chainId)
+    if (!target) return null
+    if (!isAddress(draft.fundsRecipient)) return null
     if (!draft.name.trim() || !draft.symbol.trim()) return null
     const admin =
       draft.defaultAdmin && isAddress(draft.defaultAdmin)
@@ -1009,15 +1024,14 @@ export function encodeDraft(
           publicSaleEnd: saleEnd,
           presaleStart: BigInt(0),
           presaleEnd: BigInt(0),
-          presaleMerkleRoot:
-            '0x0000000000000000000000000000000000000000000000000000000000000000',
+          presaleMerkleRoot: zeroHash,
         },
         draft.description,
         '',
         draft.imageUri,
       ],
     })
-    return { target: getAddress(draft.zoraNftCreator), valueEth: '0', calldata }
+    return { target, valueEth: '0', calldata }
   }
 
   if (draft.kind === 'stream') {
@@ -1337,4 +1351,10 @@ function isFiniteNumber(s: string): boolean {
   if (!s.trim()) return false
   const n = Number(s)
   return Number.isFinite(n) && n >= 0
+}
+
+function isPositiveNumber(s: string): boolean {
+  if (!s.trim()) return false
+  const n = Number(s)
+  return Number.isFinite(n) && n > 0
 }

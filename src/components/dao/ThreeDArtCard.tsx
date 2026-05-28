@@ -1,8 +1,22 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
 
 import { cn } from '@/lib/utils'
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+function subscribeReducedMotion(cb: () => void): () => void {
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false
+  )
+}
 
 type Props = {
   children: React.ReactNode
@@ -17,9 +31,11 @@ export function ThreeDArtCard({ children, className, maxTilt = 12, depth = 30 }:
   const ref = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const [hovered, setHovered] = useState(false)
+  const reducedMotion = usePrefersReducedMotion()
 
   const handleMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (reducedMotion) return
       const node = ref.current
       if (!node) return
       const rect = node.getBoundingClientRect()
@@ -38,7 +54,7 @@ export function ThreeDArtCard({ children, className, maxTilt = 12, depth = 30 }:
         node.style.setProperty('--my', `${(py * 100).toFixed(2)}%`)
       })
     },
-    [maxTilt]
+    [maxTilt, reducedMotion]
   )
 
   const handleLeave = useCallback(() => {

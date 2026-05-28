@@ -18,7 +18,7 @@ import { CoinTradeWidget } from '@/components/coins/CoinTradeWidget'
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
-import { resolveIpfs } from '@/lib/utils'
+import { resolveIpfs, shortAddress } from '@/lib/utils'
 
 type Props = {
   coin: ZoraCoinFragment
@@ -222,11 +222,6 @@ function CopyRow({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   )
-}
-
-function shortAddress(addr: string): string {
-  if (!addr || addr.length < 10) return addr
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 function shortValue(value: string): string {

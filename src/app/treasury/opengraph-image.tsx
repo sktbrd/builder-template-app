@@ -3,17 +3,12 @@ import { ImageResponse } from 'next/og'
 import { daoConfig } from '@/lib/dao.config'
 import { getTreasuryPageData } from '@/lib/dao-data'
 import { OG_CONTENT_TYPE, OG_SIZE, ogColors, resolveIpfs, trimEth } from '@/lib/og-utils'
+import { ETH_EQUIVALENT_SYMBOLS, STABLE_SYMBOLS } from '@/lib/treasury-tokens'
 
 export const alt = `${daoConfig.name} Treasury`
 export const size = OG_SIZE
 export const contentType = OG_CONTENT_TYPE
 export const revalidate = 300
-
-function chainName(id: number): string {
-  return (
-    { 1: 'Ethereum', 10: 'Optimism', 8453: 'Base', 7777777: 'Zora' }[id] ?? `Chain ${id}`
-  )
-}
 
 function fmtUsd(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
@@ -36,8 +31,8 @@ export default async function TreasuryOGImage() {
     const ethUsd = parseFloat(data.treasuryEth) * data.ethUsdPrice
     const tokensUsd = data.tokenHoldings.reduce((s, t) => {
       const sym = t.symbol.toUpperCase()
-      const stable = ['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD'].includes(sym)
-      const weth = ['WETH', 'CBETH', 'STETH', 'RETH'].includes(sym)
+      const stable = (STABLE_SYMBOLS as readonly string[]).includes(sym)
+      const weth = (ETH_EQUIVALENT_SYMBOLS as readonly string[]).includes(sym)
       const human = Number(BigInt(t.balanceRaw)) / 10 ** t.decimals
       return s + (stable ? human : weth ? human * data.ethUsdPrice : 0)
     }, 0)
@@ -114,7 +109,7 @@ export default async function TreasuryOGImage() {
                 fontWeight: 700,
               }}
             >
-              {chainName(daoConfig.chainId)}
+              {daoConfig.chain.name}
             </div>
           </div>
 

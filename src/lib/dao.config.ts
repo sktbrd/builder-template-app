@@ -1,4 +1,4 @@
-import type { AddressType, CHAIN_ID } from '@buildeross/types'
+import type { AddressType, Chain, CHAIN_ID } from '@buildeross/types'
 
 import { DAO_CONFIG as ONCHAIN_CONFIG } from '@/config/dao'
 // `dao.theme.json` is the visible identity of this fork — tagline, accent,
@@ -59,6 +59,8 @@ export type DaoConfig = {
   tagline: string
   image: string
   chainId: CHAIN_ID
+  /** Full viem Chain object (name, native currency, RPCs). */
+  chain: Chain
   addresses: {
     token: AddressType
     auction: AddressType
@@ -76,7 +78,7 @@ export type DaoConfig = {
    * Extra ERC-721 collections the treasury holds (besides the DAO token).
    * Shown as quick-pick pills in the "Send NFT" proposal form.
    */
-  treasuryNftCollections: TreasuryNftCollection[]
+  treasuryNftCollections?: TreasuryNftCollection[]
   /**
    * Per-fork overrides for protocol contracts used by proposal forms.
    * Lets a DAO point at custom deployments on niche chains without forking
@@ -123,6 +125,7 @@ export const daoConfig: DaoConfig = {
   // ── Onchain ──────────────────────────────────────
   // Auto-resolved by `pnpm fetch-dao`. Don't edit manually.
   chainId: ONCHAIN_CONFIG.chain.id,
+  chain: ONCHAIN_CONFIG.chain,
   addresses: {
     token: ONCHAIN_CONFIG.addresses.token,
     auction: ONCHAIN_CONFIG.addresses.auction,

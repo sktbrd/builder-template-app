@@ -12,7 +12,7 @@ import { ThreeDArtCard } from '@/components/dao/ThreeDArtCard'
 import { TimeAlert } from '@/components/dao/TimeAlert'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
 import { getAuctionPageData, getAuctionPriceHistory } from '@/lib/dao-data'
-import { cn } from '@/lib/utils'
+import { cn, resolveIpfs } from '@/lib/utils'
 
 export const revalidate = 30
 
@@ -276,11 +276,4 @@ function formatEndsIn(unixSec: number, nowUnixSec: number): string {
   const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
   if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`
   return `${h}h ${m}m`
-}
-
-function resolveIpfs(uri: string): string {
-  if (uri.startsWith('ipfs://')) {
-    return `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}`
-  }
-  return uri
 }

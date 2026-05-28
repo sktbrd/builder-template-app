@@ -35,24 +35,6 @@ function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
-// Defense-in-depth: the server route filters these too, but a stale edge
-// cache could still serve spam dust where the token symbol smuggles URLs or
-// marketing copy. Catch it before it makes it into the chip row.
-function isSpamAsset(asset: string | null | undefined): boolean {
-  if (!asset) return false
-  const s = asset.toLowerCase()
-  if (
-    /https?:\/\/|www\.|t\.me|telegram|\.com|\.me|\.io|\.xyz|\.net|\.org|\.app|\.gift|\.fund|\.live|\.site|\.link|\.bond|\.finance/.test(
-      s
-    )
-  )
-    return true
-  if (/claim|airdrop|reward|visit|bonus|gift|winner|voucher|promo/.test(s)) return true
-  if (/[*!?@#$%^&()\[\]{}<>]/.test(asset)) return true
-  if (asset.length > 20) return true
-  return false
-}
-
 function relativeTime(ts: number): string {
   if (!ts) return ''
   const diff = Math.floor(Date.now() / 1000) - ts
@@ -118,20 +100,15 @@ export function TreasuryTransfers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirFilter])
 
-  const cleanTransfers = useMemo(
-    () => transfers.filter((t) => !isSpamAsset(t.asset)),
-    [transfers]
-  )
-
   const assets = useMemo(() => {
     const seen = new Set<string>()
-    for (const t of cleanTransfers) seen.add(t.asset)
+    for (const t of transfers) seen.add(t.asset)
     return Array.from(seen).sort()
-  }, [cleanTransfers])
+  }, [transfers])
 
   const visible = useMemo(() => {
-    return cleanTransfers.filter((t) => assetFilter === 'all' || t.asset === assetFilter)
-  }, [cleanTransfers, assetFilter])
+    return transfers.filter((t) => assetFilter === 'all' || t.asset === assetFilter)
+  }, [transfers, assetFilter])
 
   const hasMore =
     (dirFilter !== 'out' && !!nextPageKeyIn) || (dirFilter !== 'in' && !!nextPageKeyOut)
@@ -251,13 +228,10 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
     >
       {/* direction badge */}
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-        style={{
-          background: isIn
-            ? 'color-mix(in oklab, #5fd28a 20%, transparent)'
-            : 'color-mix(in oklab, #f06464 20%, transparent)',
-          color: isIn ? '#5fd28a' : '#f06464',
-        }}
+        className={
+          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
+          (isIn ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive')
+        }
       >
         {isIn ? '↓' : '↑'}
       </span>
@@ -271,8 +245,10 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
 
       {/* amount + asset */}
       <span
-        className="shrink-0 font-mono font-semibold tabular-nums text-[13px]"
-        style={{ color: isIn ? '#5fd28a' : '#f06464' }}
+        className={
+          'shrink-0 font-mono font-semibold tabular-nums text-[13px] ' +
+          (isIn ? 'text-success' : 'text-destructive')
+        }
       >
         {isIn ? '+' : '−'}
         {tx.amount} <span className="font-normal">{tx.asset}</span>

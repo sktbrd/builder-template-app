@@ -57,3 +57,9 @@ export const ETHEREUM_COMMON_TOKENS: TreasuryToken[] = [
     decimals: 18,
   },
 ]
+
+/** Symbols treated as ~$1 for treasury USD estimates. */
+export const STABLE_SYMBOLS = ['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD'] as const
+
+/** Symbols treated as ETH-equivalent for treasury USD estimates. */
+export const ETH_EQUIVALENT_SYMBOLS = ['WETH', 'CBETH', 'STETH', 'RETH'] as const
