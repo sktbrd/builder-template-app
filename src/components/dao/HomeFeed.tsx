@@ -71,7 +71,7 @@ function FeedRow({ item }: { item: FeedItem }) {
   switch (item.type) {
     case 'AUCTION_BID_PLACED':
       return (
-        <Row actor={item.bidder} time={time}>
+        <Row actor={item.bidder} time={time} note={item.bidComment ?? undefined}>
           bid <Strong>{formatBidEth(item.amount)} ETH</Strong> on{' '}
           <AuctionLink id={item.tokenId} name={item.tokenName} />
         </Row>
@@ -143,19 +143,27 @@ function Row({
   actor,
   time,
   children,
+  note,
 }: {
   /** Address — omit when there's no meaningful actor (e.g. zero-bid settle). */
   actor?: string
   time: string
   children: React.ReactNode
+  /** Optional onchain comment (bidComment) rendered as an italic quote below. */
+  note?: string
 }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-start gap-2.5">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-6 text-muted-fg">
           {actor && <ActorIdentity address={actor} size={20} className="text-[13px]" />}
           <span className="leading-6">{children}</span>
         </div>
+        {note && (
+          <p className="mt-0.5 pl-[26px] text-[12px] italic leading-snug text-muted-fg/90">
+            &ldquo;{note}&rdquo;
+          </p>
+        )}
       </div>
       <span className="shrink-0 text-[11px] leading-6 tabular-nums text-muted-fg/70">
         {time}
