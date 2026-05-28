@@ -152,6 +152,8 @@ export type ProposalSummary = {
   abstainVotes: number
   quorum: number
   endsLabel: string
+  /** Voting end unix seconds — used to render a live countdown on active props. */
+  voteEnd: number
   requested: { eth: number; usdc: number }
   /**
    * True when the proposal's requested ETH or any tracked ERC-20 transfer
@@ -168,6 +170,21 @@ export type ProposalSummary = {
    * caller didn't compute stats.
    */
   proposerStats: ProposerStats | null
+  /**
+   * Last few votes (newest first) inlined for the homepage proposal card.
+   * Only populated for proposals where votes feel useful (active / recently
+   * decided) — empty array otherwise to keep the payload tight.
+   */
+  recentVotes: ProposalVoteSummary[]
+}
+
+export type ProposalVoteSummary = {
+  voter: string
+  /** Reverse-resolved ENS for the voter, when available. */
+  voterEns: string | null
+  support: 'for' | 'against' | 'abstain'
+  weight: number
+  reason: string | null
 }
 
 export type ProposerStats = {
@@ -194,78 +211,144 @@ export type DashboardData = {
     tokenId: number
     name: string
     image: string | null
+    startTimeUnix: number
     endTimeUnix: number
     topBidEth: string | null
     bidderShort: string | null
+    /**
+     * Most-recent bids for this auction, newest first. Bounded to keep the
+     * homepage data budget tight — the hero only surfaces the top few with
+     * their comments. Empty when there are no bids yet.
+     */
+    recentBids: Array<{
+      id: string
+      amountEth: string
+      bidder: string
+      bidderShort: string
+      comment: string | null
+    }>
   } | null
   recentProposals: ProposalSummary[]
   recentActivity: DashboardActivityItem[]
   auctionRevenueByMonth: number[] // last 12 buckets, ETH
+  /**
+   * Most-recently-minted tokens (current auction first) for the homepage
+   * history strip. Capped at 16 to stay within the lite-template's
+   * "bounded last N" data budget.
+   */
+  recentTokens: RecentTokenSummary[]
+}
+
+export type RecentTokenSummary = {
+  tokenId: number
+  name: string | null
+  image: string | null
+  /** Owner address lowercased. */
+  owner: string
+  /**
+   * Display label for the owner pill on the strip. "Treasury" when the
+   * treasury holds it; otherwise short owner address. ENS resolution is
+   * skipped to keep the call count bounded.
+   */
+  ownerLabel: string
+  /** Unix seconds when the token was minted (i.e. auction started). */
+  mintedAt: number
+  /** Winning bid in ETH, trimmed; null when the auction settled with no bid. */
+  topBidEth: string | null
+  /** Auction end time as unix seconds; null when the auction record isn't in
+   *  the recent-year history window. */
+  endedAtUnix: number | null
+  /** True when this token corresponds to the live (unsettled) auction. */
+  isLive: boolean
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
   const oneYearAgo = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 365
 
-  const [daoInfo, auctionsResp, salesResp, proposalsResp, historyResp, treasuryWei] =
-    await Promise.all([
-      safeFetch(
-        'daoInfo',
-        () => SubgraphSDK.connect(chainId).daoInfo({ tokenAddress: tokenAddressLc }),
-        { dao: null } as Awaited<
-          ReturnType<ReturnType<typeof SubgraphSDK.connect>['daoInfo']>
-        >
-      ),
-      safeFetch(
-        'findAuctions',
-        () =>
-          SubgraphSDK.connect(chainId).findAuctions({
-            where: { dao: tokenAddressLc },
-            orderBy: Auction_OrderBy.EndTime,
-            orderDirection: OrderDirection.Desc,
-            first: 1,
-          }),
-        { auctions: [] } as Awaited<
-          ReturnType<ReturnType<typeof SubgraphSDK.connect>['findAuctions']>
-        >
-      ),
-      safeFetch(
-        'totalAuctionSales',
-        () =>
-          SubgraphSDK.connect(chainId).totalAuctionSales({
-            tokenAddress: tokenAddressLc,
-          }),
-        { dao: null } as Awaited<
-          ReturnType<ReturnType<typeof SubgraphSDK.connect>['totalAuctionSales']>
-        >
-      ),
-      safeFetch('proposals', () => getProposals(chainId, tokenAddressLc, 6, 0), {
-        proposals: [] as Proposal[],
-      }),
-      safeFetch(
-        'auctionHistory',
-        () =>
-          SubgraphSDK.connect(chainId).auctionHistory({
-            daoId: tokenAddressLc,
-            startTime: BigInt(oneYearAgo).toString() as unknown as bigint,
-            orderBy: Auction_OrderBy.EndTime,
-            orderDirection: OrderDirection.Desc,
-            first: 1000,
-          }),
-        { dao: null } as Awaited<
-          ReturnType<ReturnType<typeof SubgraphSDK.connect>['auctionHistory']>
-        >
-      ),
-      safeFetch(
-        'treasuryBalance',
-        async () => {
-          if (!publicClient) return BigInt(0)
-          return publicClient.getBalance({
-            address: daoConfig.addresses.treasury as `0x${string}`,
-          })
-        },
-        BigInt(0)
-      ),
-    ])
+  const [
+    daoInfo,
+    auctionsResp,
+    salesResp,
+    proposalsResp,
+    historyResp,
+    treasuryWei,
+    recentTokensResp,
+  ] = await Promise.all([
+    safeFetch(
+      'daoInfo',
+      () => SubgraphSDK.connect(chainId).daoInfo({ tokenAddress: tokenAddressLc }),
+      { dao: null } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['daoInfo']>
+      >
+    ),
+    safeFetch(
+      'findAuctions',
+      () =>
+        SubgraphSDK.connect(chainId).findAuctions({
+          where: { dao: tokenAddressLc },
+          orderBy: Auction_OrderBy.EndTime,
+          orderDirection: OrderDirection.Desc,
+          first: 1,
+        }),
+      { auctions: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['findAuctions']>
+      >
+    ),
+    safeFetch(
+      'totalAuctionSales',
+      () =>
+        SubgraphSDK.connect(chainId).totalAuctionSales({
+          tokenAddress: tokenAddressLc,
+        }),
+      { dao: null } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['totalAuctionSales']>
+      >
+    ),
+    // 10 keeps enough headroom for the homepage proposals column to render
+    // "Active" + a short "Recently ended" section without a second query.
+    safeFetch('proposals', () => getProposals(chainId, tokenAddressLc, 10, 0), {
+      proposals: [] as Proposal[],
+    }),
+    safeFetch(
+      'auctionHistory',
+      () =>
+        SubgraphSDK.connect(chainId).auctionHistory({
+          daoId: tokenAddressLc,
+          startTime: BigInt(oneYearAgo).toString() as unknown as bigint,
+          orderBy: Auction_OrderBy.EndTime,
+          orderDirection: OrderDirection.Desc,
+          first: 1000,
+        }),
+      { dao: null } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['auctionHistory']>
+      >
+    ),
+    safeFetch(
+      'treasuryBalance',
+      async () => {
+        if (!publicClient) return BigInt(0)
+        return publicClient.getBalance({
+          address: daoConfig.addresses.treasury as `0x${string}`,
+        })
+      },
+      BigInt(0)
+    ),
+    // Last 16 tokens for the homepage history strip. Bounded list, no
+    // pagination — quiet DAOs see fewer; busy DAOs cap out here.
+    safeFetch(
+      'recentTokens',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: { dao: tokenAddressLc } as never,
+          orderBy: Token_OrderBy.MintedAt,
+          orderDirection: OrderDirection.Desc,
+          first: 16,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    ),
+  ])
 
   const totalSupply = daoInfo?.dao?.totalSupply ?? 0
   const ownerCount = daoInfo?.dao?.ownerCount ?? 0
@@ -280,25 +363,78 @@ export async function getDashboardData(): Promise<DashboardData> {
         tokenId: Number(a.token.tokenId),
         name: a.token.name,
         image: a.token.image ?? null,
+        // Filled in below from the matching token's mintedAt — the auction
+        // fragment doesn't carry startTime.
+        startTimeUnix: 0,
         endTimeUnix: Number(a.endTime),
         topBidEth: a.highestBid ? formatEther(BigInt(a.highestBid.amount)) : null,
         bidderShort: a.highestBid ? short(a.highestBid.bidder) : null,
+        // Filled in below by `getBids` — bounded to the most recent few so
+        // the homepage hero can surface the latest bidders' comments without
+        // dragging in the full bid history.
+        recentBids: [] as NonNullable<DashboardData['currentAuction']>['recentBids'],
       }
     : null
 
   const recentProposers = Array.from(
     new Set(proposalsResp.proposals.map((p) => p.proposer))
   )
-  const [recentProposerEns, treasuryBalances] = await Promise.all([
-    resolveEnsNames(recentProposers),
-    fetchTreasuryBalances(),
-  ])
+
+  // Only inline votes for live proposals — the homepage active card uses them,
+  // the recently-ended rows don't, so we don't pay ENS resolution for those.
+  type ProposalWithVotes = Proposal & {
+    votes?: Array<{ voter: string }>
+    state: ProposalState
+  }
+  const activeProposalsForVotes = proposalsResp.proposals.filter((p) =>
+    isLiveStatus(mapProposalState(p.state))
+  ) as ProposalWithVotes[]
+  const activeVoters = Array.from(
+    new Set(
+      activeProposalsForVotes.flatMap((p) =>
+        (p.votes ?? []).slice(-5).map((v) => String(v.voter))
+      )
+    )
+  )
+
+  const [recentProposerEns, voterEnsMap, treasuryBalances, currentAuctionBids] =
+    await Promise.all([
+      resolveEnsNames(recentProposers),
+      activeVoters.length > 0
+        ? resolveEnsNames(activeVoters)
+        : Promise.resolve(new Map<string, string>()),
+      fetchTreasuryBalances(),
+      // Fetch the live auction's bids only — past tokens collapse to just their
+      // winning bid on the hero, so we never need their full history here.
+      currentAuction
+        ? safeFetch(
+            'currentAuction.getBids',
+            () =>
+              getBids(chainId, daoConfig.addresses.token, String(currentAuction.tokenId)),
+            [] as Awaited<ReturnType<typeof getBids>>
+          )
+        : Promise.resolve([] as Awaited<ReturnType<typeof getBids>>),
+    ])
+
+  // getBids returns ETH-formatted amounts (matching how AuctionPageBid handles
+  // them). Truncate to the most-recent 5 so the hero list stays compact.
+  if (currentAuction) {
+    currentAuction.recentBids = (currentAuctionBids ?? []).slice(0, 5).map((b) => ({
+      id: String(b.id),
+      amountEth: String(b.amount),
+      bidder: String(b.bidder),
+      bidderShort: short(String(b.bidder)),
+      comment: (b as { comment?: string | null }).comment ?? null,
+    }))
+  }
   const recentProposerStats = computeProposerStats(proposalsResp.proposals)
   const recentProposals: ProposalSummary[] = proposalsResp.proposals.map((p) =>
     formatProposal(p, {
       proposerEns: recentProposerEns.get(String(p.proposer).toLowerCase()) ?? null,
       treasury: treasuryBalances,
       proposerStats: recentProposerStats.get(String(p.proposer).toLowerCase()) ?? null,
+      voterEns: voterEnsMap,
+      includeVotes: isLiveStatus(mapProposalState(p.state)),
     })
   )
 
@@ -310,6 +446,57 @@ export async function getDashboardData(): Promise<DashboardData> {
   // proposals. Merged & sorted by actual timestamp.
   const recentActivity = await buildRecentActivity(proposalsResp.proposals)
 
+  // Build a lookup from `auctionHistory` (already fetched for revenue bucketing
+  // above) so each recent token can carry its winning bid + end time without a
+  // separate query. auctionHistory ids are "tokenAddr:tokenId".
+  const auctionByTokenId = new Map<number, { amountWei: bigint; endTime: number }>()
+  for (const a of historyResp?.dao?.auctions ?? []) {
+    const idStr = String(a.id)
+    const tokenPart = idStr.includes(':') ? (idStr.split(':').pop() ?? '0') : idStr
+    const tokenId = Number.parseInt(tokenPart, 10)
+    if (!Number.isFinite(tokenId)) continue
+    let amountWei = BigInt(0)
+    try {
+      amountWei = a.winningBid ? BigInt(String(a.winningBid.amount)) : BigInt(0)
+    } catch {
+      // ignore malformed
+    }
+    auctionByTokenId.set(tokenId, {
+      amountWei,
+      endTime: Number(a.endTime ?? 0),
+    })
+  }
+
+  const treasuryLc = daoConfig.addresses.treasury.toLowerCase()
+  const liveTokenId = currentAuction?.tokenId
+  const recentTokens: RecentTokenSummary[] = (recentTokensResp.tokens ?? []).map((t) => {
+    const ownerLc = String(t.owner ?? '').toLowerCase()
+    const tokenId = Number(t.tokenId)
+    const auctionRow = auctionByTokenId.get(tokenId)
+    const topBidEth =
+      auctionRow && auctionRow.amountWei > BigInt(0)
+        ? formatEther(auctionRow.amountWei)
+        : null
+    return {
+      tokenId,
+      name: t.name ?? null,
+      image: t.image ?? null,
+      owner: ownerLc,
+      ownerLabel: ownerLc === treasuryLc ? 'Treasury' : short(ownerLc),
+      mintedAt: Number(t.mintedAt ?? 0),
+      topBidEth,
+      endedAtUnix: auctionRow?.endTime ?? null,
+      isLive: liveTokenId === tokenId,
+    }
+  })
+
+  // The findAuctions/CurrentAuctionFragment doesn't carry startTime — derive
+  // it from the matching token's mintedAt instead.
+  if (currentAuction) {
+    const live = recentTokens.find((rt) => rt.tokenId === currentAuction.tokenId)
+    if (live) currentAuction.startTimeUnix = live.mintedAt
+  }
+
   return {
     totalSupply,
     ownerCount,
@@ -319,6 +506,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     recentProposals,
     recentActivity,
     auctionRevenueByMonth,
+    recentTokens,
   }
 }
 
@@ -404,6 +592,13 @@ type FormatProposalOptions = {
   treasury?: TreasuryBalances
   /** Per-proposer reputation stats computed across the data window. */
   proposerStats?: ProposerStats | null
+  /**
+   * Map of voter addr (lowercased) → ENS, for inlining onto recentVotes.
+   * Caller pre-resolves so we batch the lookups outside the formatter.
+   */
+  voterEns?: Map<string, string>
+  /** When true, surface the proposal's last few votes on the summary. */
+  includeVotes?: boolean
 }
 
 function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): ProposalSummary {
@@ -426,6 +621,24 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
       ? isInsufficientVsTreasury(decoded, opts.treasury)
       : false
 
+  // votes are nested on the proposal fragment by the subgraph but the typed
+  // shape doesn't expose them — same cast as in `getProposalByNumber`.
+  const rawVotes = (p as unknown as { votes?: Array<RawProposalVote> }).votes ?? []
+  const recentVotes: ProposalVoteSummary[] = opts.includeVotes
+    ? rawVotes
+        .slice()
+        // Insertion order — newest last per subgraph; reverse to newest-first.
+        .reverse()
+        .slice(0, 5)
+        .map((v) => ({
+          voter: String(v.voter),
+          voterEns: opts.voterEns?.get(String(v.voter).toLowerCase()) ?? null,
+          support: mapVoteSupport(v.support),
+          weight: Number(v.weight ?? 0),
+          reason: v.reason && v.reason.trim().length > 0 ? v.reason : null,
+        }))
+    : []
+
   return {
     id: Number(p.proposalNumber),
     proposalNumber: Number(p.proposalNumber),
@@ -439,10 +652,12 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
     abstainVotes: Number(p.abstainVotes ?? 0),
     quorum: Number(p.quorumVotes ?? 0),
     endsLabel: relativeLabel(status, created),
+    voteEnd: Number((p as unknown as { voteEnd?: unknown }).voteEnd ?? 0),
     requested,
     treasuryInsufficient,
     thumbnail: extractFirstImage(p.description ?? ''),
     proposerStats: opts.proposerStats ?? null,
+    recentVotes,
   }
 }
 

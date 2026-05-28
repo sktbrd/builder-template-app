@@ -2,12 +2,12 @@
 
 import { isChainIdSupportedByCoining } from '@buildeross/utils'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { Menu, Moon, Sun, X } from 'lucide-react'
+import { LogOut, Menu, Moon, Sun, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useMemo, useState, useSyncExternalStore } from 'react'
-import { useEnsAvatar, useEnsName } from 'wagmi'
+import { useDisconnect, useEnsAvatar, useEnsName } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
 import { useWeb3Ready } from '@/app/web3-providers'
@@ -27,29 +27,44 @@ function ConnectedProfile({
     name: ensName ?? undefined,
     chainId: mainnet.id,
   })
+  // Explicit disconnect — RainbowKit's account modal also exposes one, but
+  // some users couldn't get to it (modal didn't open on chain-mismatch state).
+  // A dedicated icon button beside the pill is the reliable escape hatch.
+  const { disconnect } = useDisconnect()
 
   const displayName = ensName ?? `${address.slice(0, 6)}…${address.slice(-4)}`
   const hue = parseInt(address.slice(2, 8), 16) % 360
 
   return (
-    <button
-      type="button"
-      onClick={openAccountModal}
-      className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface-2 pl-1.5 pr-3 text-sm font-medium hover:bg-surface-3"
-    >
-      {ensAvatar ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={ensAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
-      ) : (
-        <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-          style={{ background: `hsl(${hue} 60% 45%)` }}
-        >
-          {displayName.slice(0, 2).toUpperCase()}
-        </span>
-      )}
-      <span className="font-mono text-[12px]">{displayName}</span>
-    </button>
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={openAccountModal}
+        className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface-2 pl-1.5 pr-3 text-sm font-medium hover:bg-surface-3"
+      >
+        {ensAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ensAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+        ) : (
+          <span
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+            style={{ background: `hsl(${hue} 60% 45%)` }}
+          >
+            {displayName.slice(0, 2).toUpperCase()}
+          </span>
+        )}
+        <span className="font-mono text-[12px]">{displayName}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => disconnect()}
+        title="Disconnect wallet"
+        aria-label="Disconnect wallet"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface-2 text-muted-fg hover:bg-surface-3 hover:text-fg"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
+    </div>
   )
 }
 
@@ -154,9 +169,16 @@ export function Header() {
     ]
   }, [])
 
+  const isDashboard = pathname === '/'
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/80 backdrop-blur-md backdrop-saturate-150">
-      <div className="mx-auto flex max-w-[1180px] items-center gap-6 px-6 py-3">
+      <div
+        className={cn(
+          'mx-auto flex items-center gap-6 px-4 py-3 sm:px-6',
+          isDashboard ? 'max-w-none' : 'max-w-[1180px]'
+        )}
+      >
         <Link href="/" className="flex flex-1 items-center gap-2.5 text-base font-bold">
           <DaoAvatar
             image={daoConfig.image}

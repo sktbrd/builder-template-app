@@ -1,88 +1,57 @@
-import Link from 'next/link'
-
-import { ActivityFeed } from '@/components/dao/ActivityFeed'
-import { AuctionHero } from '@/components/dao/AuctionHero'
-import { OnboardingStrip } from '@/components/dao/OnboardingStrip'
-import { ProposalRow } from '@/components/dao/ProposalRow'
-import { StatsRow } from '@/components/dao/StatsRow'
+import { DashboardHero } from '@/components/dao/DashboardHero'
+import { HomeFeed } from '@/components/dao/HomeFeed'
+import { HomeMetaStrip } from '@/components/dao/HomeMetaStrip'
+import { HomeProposals } from '@/components/dao/HomeProposals'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
 import { getDashboardData } from '@/lib/dao-data'
 
 // Re-fetch every 5min on the server. Subgraph free tier rate-limits aggressively.
 export const revalidate = 300
 
+const ACTIVE_PROPOSAL_STATES = new Set(['active', 'pending', 'queued', 'succeeded'])
+
 export default async function Dashboard() {
   const data = await getDashboardData()
 
   const tokenLabel = daoConfig.name.split(' ')[0]
   const palette = fallbackArtPalette()
+  const activeProposalCount = data.recentProposals.filter((p) =>
+    ACTIVE_PROPOSAL_STATES.has(p.status)
+  ).length
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* 1 ── Auction hero (primary focus) */}
-      <AuctionHero
-        auction={data.currentAuction}
+    <div className="flex flex-col gap-3">
+      <DashboardHero
+        currentAuction={data.currentAuction}
+        recentTokens={data.recentTokens}
+        totalSupply={data.totalSupply}
         palette={palette}
         tokenLabel={tokenLabel}
       />
 
-      {/* 2 ── Stats strip (secondary, compact) */}
-      <StatsRow
+      <HomeMetaStrip
         totalSupply={data.totalSupply}
         ownerCount={data.ownerCount}
         treasuryEth={data.treasuryEth}
         totalAuctionSalesEth={data.totalAuctionSalesEth}
+        activeProposalCount={activeProposalCount}
       />
 
-      {/* 3 ── Proposals + Activity */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
-        {/* Recent proposals */}
-        <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold tracking-tight">Recent proposals</h2>
-            <Link
-              href="/proposals"
-              className="text-sm font-semibold text-accent-strong hover:underline"
-            >
-              View all →
-            </Link>
-          </div>
-          {data.recentProposals.length > 0 ? (
-            <div className="flex flex-col divide-y divide-border">
-              {data.recentProposals.slice(0, 5).map((p) => (
-                <ProposalRow key={p.id} p={p} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState>
-              No proposals yet —{' '}
-              <Link href="/proposals/new" className="text-accent-strong hover:underline">
-                create the first one
-              </Link>
-              .
-            </EmptyState>
-          )}
-        </section>
-
-        {/* Activity feed */}
-        <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold tracking-tight">Activity</h2>
-          </div>
-          <ActivityFeed items={data.recentActivity} />
-        </section>
-      </div>
-
-      {/* 4 ── Onboarding strip */}
-      <OnboardingStrip daoName={daoConfig.name} tagline={daoConfig.tagline} />
-    </div>
-  )
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-md border border-dashed border-border bg-surface-2 px-6 py-10 text-center text-sm text-muted-fg">
-      {children}
+      {/* Lower content sits inside a forced-dark themed panel so the layout
+       * mirrors nouns.game's high-contrast top→bottom split regardless of
+       * whether the user is in light or dark mode. The data-theme attribute
+       * re-binds every --bg/--surface/--border var inside this subtree to
+       * its dark-mode value (see globals.css). Main is unpadded on the
+       * dashboard, so the panel handles its own internal padding only. */}
+      <section
+        data-theme="dark"
+        className="mt-2 bg-bg px-4 py-8 text-fg sm:px-6 sm:py-10"
+      >
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <HomeFeed />
+          <HomeProposals proposals={data.recentProposals} />
+        </div>
+      </section>
     </div>
   )
 }

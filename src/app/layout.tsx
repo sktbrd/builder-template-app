@@ -11,6 +11,7 @@ import {
 
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
+import { MainContainer } from '@/components/MainContainer'
 import { TweaksPanel } from '@/components/TweaksPanel'
 import { daoConfig } from '@/lib/dao.config'
 
@@ -97,9 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="flex min-h-screen flex-col">
             <Header />
-            <main className="mx-auto w-full max-w-[1180px] flex-1 px-6 pb-20 pt-8">
-              {children}
-            </main>
+            <MainContainer>{children}</MainContainer>
             <Footer />
           </div>
           {process.env.NODE_ENV !== 'production' && <TweaksPanel />}

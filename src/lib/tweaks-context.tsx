@@ -44,10 +44,10 @@ const TweaksContext = createContext<TweaksCtx>({
 })
 
 const FONT_OPTIONS: Record<string, string> = {
-  Geist: 'var(--font-geist), system-ui, sans-serif',
-  'Londrina Solid': '"Londrina Solid", "Geist", system-ui, sans-serif',
-  'IBM Plex Sans': '"IBM Plex Sans", "Geist", system-ui, sans-serif',
-  Fraunces: '"Fraunces", "Geist", serif',
+  Geist: 'var(--font-geist)',
+  'Londrina Solid': 'var(--font-londrina)',
+  'IBM Plex Sans': 'var(--font-ibm-plex)',
+  Fraunces: 'var(--font-fraunces)',
 }
 
 export function TweaksProvider({ children }: { children: ReactNode }) {

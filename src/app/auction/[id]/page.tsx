@@ -10,7 +10,6 @@ import { BidHistory } from '@/components/dao/BidHistory'
 import { SettleAuctionAction } from '@/components/dao/SettleAuctionAction'
 import { ThreeDArtCard } from '@/components/dao/ThreeDArtCard'
 import { TimeAlert } from '@/components/dao/TimeAlert'
-import { VotingPowerExplainer } from '@/components/dao/VotingPowerExplainer'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
 import { getAuctionPageData, getAuctionPriceHistory } from '@/lib/dao-data'
 import { cn } from '@/lib/utils'
@@ -110,14 +109,11 @@ export default async function AuctionPage({
           </div>
 
           {hasOpenAuction ? (
-            <>
-              <BidForm
-                tokenId={data.tokenId}
-                topBid={topBidNum}
-                enableComment={daoConfig.features.bidComments}
-              />
-              <VotingPowerExplainer scenario="eligible" />
-            </>
+            <BidForm
+              tokenId={data.tokenId}
+              topBid={topBidNum}
+              enableComment={daoConfig.features.bidComments}
+            />
           ) : (
             <>
               <div className="rounded-md border border-dashed border-border bg-surface-2 px-4 py-5 text-sm text-muted-fg">

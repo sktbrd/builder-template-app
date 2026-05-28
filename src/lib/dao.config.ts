@@ -136,7 +136,7 @@ export const daoConfig: DaoConfig = {
   // icon, bottom-right) lets you preview overrides live before committing.
   theme: {
     accent: T.accent ?? '#2563eb',
-    radius: T.radius ?? 12,
+    radius: T.radius ?? 0,
     font: T.font ?? 'Geist',
     displayFont: T.displayFont ?? 'Geist',
     defaultMode: T.defaultMode ?? 'system',

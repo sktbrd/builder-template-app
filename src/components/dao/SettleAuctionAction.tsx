@@ -2,8 +2,9 @@
 
 import { auctionAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { Loader2 } from 'lucide-react'
-import { useEffect, useSyncExternalStore } from 'react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { type Address } from 'viem'
 import {
   useAccount,
@@ -61,6 +62,11 @@ function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
   const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
+  const router = useRouter()
+  // Holds onto the success state for a few seconds AFTER the contract reports
+  // settled=true, so the component doesn't snap-unmount before the user has a
+  // chance to register that the tx landed.
+  const [justSettledTokenId, setJustSettledTokenId] = useState<number | null>(null)
 
   const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
 
@@ -86,13 +92,41 @@ function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
 
   useEffect(() => {
     if (!isMined) return
+    // Capture the success state up-front so we keep rendering the success
+    // banner even after the refetch flips `settled` to true (which would
+    // otherwise immediately unmount this component). Intentional sync
+    // setState — this is the success-handoff edge.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJustSettledTokenId(tokenId)
     refetch()
+    // router.refresh() invalidates the server component cache so the
+    // homepage's currentAuction prop swaps to the new live token without a
+    // manual page reload.
+    router.refresh()
     const t = setTimeout(() => {
       resetWrite()
+      setJustSettledTokenId(null)
       onSettled?.()
-    }, 1500)
+    }, 4500)
     return () => clearTimeout(t)
-  }, [isMined, refetch, resetWrite, onSettled])
+  }, [isMined, refetch, resetWrite, onSettled, router, tokenId])
+
+  // Persistent success banner — survives the auctionState refetch flipping
+  // `settled` to true, so the user gets unambiguous feedback before the
+  // component hands off to the new live auction.
+  if (justSettledTokenId !== null) {
+    return (
+      <div className="rounded-md border border-success/40 bg-success/10 px-4 py-3 text-success">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+          Auction #{justSettledTokenId} settled
+        </div>
+        <p className="mt-1 text-[12.5px] text-success/80">
+          The next auction is starting — the dashboard will update shortly.
+        </p>
+      </div>
+    )
+  }
 
   if (!auctionState) return null
   const [currentTokenId, , , , endTime, settled] = auctionState as readonly [
@@ -124,10 +158,15 @@ function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
                 : 'idle'
 
   const submit = () => {
+    // Pin chainId so viem refuses to broadcast on the wrong network even if
+    // the wallet desynced from wagmi's `useChainId` between renders. Without
+    // this, the tx fires on whatever chain the wallet happens to be on
+    // (e.g. Arbitrum) and silently does nothing onchain for this DAO.
     writeContract({
       address: daoConfig.addresses.auction as Address,
       abi: auctionAbi,
       functionName: 'settleCurrentAndCreateNewAuction',
+      chainId: daoConfig.chainId,
     })
   }
 

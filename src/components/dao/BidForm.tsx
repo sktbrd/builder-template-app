@@ -2,7 +2,7 @@
 
 import { auctionAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { type Address, parseEther } from 'viem'
@@ -16,8 +16,10 @@ import {
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
+import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
+import { cn } from '@/lib/utils'
 
 type Props = {
   /** ERC721 token id of the live auction. */
@@ -31,6 +33,13 @@ type Props = {
    * comment parameter on-chain. The field exists for future surfacing on
    * the bid history once a Bid Comments contract / hook lands upstream. */
   enableComment?: boolean
+  /**
+   * When true, drops the surrounding card chrome (border / bg / padding) and
+   * the static "Balance · Network ✓" footer line, leaving just the input pill
+   * + button row and any active error/warning. Used on the homepage hero so
+   * the bid widget reads as minimal like nouns.game's hero.
+   */
+  compact?: boolean
 }
 
 export function BidForm(props: Props) {
@@ -48,9 +57,14 @@ function BidFormInner({
   topBid,
   minIncrementPct = 1.02,
   enableComment = true,
+  compact = false,
 }: Props) {
   const [bid, setBid] = useState('')
   const [comment, setComment] = useState('')
+  // Holds onto the success state for a few seconds AFTER the contract reports
+  // the new bid, so the user sees unambiguous "Bid placed" feedback before
+  // the form resets and the hero refetches the new top bid.
+  const [justBidEth, setJustBidEth] = useState<string | null>(null)
   const router = useRouter()
 
   const { address, isConnected } = useAccount()
@@ -91,15 +105,21 @@ function BidFormInner({
 
   useEffect(() => {
     if (!isMined) return
+    // Capture the bid amount up-front so the success banner can keep showing
+    // even after the form resets. Mirrors the settle action's success-handoff
+    // pattern. Intentional sync setState — this is the success-handoff edge.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJustBidEth(bid)
     // Refresh server data so the new top bid appears immediately
     router.refresh()
     const t = setTimeout(() => {
       setBid('')
       setComment('')
+      setJustBidEth(null)
       resetWrite()
-    }, 2400)
+    }, 3500)
     return () => clearTimeout(t)
-  }, [isMined, resetWrite, router])
+  }, [isMined, resetWrite, router, bid])
 
   const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
     !isConnected
@@ -116,6 +136,32 @@ function BidFormInner({
                 ? 'error'
                 : 'idle'
 
+  // Persistent success banner — survives the router.refresh re-render so the
+  // user gets unambiguous feedback that the bid landed before the form resets.
+  if (justBidEth !== null) {
+    return (
+      <div
+        className={cn(
+          'flex flex-col gap-2',
+          compact ? '' : 'rounded-md border border-success/40 bg-success/10 p-4'
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center gap-2 text-success',
+            compact ? 'h-12 rounded-full border border-success/40 bg-success/10 px-5' : ''
+          )}
+        >
+          <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+          <span className="text-sm font-semibold">Bid placed — {justBidEth} ETH</span>
+        </div>
+        {!compact && (
+          <p className="text-[12.5px] text-success/80">Refreshing the live auction…</p>
+        )}
+      </div>
+    )
+  }
+
   const submit = () => {
     if (!bid) return
     let valueWei: bigint
@@ -124,12 +170,15 @@ function BidFormInner({
     } catch {
       return
     }
+    // Pin chainId so viem switches/rejects on the wrong network instead of
+    // silently sending the bid on whatever chain the wallet is on.
     writeContract({
       address: daoConfig.addresses.auction as Address,
       abi: auctionAbi,
       functionName: 'createBid',
       args: [BigInt(tokenId)],
       value: valueWei,
+      chainId: daoConfig.chainId,
     })
   }
 
@@ -142,70 +191,149 @@ function BidFormInner({
     phase !== 'sign' &&
     phase !== 'mine'
 
+  const showIdentity = isConnected && !onWrongChain && address
+
   return (
-    <div className="flex flex-col gap-2.5 rounded-md border border-border bg-surface-2 p-4">
-      <div className="flex gap-2">
-        <div className="flex flex-1 items-center rounded-md border border-border bg-surface px-3 transition-[box-shadow,border-color] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+    <div
+      className={cn(
+        'flex flex-col gap-2.5',
+        compact ? '' : 'rounded-md border border-border bg-surface-2 p-4'
+      )}
+    >
+      {showIdentity && (
+        <div
+          className={cn(
+            'flex items-center gap-2',
+            compact ? 'pl-1 text-[11.5px]' : 'text-[12px]'
+          )}
+        >
+          <span className="font-semibold uppercase tracking-[0.14em] text-fg/50">
+            Bidding as
+          </span>
+          <ActorIdentity address={address} size={20} className="text-[12.5px]" />
+        </div>
+      )}
+
+      <div className={cn('flex', compact ? 'gap-2.5' : 'gap-2')}>
+        <div
+          className={cn(
+            'flex flex-1 items-center transition-[box-shadow,border-color] focus-within:ring-2 focus-within:ring-accent/20',
+            // Compact = pill input that pairs with the accent button: same
+            // accent hue, lighter shade — so input + button read as one unit.
+            compact
+              ? 'h-12 rounded-full border border-accent/30 bg-accent/10 px-5 text-fg focus-within:border-accent'
+              : 'rounded-md border border-border bg-surface px-3 focus-within:border-accent'
+          )}
+        >
           <input
             type="text"
             inputMode="decimal"
-            placeholder={`${minBid} or more`}
+            placeholder={minBid}
             value={bid}
             onChange={(e) => setBid(e.target.value)}
             disabled={phase === 'sign' || phase === 'mine'}
-            className="flex-1 border-0 bg-transparent py-2.5 text-sm outline-none disabled:opacity-50"
+            className={cn(
+              'flex-1 border-0 bg-transparent outline-none disabled:opacity-50',
+              compact
+                ? 'text-[17px] font-semibold tabular-nums placeholder:font-medium placeholder:text-fg/40'
+                : 'py-2.5 text-sm'
+            )}
           />
-          <span className="text-[13px] font-semibold text-muted-fg">ETH</span>
-        </div>
-        {phase === 'connect' ? (
-          <Button onClick={() => openConnectModal?.()}>Connect</Button>
-        ) : phase === 'switch' ? (
-          <Button
-            onClick={() => switchChain({ chainId: daoConfig.chainId })}
-            disabled={isSwitching}
+          <span
+            className={cn(
+              'font-semibold',
+              compact
+                ? 'ml-2 text-[13px] tracking-wider text-fg/60'
+                : 'text-[13px] text-muted-fg'
+            )}
           >
-            {isSwitching && <Loader2 className="h-4 w-4 animate-spin" />}
-            Switch
-          </Button>
-        ) : (
-          <Button onClick={submit} disabled={!canSubmit}>
-            {phase === 'sign' && (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Confirm…
-              </>
-            )}
-            {phase === 'mine' && (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Submitting…
-              </>
-            )}
-            {phase === 'done' && 'Submitted ✓'}
-            {(phase === 'idle' || phase === 'error') && 'Place bid'}
-          </Button>
-        )}
+            ETH
+          </span>
+        </div>
+        {(() => {
+          const buttonCls = compact ? 'h-12 rounded-full px-6 text-[15px] shadow-sm' : ''
+          if (phase === 'connect') {
+            return (
+              <Button onClick={() => openConnectModal?.()} className={buttonCls}>
+                Connect
+              </Button>
+            )
+          }
+          if (phase === 'switch') {
+            return (
+              <Button
+                onClick={() => switchChain({ chainId: daoConfig.chainId })}
+                disabled={isSwitching}
+                className={buttonCls}
+              >
+                {isSwitching && <Loader2 className="h-4 w-4 animate-spin" />}
+                Switch
+              </Button>
+            )
+          }
+          return (
+            <Button onClick={submit} disabled={!canSubmit} className={buttonCls}>
+              {phase === 'sign' && (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Confirm…
+                </>
+              )}
+              {phase === 'mine' && (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting…
+                </>
+              )}
+              {phase === 'done' && 'Submitted ✓'}
+              {(phase === 'idle' || phase === 'error') && (compact ? 'Bid' : 'Place bid')}
+            </Button>
+          )
+        })()}
       </div>
 
       {enableComment && (
-        <div className="flex items-center gap-2">
+        <div
+          className={cn(
+            'flex items-center transition-[box-shadow,border-color] focus-within:ring-2 focus-within:ring-accent/20',
+            // Compact = pill that visually pairs with the bid pill above:
+            // same accent tint, same rounded-full shape, shorter height.
+            compact
+              ? 'gap-2 rounded-full border border-accent/30 bg-accent/10 px-5 py-2 focus-within:border-accent'
+              : 'gap-2 rounded-md border border-border bg-surface px-3 py-2 focus-within:border-accent'
+          )}
+        >
           <input
             type="text"
-            placeholder="Optional onchain comment (140 chars)"
+            placeholder={
+              compact
+                ? 'Say something (optional)'
+                : 'Optional onchain comment (140 chars)'
+            }
             maxLength={140}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={phase === 'sign' || phase === 'mine'}
-            className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-[13px] outline-none focus:border-accent disabled:opacity-50"
+            className={cn(
+              'flex-1 border-0 bg-transparent outline-none disabled:opacity-50',
+              compact ? 'text-[13.5px] text-fg placeholder:text-fg/40' : 'text-[13px]'
+            )}
           />
-          <span className="text-[12.5px] text-muted-fg">{comment.length}/140</span>
+          <span
+            className={cn(
+              'shrink-0 tabular-nums',
+              compact ? 'text-[11.5px] text-fg/50' : 'text-[12.5px] text-muted-fg'
+            )}
+          >
+            {comment.length}/140
+          </span>
         </div>
       )}
 
-      <div className="text-[12.5px] text-muted-fg">
-        {phase === 'connect' ? (
-          <span>Connect a wallet to place a bid.</span>
-        ) : phase === 'switch' ? (
+      <div
+        className={cn('text-[12px]', compact ? 'pl-5 text-neutral-500' : 'text-muted-fg')}
+      >
+        {phase === 'switch' ? (
           <span className="text-warning">
             Wrong network — switch to {chainNameOf(daoConfig.chainId)}.
           </span>
@@ -219,6 +347,11 @@ function BidFormInner({
           <span className="text-warning">
             Bid exceeds wallet balance ({balanceEth.toFixed(4)} ETH).
           </span>
+        ) : compact ? (
+          // Minimal Reserve hint mirrors nouns.game's "Reserve: 2.80 ETH" line.
+          <span>Reserve: {minBid} ETH</span>
+        ) : phase === 'connect' ? (
+          <span>Connect a wallet to place a bid.</span>
         ) : (
           <>
             {balanceEth !== undefined ? (

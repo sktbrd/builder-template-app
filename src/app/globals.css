@@ -76,6 +76,15 @@
   --muted-fg: #9a9aa2;
 }
 
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @layer base {
   * {
     box-sizing: border-box;

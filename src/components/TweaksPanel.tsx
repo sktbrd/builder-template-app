@@ -2,44 +2,17 @@
 
 import { Settings2, X } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { PRESETS } from '@/lib/presets'
 import { useTweaks } from '@/lib/tweaks-context'
 
 const FONT_OPTIONS = [
-  {
-    value: 'Geist',
-    label: 'Geist',
-    cssFamily: 'var(--font-geist), system-ui, sans-serif',
-  },
-  {
-    value: 'Londrina Solid',
-    label: 'Londrina Solid',
-    cssFamily: '"Londrina Solid", "Geist", system-ui, sans-serif',
-  },
-  {
-    value: 'IBM Plex Sans',
-    label: 'IBM Plex Sans',
-    cssFamily: '"IBM Plex Sans", "Geist", system-ui, sans-serif',
-  },
-  {
-    value: 'Fraunces',
-    label: 'Fraunces',
-    cssFamily: '"Fraunces", "Geist", serif',
-  },
+  { value: 'Geist', label: 'Geist' },
+  { value: 'Londrina Solid', label: 'Londrina Solid' },
+  { value: 'IBM Plex Sans', label: 'IBM Plex Sans' },
+  { value: 'Fraunces', label: 'Fraunces' },
 ]
-
-function ensureFontLink() {
-  if (typeof document === 'undefined') return
-  if (document.getElementById('tweaks-fonts')) return
-  const link = document.createElement('link')
-  link.id = 'tweaks-fonts'
-  link.rel = 'stylesheet'
-  link.href =
-    'https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=IBM+Plex+Sans:wght@400;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&display=swap'
-  document.head.appendChild(link)
-}
 
 export function TweaksPanel() {
   const [open, setOpen] = useState(false)
@@ -67,10 +40,6 @@ export function TweaksPanel() {
     }
     setTimeout(() => setApplyState('idle'), 2500)
   }
-
-  useEffect(() => {
-    ensureFontLink()
-  }, [])
 
   const applyPreset = (key: keyof typeof PRESETS) => {
     const p = PRESETS[key]
