@@ -28,11 +28,14 @@ type Props = {
   topBid: number
   /** Increment factor — Builder default 1.02 (2%). */
   minIncrementPct?: number
-  /** Whether to surface the optional 140-char on-chain comment field.
-   * The comment is informational only — Builder's createBid doesn't take a
-   * comment parameter on-chain. The field exists for future surfacing on
-   * the bid history once a Bid Comments contract / hook lands upstream. */
+  /** Whether to surface the optional 140-char on-chain comment field. The
+   * comment is packed into the createBid calldata's trailing bytes (see
+   * `@/lib/bid-comment`); the Builder subgraph decodes it and exposes it per
+   * bid, so it appears in bid history. */
   enableComment?: boolean
+  /** Called once the bid tx is mined, with the just-placed bid, so a parent
+   * can optimistically render it before the subgraph indexes (~seconds). */
+  onBidPosted?: (bid: { amountEth: string; comment: string | null; bidder: string }) => void
   /**
    * When true, drops the surrounding card chrome (border / bg / padding) and
    * the static "Balance · Network ✓" footer line, leaving just the input pill
@@ -58,6 +61,7 @@ function BidFormInner({
   minIncrementPct = 1.02,
   enableComment = true,
   compact = false,
+  onBidPosted,
 }: Props) {
   const [bid, setBid] = useState('')
   const [comment, setComment] = useState('')
@@ -110,6 +114,11 @@ function BidFormInner({
     // pattern. Intentional sync setState — this is the success-handoff edge.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setJustBidEth(bid)
+    // Optimistically hand the just-placed bid to the parent so it shows in the
+    // recent-bids list instantly, before the subgraph indexes it (~seconds).
+    if (address) {
+      onBidPosted?.({ amountEth: bid, comment: comment.trim() || null, bidder: address })
+    }
     // Refresh server data so the new top bid appears immediately
     router.refresh()
     const t = setTimeout(() => {
@@ -119,7 +128,7 @@ function BidFormInner({
       resetWrite()
     }, 3500)
     return () => clearTimeout(t)
-  }, [isMined, resetWrite, router, bid])
+  }, [isMined, resetWrite, router, bid, comment, address, onBidPosted])
 
   const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
     !isConnected

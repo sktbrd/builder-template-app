@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { BidForm } from '@/components/dao/BidForm'
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
@@ -196,6 +196,32 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
   const imageSrc = auction?.image ? resolveIpfs(auction.image) : null
   const tint = useDominantColor(imageSrc)
 
+  // Optimistic just-placed bid: BidForm reports a mined bid via onBidPosted and
+  // we prepend it to the recent-bids list until the subgraph indexes it.
+  const [optimisticBid, setOptimisticBid] = useState<AuctionHeroBid | null>(null)
+  const handleBidPosted = useCallback(
+    (b: { amountEth: string; comment: string | null; bidder: string }) =>
+      setOptimisticBid({
+        id: 'optimistic',
+        amountEth: b.amountEth,
+        bidder: b.bidder,
+        bidderShort: `${b.bidder.slice(0, 6)}…${b.bidder.slice(-4)}`,
+        comment: b.comment,
+      }),
+    []
+  )
+  // Drop the optimistic bid once its subgraph-indexed twin appears, so it can't
+  // linger or re-surface after falling out of the recent list on a later fetch.
+  useEffect(() => {
+    if (!optimisticBid) return
+    const indexed = (auction?.recentBids ?? []).some(
+      (b) =>
+        b.bidder.toLowerCase() === optimisticBid.bidder.toLowerCase() &&
+        (b.comment ?? '') === (optimisticBid.comment ?? '')
+    )
+    if (indexed) setOptimisticBid(null)
+  }, [auction?.recentBids, optimisticBid])
+
   if (!auction) {
     return (
       <section className="flex min-h-[200px] items-center justify-center border border-dashed border-border bg-surface px-6 py-16 text-center">
@@ -222,6 +248,18 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
   const heroStyle = tintRgb ? { background: tintRgb } : undefined
 
   const topBidNumeric = auction.topBidEth ? parseFloat(auction.topBidEth) : 0
+
+  // Prepend the optimistic bid unless its real (indexed) twin is already shown.
+  const recentBids = auction.recentBids ?? []
+  const displayBids =
+    optimisticBid &&
+    !recentBids.some(
+      (b) =>
+        b.bidder.toLowerCase() === optimisticBid.bidder.toLowerCase() &&
+        (b.comment ?? '') === (optimisticBid.comment ?? '')
+    )
+      ? [optimisticBid, ...recentBids]
+      : recentBids
 
   // Strict black/white/gray palette per nouns.game's hero: primary text is
   // pure black on light tints and pure white on dark tints; secondary is a
@@ -374,12 +412,13 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                   topBid={topBidNumeric}
                   enableComment
                   compact
+                  onBidPosted={handleBidPosted}
                 />
               )}
             </div>
           )}
 
-          {!isPast && auction.recentBids && auction.recentBids.length > 0 && (
+          {!isPast && displayBids.length > 0 && (
             <div className="mt-5 flex flex-col gap-2.5">
               <p
                 className={cn(
@@ -390,7 +429,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                 Recent bids
               </p>
               <ul className="flex flex-col gap-2">
-                {auction.recentBids.slice(0, 3).map((b) => (
+                {displayBids.slice(0, 3).map((b) => (
                   <li key={b.id} className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between gap-3">
                       <ActorIdentity
