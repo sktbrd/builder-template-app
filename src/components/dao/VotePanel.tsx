@@ -48,7 +48,11 @@ export function VotePanel(props: Props) {
 }
 
 function VotePanelSkeleton() {
-  return <div className="h-[200px] animate-pulse rounded-md bg-surface-2" />
+  // Mirror the real aside shell so the panel mount doesn't cause a layout
+  // jump (border / sticky-offset / height all align with VotePanelInner).
+  return (
+    <div className="h-[380px] animate-pulse rounded-xl border border-border bg-surface px-6 py-[22px] lg:sticky lg:top-20" />
+  )
 }
 
 function VotePanelInner({
@@ -165,7 +169,7 @@ function VotePanelInner({
 
   if (pending) {
     return (
-      <aside className="sticky top-20 flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <aside className="flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px] lg:sticky lg:top-20">
         <h3 className="text-base font-bold">Cast your vote</h3>
         <VotingPowerExplainer
           scenario="pending"
@@ -183,7 +187,7 @@ function VotePanelInner({
   }
 
   return (
-    <aside className="sticky top-20 flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px]">
+    <aside className="flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px] lg:sticky lg:top-20">
       <h3 className="text-base font-bold">Cast your vote</h3>
       <VotingPowerExplainer
         scenario={scenario}
@@ -221,7 +225,7 @@ function VotePanelInner({
         onChange={(e) => setReason(e.target.value)}
         placeholder="Optional reason…"
         disabled={!active || phase === 'sign' || phase === 'mine'}
-        className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 text-[13px] outline-none focus:border-accent disabled:opacity-60"
+        className="w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 text-[16px] outline-none focus:border-accent disabled:opacity-60 sm:text-[13px]"
       />
 
       {phase === 'connect' ? (
@@ -309,7 +313,7 @@ function ChoiceBtn({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'rounded-md border border-border bg-surface px-2 py-2.5 text-[13px] font-semibold text-fg transition-colors hover:bg-surface-2 disabled:opacity-50',
+        'min-h-11 rounded-md border border-border bg-surface px-2 py-2.5 text-sm font-semibold text-fg transition-colors hover:bg-surface-2 disabled:opacity-50',
         active && color === 'for' && 'border-vote-for bg-vote-for/15 text-vote-for',
         active &&
           color === 'against' &&

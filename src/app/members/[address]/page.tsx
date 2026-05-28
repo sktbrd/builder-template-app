@@ -99,7 +99,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
       </section>
 
       {/* Delegation — promoted from sidebar to a primary section. */}
-      <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <section className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <h3 className="mb-3 text-base font-bold">Delegation</h3>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -162,7 +162,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
       </section>
 
       {/* Voting history */}
-      <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <section className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <h3 className="mb-3 text-base font-bold">
           Voting history
           <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
@@ -195,7 +195,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
                     {v.weight} {v.weight === 1 ? 'vote' : 'votes'}
                   </span>
                   {v.reason && (
-                    <span className="min-w-0 truncate">&ldquo;{v.reason}&rdquo;</span>
+                    <span className="min-w-0 break-words">&ldquo;{v.reason}&rdquo;</span>
                   )}
                 </div>
               </li>
@@ -210,7 +210,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
       </section>
 
       {/* Proposals authored */}
-      <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <section className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
         <h3 className="mb-3 text-base font-bold">
           Proposals authored
           <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
@@ -247,7 +247,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
 
       {/* Tokens held */}
       {detail.tokens.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+        <section className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
           <h3 className="mb-3 text-base font-bold">
             Tokens
             <span className="ml-2 text-[12.5px] font-normal text-muted-fg">

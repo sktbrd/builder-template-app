@@ -132,7 +132,8 @@ export default async function TreasuryPage() {
       </div>
 
       {/* ── Two-column grid ── */}
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr]">
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr] xl:grid-cols-[440px_1fr]">
+
         {/* Left column: donut + NFT mini-grid */}
         <div className="flex flex-col gap-4">
           {/* Donut card */}
@@ -189,7 +190,7 @@ export default async function TreasuryPage() {
                       : 'ERC-20'
                 }
                 color={t.color}
-                bal={`${t.balance} ${t.symbol}`}
+                bal={`${trimDecimals(t.balance, 4)} ${t.symbol}`}
                 usd={t.usd}
                 pct={totalUsd > 0 ? t.usd / totalUsd : 0}
                 showUsd={hasUsd}
@@ -246,7 +247,7 @@ function AssetRow({
   return (
     <div
       className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
-      style={{ gridTemplateColumns: showUsd ? '40px 1fr 1fr 1fr 1fr' : '40px 1fr 1fr' }}
+      style={{ gridTemplateColumns: showUsd ? '40px minmax(0,1fr) auto auto 200px' : '40px minmax(0,1fr) auto' }}
     >
       {/* icon */}
       <div className="shrink-0">{logo}</div>
@@ -332,6 +333,9 @@ function TxCard({
             {/* who */}
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{tx.who}</div>
+              <div className="mt-0.5 font-mono text-[11px] text-muted-fg sm:hidden">
+                {tx.relativeTime}
+              </div>
             </div>
 
             {/* tag — hidden on mobile */}
@@ -361,7 +365,7 @@ function TxCard({
           href={`${explorer.base}/address/${treasuryAddress}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5 font-mono text-[12px] hover:bg-surface-3"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-4 py-2.5 font-mono text-[12px] hover:bg-surface-3"
         >
           View all on {explorer.name} ↗
         </a>

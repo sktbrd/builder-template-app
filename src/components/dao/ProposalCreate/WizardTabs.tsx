@@ -37,6 +37,7 @@ export function WizardTabs({ current, onChange, unlocked }: Props) {
             type="button"
             role="tab"
             aria-selected={isCurrent}
+            aria-label={step.label}
             disabled={!isUnlocked}
             onClick={() => onChange(step.id)}
             className={cn(
@@ -58,7 +59,7 @@ export function WizardTabs({ current, onChange, unlocked }: Props) {
             >
               {isPast ? <Check className="h-3 w-3" /> : i + 1}
             </span>
-            {step.label}
+            <span className="hidden sm:inline">{step.label}</span>
           </button>
         )
       })}

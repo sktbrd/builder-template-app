@@ -85,7 +85,7 @@ export default async function AuctionPage({
             endTimeUnix={data.endTimeUnix}
           />
 
-          <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
+          <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em] break-words">
             {data.name ?? `${tokenLabel} #${data.tokenId}`}
           </h1>
 
@@ -197,12 +197,12 @@ function AuctionNav({
     : null
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
       {prevId != null ? (
         <Link
           href={`/auction/${prevId}`}
           aria-label="Previous auction"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-fg hover:bg-surface-3"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-2 text-fg hover:bg-surface-3 md:h-8 md:w-8"
         >
           <ChevronLeft className="h-4 w-4" />
         </Link>
@@ -210,7 +210,7 @@ function AuctionNav({
         <button
           aria-label="Previous auction"
           disabled
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-fg opacity-30"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-2 text-fg opacity-30 md:h-8 md:w-8"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -219,7 +219,7 @@ function AuctionNav({
         <Link
           href={`/auction/${nextId}`}
           aria-label="Next auction"
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-fg hover:bg-surface-3"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-2 text-fg hover:bg-surface-3 md:h-8 md:w-8"
         >
           <ChevronRight className="h-4 w-4" />
         </Link>
@@ -227,7 +227,7 @@ function AuctionNav({
         <button
           aria-label="Next auction"
           disabled
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-2 text-fg opacity-30"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface-2 text-fg opacity-30 md:h-8 md:w-8"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

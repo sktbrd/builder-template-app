@@ -381,7 +381,11 @@ function Details({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
         <>
           <DetailRow label="Value">{decoded.valueEth} ETH</DetailRow>
           <DetailRow label="Calldata">
-            <span className="break-all font-mono text-[11.5px]">{decoded.calldata}</span>
+            {/* Long hex payloads can be 1500+ chars; cap the visible block so
+                a single custom tx can't take over the page on mobile. */}
+            <pre className="max-h-[20rem] overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-surface-2 p-2 font-mono text-[11.5px] leading-snug">
+              {decoded.calldata}
+            </pre>
           </DetailRow>
           <DetailRow label="Note">
             <span className="italic text-muted-fg">

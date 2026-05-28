@@ -35,7 +35,7 @@ export function Markdown({ children, className }: Props) {
   return (
     <div
       className={cn(
-        'prose prose-neutral max-w-none dark:prose-invert',
+        'prose prose-neutral dark:prose-invert',
         'prose-h1:scroll-mt-24 prose-h2:scroll-mt-24 prose-h3:scroll-mt-24',
         'prose-headings:font-display prose-headings:tracking-tight',
         'prose-a:break-words',

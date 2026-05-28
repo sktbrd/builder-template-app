@@ -59,7 +59,7 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:flex-wrap sm:items-start">
         <div>
           <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
             Members
@@ -69,12 +69,13 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
             last 5 proposals
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-[260px] items-center rounded-md border border-border bg-surface px-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-h-11 w-full items-center rounded-md border border-border bg-surface px-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 sm:w-auto sm:min-w-[260px] lg:min-w-[420px]">
             <Search className="h-4 w-4 text-muted-fg" />
             <input
               type="text"
               placeholder="Search…"
+              aria-label="Search members"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="ml-2 flex-1 border-0 bg-transparent py-2.5 text-sm outline-none"
@@ -86,7 +87,33 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      {/* Mobile: card list (<md) */}
+      <ul className="grid gap-3 md:hidden">
+        {filtered.map((m) => (
+          <li
+            key={m.addrFull}
+            className="rounded-xl border border-border bg-surface p-4"
+          >
+            <WalletPill address={m.addrFull} ens={m.ens} showAvatar size="md" />
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-fg">
+              <span>
+                <strong className="font-semibold text-fg">{m.votes}</strong> votes
+              </span>
+              <span>{m.pct}%</span>
+              <span>Joined {m.joined}</span>
+              <ActiveBadge active={m.active} />
+            </div>
+          </li>
+        ))}
+        {filtered.length === 0 && (
+          <li className="rounded-xl border border-border bg-surface px-6 py-12 text-center text-muted-fg">
+            No members match your search.
+          </li>
+        )}
+      </ul>
+
+      {/* Desktop: table (md+) */}
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-surface md:block">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>

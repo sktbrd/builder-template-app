@@ -43,14 +43,14 @@ export default async function AboutPage() {
             size={48}
             priority
           />
-          <div>
-            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-display text-[28px] font-bold leading-tight tracking-tight break-words md:text-4xl lg:text-5xl">
               {daoConfig.name}
             </h1>
             <div className="text-muted-fg">{daoConfig.tagline}</div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:max-w-3xl">
           <KvBlock label="Treasury" value={`${treasuryDisplay} ETH`} />
           <KvBlock label="Owners" value={data.ownerCount.toLocaleString('en-US')} />
           <KvBlock
@@ -62,14 +62,14 @@ export default async function AboutPage() {
       </section>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-        <h2 className="mb-3 text-xl font-bold tracking-tight">About {daoConfig.name}</h2>
+        <h2 className="mb-3 text-xl font-bold tracking-tight md:text-2xl">About {daoConfig.name}</h2>
         <Markdown className="text-fg-2">{data.description ?? daoConfig.tagline}</Markdown>
       </section>
 
       {data.founders.length > 0 && (
         <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-          <h2 className="mb-4 text-xl font-bold tracking-tight">Founders</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <h2 className="mb-4 text-xl font-bold tracking-tight md:text-2xl">Founders</h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {data.founders.map((f) => (
               <div
                 key={f.wallet}
@@ -93,9 +93,9 @@ export default async function AboutPage() {
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold tracking-tight">Smart contracts</h2>
+          <h2 className="text-xl font-bold tracking-tight md:text-2xl">Smart contracts</h2>
         </div>
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {contracts.map((c) => (
             <li
               key={c.label}
@@ -122,7 +122,7 @@ function KvBlock({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <div className="text-[12.5px] text-muted-fg">{label}</div>
-      <div className="mt-0.5 text-[17px] font-bold">{value}</div>
+      <div className="mt-0.5 text-[17px] font-bold lg:text-2xl">{value}</div>
     </div>
   )
 }

@@ -85,7 +85,7 @@ export function WalletPill({
 
   const inner = (
     <span className="min-w-0 truncate">
-      <span className={labelClassName}>{labelText}</span>
+      <span className={labelClassName} title={labelText}>{labelText}</span>
       {meta != null && (
         <span className={cn('block truncate text-muted-fg', preset.addr)}>{meta}</span>
       )}
@@ -129,7 +129,7 @@ export function WalletPill({
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1200)
               }}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-surface text-muted-fg transition-colors hover:bg-surface-2 hover:text-fg"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-surface text-muted-fg transition-colors hover:bg-surface-2 hover:text-fg md:h-9 md:w-9"
               aria-label="Copy address"
               title="Copy address"
             >
@@ -146,7 +146,7 @@ export function WalletPill({
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-surface text-muted-fg transition-colors hover:bg-surface-2 hover:text-fg"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-surface text-muted-fg transition-colors hover:bg-surface-2 hover:text-fg md:h-9 md:w-9"
               aria-label="View on block explorer"
               title="View on block explorer"
             >

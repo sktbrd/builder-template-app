@@ -18,22 +18,22 @@ export function BidHistory({ bids }: { bids: BidHistoryItem[] }) {
       {bids.map((b, i) => (
         <li
           key={i}
-          className="flex items-start justify-between rounded-md bg-surface-2 px-4 py-3.5"
+          className="flex items-start justify-between gap-3 rounded-md bg-surface-2 px-4 py-3.5"
         >
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="text-[17px] font-bold text-fg">{b.amount} ETH</div>
-            <div className="font-mono text-xs text-muted-fg">
+            <div className="break-all font-mono text-xs text-muted-fg">
               {b.addr}
               {b.time && ` · ${b.time}`}
             </div>
             {b.comment && (
-              <div className="mt-1.5 text-[13px] italic text-fg-2">
+              <div className="mt-1.5 break-words text-[13px] italic text-fg-2">
                 &ldquo;{b.comment}&rdquo;
               </div>
             )}
           </div>
           {i === 0 && (
-            <span className="rounded-full border border-border bg-accent/15 px-2 py-0.5 text-[11.5px] font-semibold uppercase tracking-wider text-accent-strong">
+            <span className="shrink-0 rounded-full border border-border bg-accent/15 px-2 py-0.5 text-[11.5px] font-semibold uppercase tracking-wider text-accent-strong">
               Top bid
             </span>
           )}

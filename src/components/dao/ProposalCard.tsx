@@ -109,7 +109,7 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
             quorum={p.quorum}
             height={6}
           />
-          <div className="flex gap-3.5 tabular-nums text-[12.5px] text-muted-fg">
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 tabular-nums text-[12.5px] text-muted-fg">
             <span className="inline-flex items-center gap-1.5">
               <i className="inline-block h-2 w-2 shrink-0 rounded-sm bg-vote-for not-italic" />
               <strong className="font-semibold text-fg-2">
@@ -139,9 +139,8 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
         {/* Footer — always present */}
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3.5 text-[13px]">
           <span className="min-w-0 truncate text-muted-fg">
-            <span className="font-medium text-fg-2">{p.proposerEns ?? p.proposer}</span>
-            {' · '}
-            {p.date}
+            <span className="font-medium text-fg-2">{p.proposerEns ?? shortAddress(p.proposer)}</span>
+            {' · '}{p.date}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             {p.treasuryInsufficient && <TreasuryInsufficientBadge />}
@@ -155,4 +154,9 @@ export function ProposalCard({ p }: { p: ProposalSummary }) {
       </div>
     </Link>
   )
+}
+
+function shortAddress(addr: string): string {
+  if (!addr || addr.length < 10) return addr
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }

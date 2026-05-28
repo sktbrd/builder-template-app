@@ -39,6 +39,8 @@ export function CoinCard({ coin, className }: Props) {
           <img
             src={image}
             alt={coin.name ?? 'Coin image'}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
           />
         ) : (
@@ -48,8 +50,16 @@ export function CoinCard({ coin, className }: Props) {
         )}
       </div>
       <div className="flex flex-col gap-0.5 px-4 py-3">
-        <div className="truncate text-sm font-bold">{coin.name ?? 'Untitled coin'}</div>
-        <div className="font-mono text-[12px] text-muted-fg">
+        <div
+          className="truncate text-sm font-bold"
+          title={coin.name ?? undefined}
+        >
+          {coin.name ?? 'Untitled coin'}
+        </div>
+        <div
+          className="truncate font-mono text-[12px] text-muted-fg"
+          title={coin.symbol ? `$${coin.symbol}` : undefined}
+        >
           {coin.symbol ? `$${coin.symbol}` : ''}
         </div>
       </div>

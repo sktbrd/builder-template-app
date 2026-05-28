@@ -94,10 +94,11 @@ export function FeedView() {
               key={f.key}
               type="button"
               onClick={() => setCategory(f.key)}
+              aria-pressed={category === f.key}
               className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                'min-h-[44px] rounded-md px-3.5 py-2 text-sm font-semibold transition-colors',
                 category === f.key
-                  ? 'bg-surface-2 text-fg'
+                  ? 'bg-surface-2 text-fg ring-1 ring-border-strong'
                   : 'text-muted-fg hover:bg-surface-2 hover:text-fg'
               )}
             >
@@ -168,9 +169,12 @@ function Card({
   return (
     <article className="rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-border-strong">
       <header className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 truncate">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {actor}
-          <span className="text-xs text-muted-fg" suppressHydrationWarning>
+          <span
+            className="min-w-0 truncate text-xs text-muted-fg"
+            suppressHydrationWarning
+          >
             {actor ? '· ' : ''}
             {time}
           </span>
@@ -196,7 +200,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           category="auction-bid"
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
-            <p className="text-sm leading-snug text-muted-fg">
+            <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
               bid <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
@@ -218,7 +222,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           category="auction"
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
-            <p className="text-sm leading-snug text-muted-fg">
+            <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
               auction started for{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
@@ -243,7 +247,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             {noBids ? (
-              <p className="text-sm leading-snug text-muted-fg">
+              <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
                 <Link
                   href={`/auction/${item.tokenId}`}
                   className="font-semibold text-fg hover:text-accent-strong"
@@ -253,7 +257,7 @@ function FeedCard({ item }: { item: FeedItem }) {
                 settled with no bids
               </p>
             ) : (
-              <p className="text-sm leading-snug text-muted-fg">
+              <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
                 won{' '}
                 <Link
                   href={`/auction/${item.tokenId}`}
@@ -276,7 +280,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           time={time}
           category="proposal"
         >
-          <p className="text-sm leading-snug text-muted-fg">
+          <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             created{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
@@ -297,7 +301,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               <span className="text-sm text-muted-fg">on</span>
               <Link
                 href={`/proposals/${item.proposalNumber}`}
-                className="text-sm font-semibold text-fg hover:text-accent-strong"
+                className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold text-fg hover:text-accent-strong"
               >
                 #{item.proposalNumber} {item.proposalTitle}
               </Link>
@@ -320,7 +324,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           time={time}
           category="proposal"
         >
-          <p className="text-sm leading-snug text-muted-fg">
+          <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             posted an update on{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
@@ -340,7 +344,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           time={time}
           category="executed"
         >
-          <p className="text-sm leading-snug text-muted-fg">
+          <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             proposal{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
@@ -357,8 +361,11 @@ function FeedCard({ item }: { item: FeedItem }) {
       return (
         <Card actor={<ActorIdentity address={item.actor} />} time={time} category="coin">
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
-            <p className="text-sm leading-snug text-muted-fg">
-              launched <strong className="text-fg">${item.tokenSymbol}</strong>{' '}
+            <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
+              launched{' '}
+              <strong className="text-fg break-words [overflow-wrap:anywhere]">
+                ${item.tokenSymbol}
+              </strong>{' '}
               {item.tokenName ? `· ${item.tokenName}` : null}
             </p>
           </BodyWithThumb>
@@ -368,10 +375,15 @@ function FeedCard({ item }: { item: FeedItem }) {
     case 'ZORA_COIN_CREATED':
       return (
         <Card actor={<ActorIdentity address={item.actor} />} time={time} category="coin">
-          <p className="text-sm leading-snug text-muted-fg">
-            launched <strong className="text-fg">${item.coinSymbol}</strong>{' '}
-            {item.coinName ? `· ${item.coinName}` : null}
-          </p>
+          <div className="min-w-0">
+            <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
+              launched{' '}
+              <strong className="text-fg break-words [overflow-wrap:anywhere]">
+                ${item.coinSymbol}
+              </strong>{' '}
+              {item.coinName ? `· ${item.coinName}` : null}
+            </p>
+          </div>
         </Card>
       )
 
@@ -383,8 +395,11 @@ function FeedCard({ item }: { item: FeedItem }) {
           category="coin"
         >
           <BodyWithThumb image={item.dropImageURI} name={item.dropName}>
-            <p className="text-sm leading-snug text-muted-fg">
-              created drop <strong className="text-fg">{item.dropName}</strong>
+            <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
+              created drop{' '}
+              <strong className="text-fg break-words [overflow-wrap:anywhere]">
+                {item.dropName}
+              </strong>
             </p>
           </BodyWithThumb>
         </Card>

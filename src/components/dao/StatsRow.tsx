@@ -39,15 +39,12 @@ export function StatsRow({
   ]
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-0 gap-y-2 rounded-xl border border-border bg-surface px-5 py-3.5">
-      {stats.map((s, i) => (
-        <div key={s.label} className="flex items-center">
-          {i > 0 && <span className="mx-4 h-4 w-px shrink-0 bg-border" />}
-          <div className="flex items-center gap-2">
-            <span className="text-muted-fg">{s.icon}</span>
-            <span className="text-[14px] font-bold text-fg">{s.value}</span>
-            <span className="text-[13px] text-muted-fg">{s.label}</span>
-          </div>
+    <div className="grid grid-cols-2 gap-y-3 rounded-xl border border-border bg-surface px-5 py-3.5 sm:grid-cols-4 sm:divide-x sm:divide-border">
+      {stats.map((s) => (
+        <div key={s.label} className="flex items-center justify-center gap-2 sm:px-4">
+          <span className="text-muted-fg">{s.icon}</span>
+          <span className="text-[14px] font-bold text-fg">{s.value}</span>
+          <span className="text-[13px] text-muted-fg">{s.label}</span>
         </div>
       ))}
     </div>

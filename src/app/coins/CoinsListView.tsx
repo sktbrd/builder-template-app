@@ -33,7 +33,7 @@ export function CoinsListView() {
 
   if (!supported) {
     return (
-      <div className="rounded-xl border border-border bg-surface px-6 py-10 text-center">
+      <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-surface px-6 py-10 text-center">
         <h2 className="text-lg font-bold">Coins are not supported on this chain</h2>
         <p className="mt-1 text-sm text-muted-fg">
           Builder&apos;s Zora content-coin factory is only deployed on Base and Base
@@ -55,7 +55,7 @@ export function CoinsListView() {
           </p>
         </div>
         <Link href="/coins/new">
-          <Button type="button" size="md">
+          <Button type="button" size="md" className="min-h-11 md:min-h-10">
             <Plus className="h-4 w-4" />
             Create coin
           </Button>
@@ -69,18 +69,24 @@ export function CoinsListView() {
       )}
 
       {isLoading && !data ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
             <div
               key={i}
-              className="aspect-[4/5] animate-pulse rounded-xl border border-border bg-surface-2"
-            />
+              className="animate-pulse overflow-hidden rounded-xl border border-border bg-surface"
+            >
+              <div className="aspect-square w-full bg-surface-2" />
+              <div className="flex flex-col gap-1 px-4 py-3">
+                <div className="h-4 w-3/4 rounded bg-surface-2" />
+                <div className="h-3 w-1/3 rounded bg-surface-2" />
+              </div>
+            </div>
           ))}
         </div>
       ) : null}
 
       {!isLoading && (!data || data.length === 0) && (
-        <div className="rounded-xl border border-dashed border-border bg-surface-2 px-6 py-12 text-center text-muted-fg">
+        <div className="mx-auto w-full max-w-md rounded-xl border border-dashed border-border bg-surface-2 px-6 py-12 text-center text-muted-fg">
           <p className="text-sm">No coins have been launched in this DAO yet.</p>
           <p className="mt-2 text-[12.5px]">
             Be the first — every trade routes through {daoConfig.name}&apos;s creator
@@ -90,7 +96,7 @@ export function CoinsListView() {
       )}
 
       {data && data.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {data.map((coin) => (
             <CoinCard key={coin.coinAddress} coin={coin} />
           ))}
