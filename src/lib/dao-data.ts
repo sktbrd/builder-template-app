@@ -14,9 +14,10 @@ import {
 } from '@buildeross/sdk/subgraph'
 import { ProposalState } from '@buildeross/types'
 import { transports } from '@buildeross/utils/wagmi'
-import { createPublicClient, formatEther, http } from 'viem'
+import { createPublicClient, formatEther, http, parseAbiItem } from 'viem'
 import { mainnet } from 'viem/chains'
 
+import { decodeBidComment } from './bid-comment'
 import { daoConfig } from './dao.config'
 import { decodeProposalTx } from './proposal-tx-decoder'
 import type { ProposalStatus } from './types'
@@ -404,27 +405,21 @@ export async function getDashboardData(): Promise<DashboardData> {
         ? resolveEnsNames(activeVoters)
         : Promise.resolve(new Map<string, string>()),
       fetchTreasuryBalances(),
-      // Fetch the live auction's bids only — past tokens collapse to just their
+      // Read bids from chain (not subgraph) so we can recover comments packed
+      // into the calldata trailing bytes. Past tokens collapse to just their
       // winning bid on the hero, so we never need their full history here.
       currentAuction
-        ? safeFetch(
-            'currentAuction.getBids',
-            () =>
-              getBids(chainId, daoConfig.addresses.token, String(currentAuction.tokenId)),
-            [] as Awaited<ReturnType<typeof getBids>>
-          )
-        : Promise.resolve([] as Awaited<ReturnType<typeof getBids>>),
+        ? fetchRecentBidsWithComments(currentAuction.tokenId, 5)
+        : Promise.resolve([] as RawBidWithComment[]),
     ])
 
-  // getBids returns ETH-formatted amounts (matching how AuctionPageBid handles
-  // them). Truncate to the most-recent 5 so the hero list stays compact.
   if (currentAuction) {
-    currentAuction.recentBids = (currentAuctionBids ?? []).slice(0, 5).map((b) => ({
-      id: String(b.id),
-      amountEth: String(b.amount),
-      bidder: String(b.bidder),
-      bidderShort: short(String(b.bidder)),
-      comment: (b as { comment?: string | null }).comment ?? null,
+    currentAuction.recentBids = currentAuctionBids.map((b) => ({
+      id: b.txHash,
+      amountEth: formatEther(b.amountWei),
+      bidder: b.bidder,
+      bidderShort: short(b.bidder),
+      comment: b.comment,
     }))
   }
   const recentProposerStats = computeProposerStats(proposalsResp.proposals)
@@ -795,6 +790,72 @@ function isLiveStatus(status: ProposalStatus): boolean {
     status === 'succeeded' ||
     status === 'queued'
   )
+}
+
+type RawBidWithComment = {
+  amountWei: bigint
+  bidder: string
+  txHash: string
+  blockNumber: bigint
+  comment: string | null
+}
+
+const AUCTION_BID_EVENT = parseAbiItem(
+  'event AuctionBid(uint256 tokenId, address bidder, uint256 amount, bool extended, uint256 endTime)'
+)
+
+/**
+ * Fetches the most recent `AuctionBid` events for `tokenId`, then reads the
+ * transaction input for each so we can recover the comment that was packed
+ * into the trailing calldata bytes (gnars-style — see [[bid-comment]]).
+ *
+ * `AuctionBid.tokenId` is non-indexed, so we have to fetch all bids in a
+ * block range and filter client-side. The lookback window (50k blocks ≈ a
+ * day on Base, several days on slower chains) generously covers a typical
+ * 24-hour auction. Falls back to an empty list on RPC failure.
+ */
+async function fetchRecentBidsWithComments(
+  tokenId: number,
+  count: number
+): Promise<RawBidWithComment[]> {
+  if (!publicClient) return []
+  try {
+    const latest = await publicClient.getBlockNumber()
+    const lookback = BigInt(50_000)
+    const fromBlock = latest > lookback ? latest - lookback : BigInt(0)
+    const logs = await publicClient.getLogs({
+      address: daoConfig.addresses.auction as `0x${string}`,
+      event: AUCTION_BID_EVENT,
+      fromBlock,
+      toBlock: 'latest',
+    })
+    const tokenIdBig = BigInt(tokenId)
+    const forToken = logs
+      .filter((l) => l.args.tokenId !== undefined && l.args.tokenId === tokenIdBig)
+      .sort((a, b) => Number(b.blockNumber - a.blockNumber))
+      .slice(0, count)
+
+    return await Promise.all(
+      forToken.map(async (l) => {
+        let comment: string | null = null
+        try {
+          const tx = await publicClient.getTransaction({ hash: l.transactionHash })
+          comment = decodeBidComment(tx.input)
+        } catch {
+          // Tx may have been re-orged or RPC errored; show bid w/o comment.
+        }
+        return {
+          amountWei: BigInt(l.args.amount ?? 0),
+          bidder: String(l.args.bidder ?? '0x'),
+          txHash: String(l.transactionHash),
+          blockNumber: l.blockNumber,
+          comment,
+        }
+      })
+    )
+  } catch {
+    return []
+  }
 }
 
 /**
