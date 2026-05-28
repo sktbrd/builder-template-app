@@ -1,6 +1,5 @@
 'use client'
 
-import { auctionAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { CheckCircle2, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -10,14 +9,15 @@ import {
   useAccount,
   useBalance,
   useChainId,
+  useSendTransaction,
   useSwitchChain,
   useWaitForTransactionReceipt,
-  useWriteContract,
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
 import { Button } from '@/components/ui/button'
+import { encodeCreateBidCalldata } from '@/lib/bid-comment'
 import { daoConfig } from '@/lib/dao.config'
 import { cn } from '@/lib/utils'
 
@@ -91,12 +91,12 @@ function BidFormInner({
     !Number.isNaN(numeric) && balanceEth !== undefined && numeric > balanceEth
 
   const {
-    writeContract,
+    sendTransaction,
     data: txHash,
     isPending: isWriting,
     error: writeError,
     reset: resetWrite,
-  } = useWriteContract()
+  } = useSendTransaction()
   const {
     isLoading: isMining,
     isSuccess: isMined,
@@ -170,13 +170,15 @@ function BidFormInner({
     } catch {
       return
     }
-    // Pin chainId so viem switches/rejects on the wrong network instead of
-    // silently sending the bid on whatever chain the wallet is on.
-    writeContract({
-      address: daoConfig.addresses.auction as Address,
-      abi: auctionAbi,
-      functionName: 'createBid',
-      args: [BigInt(tokenId)],
+    // Pack the comment into the trailing bytes of the createBid calldata so
+    // it persists on-chain in the same tx (gnars-style). The EVM ignores
+    // anything past the function args; we read it back from tx input later.
+    const data = encodeCreateBidCalldata(BigInt(tokenId), comment)
+    // Pin chainId so viem rejects on the wrong network instead of silently
+    // sending the bid on whatever chain the wallet is currently on.
+    sendTransaction({
+      to: daoConfig.addresses.auction as Address,
+      data,
       value: valueWei,
       chainId: daoConfig.chainId,
     })
