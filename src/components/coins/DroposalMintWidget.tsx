@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatEther, parseEther } from 'viem'
 import {
   useAccount,
-  useChainId,
   useReadContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -61,8 +60,7 @@ function DroposalMintWidgetInner({
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
 
-  const { address: userAddress, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address: userAddress, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
@@ -77,7 +75,7 @@ function DroposalMintWidgetInner({
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({ hash: txHash, chainId })
 
-  const onWrongChain = isConnected && connectedChainId !== chainId
+  const onWrongChain = isConnected && walletChainId != null && walletChainId !== chainId
 
   // Live sale state from the drop contract.
   const { data: saleDetails } = useReadContract({

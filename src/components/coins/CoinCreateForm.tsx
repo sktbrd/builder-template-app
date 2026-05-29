@@ -17,7 +17,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import {
   useAccount,
-  useChainId,
   usePublicClient,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -79,8 +78,7 @@ function Skeleton() {
 
 function CoinCreateFormInner() {
   const router = useRouter()
-  const { address, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
   const publicClient = usePublicClient({ chainId: daoConfig.chainId })
@@ -118,7 +116,8 @@ function CoinCreateFormInner() {
   const handledTxRef = useRef<Hex | undefined>(undefined)
 
   // 3. wagmi write + receipt.
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
   const {
     writeContract,
     data: txHash,

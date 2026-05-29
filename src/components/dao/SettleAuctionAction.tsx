@@ -8,7 +8,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { type Address } from 'viem'
 import {
   useAccount,
-  useChainId,
   useReadContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -60,9 +59,8 @@ export function SettleAuctionAction(props: Props) {
 }
 
 function SettleAuctionActionInner({ tokenId, onSettled, onTinted }: Props) {
-  const { isConnected } = useAccount()
+  const { isConnected, chainId: walletChainId } = useAccount()
   const nowMs = useSyncExternalStore(subscribeNow, getNowSnapshot, getNowServerSnapshot)
-  const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
   const router = useRouter()
@@ -71,7 +69,8 @@ function SettleAuctionActionInner({ tokenId, onSettled, onTinted }: Props) {
   // chance to register that the tx landed.
   const [justSettledTokenId, setJustSettledTokenId] = useState<number | null>(null)
 
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   const { data: auctionState, refetch } = useReadContract({
     address: daoConfig.addresses.auction as Address,
@@ -180,7 +179,9 @@ function SettleAuctionActionInner({ tokenId, onSettled, onTinted }: Props) {
       <div className="mb-2 text-sm font-semibold">
         This auction is awaiting settlement
       </div>
-      <div className={`mb-2.5 text-[12.5px] ${onTinted ? 'text-white/85' : 'text-muted-fg'}`}>
+      <div
+        className={`mb-2.5 text-[12.5px] ${onTinted ? 'text-white/85' : 'text-muted-fg'}`}
+      >
         Anyone can call settle to finalise this auction and seed the next one.
       </div>
 

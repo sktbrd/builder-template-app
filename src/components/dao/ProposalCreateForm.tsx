@@ -10,7 +10,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { type Address, parseEther } from 'viem'
 import {
   useAccount,
-  useChainId,
   useReadContracts,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -186,12 +185,12 @@ function ProposalCreateFormInner({
     return () => window.clearTimeout(timer)
   }, [title, description, drafts])
 
-  const { address, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   // ── Eligibility (token balance vs governor proposalThreshold)
   const { data: eligibilityReads } = useReadContracts({

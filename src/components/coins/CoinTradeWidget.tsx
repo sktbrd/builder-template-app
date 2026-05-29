@@ -17,7 +17,6 @@ import { type Address, erc20Abi, formatEther, parseEther } from 'viem'
 import {
   useAccount,
   useBalance,
-  useChainId,
   usePublicClient,
   useReadContract,
   useSwitchChain,
@@ -75,14 +74,13 @@ function CoinTradeWidgetInner({
   const [error, setError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null)
 
-  const { address: userAddress, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address: userAddress, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient({ chainId })
 
-  const onWrongChain = isConnected && connectedChainId !== chainId
+  const onWrongChain = isConnected && walletChainId != null && walletChainId !== chainId
   const isBuying = tab === 'buy'
 
   // Selling Zora coins only works on Base mainnet right now (per builder utils).
