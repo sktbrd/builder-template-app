@@ -1,8 +1,8 @@
 'use client'
 
 import { useWeb3Ready } from '@/app/web3-providers'
-import { VoteBar } from '@/components/dao/VoteBar'
 import { useVoteEcho } from '@/components/dao/useVoteEcho'
+import { VoteBar } from '@/components/dao/VoteBar'
 import {
   bumpTally,
   mergeVoteTally,
@@ -30,15 +30,15 @@ function serverTally(p: Props): VoteTally {
 }
 
 /**
- * Vote summary card with the optimistic onchain bridge: seeded from the
- * subgraph-rendered server tallies, it overlays the live Governor
- * `proposalVotes` read (useProposalVotesTruth) whenever chain is ahead — so a
- * freshly cast vote (and other voters' votes) show up without waiting on
- * subgraph indexing. On top of that it overlays the actor's own *in-flight*
- * vote (useVoteEcho): the bar bumps by their weight the instant they submit,
- * then reconciles to the real tally once the chain read includes it (and rolls
- * back if the tx errors). Before wagmi mounts (useWeb3Ready) it renders the
- * plain server values, so SSR/first paint match (no hydration drift).
+ * Vote summary card with the onchain bridge: seeded from the subgraph-rendered
+ * server tallies, it overlays the live Governor `proposalVotes` read
+ * (useProposalVotesTruth) whenever chain is ahead — so a freshly cast vote (and
+ * other voters' votes) show up without waiting on subgraph indexing. On top of
+ * that it overlays the actor's own vote (useVoteEcho), which is recorded only
+ * once their tx mines: the bar bumps by their weight on confirmation, then
+ * reconciles to the chain read as it catches up. Nothing moves before the tx
+ * lands. Before wagmi mounts (useWeb3Ready) it renders the plain server values,
+ * so SSR/first paint match (no hydration drift).
  */
 export function VoteSummary(props: Props) {
   const ready = useWeb3Ready()

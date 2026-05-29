@@ -2,11 +2,20 @@
 
 import { useMemo, useState } from 'react'
 
+import { useVoteEcho } from '@/components/dao/useVoteEcho'
 import type { ProposalDetailVote } from '@/lib/dao-data'
 import { cn } from '@/lib/utils'
 
 type Props = {
   votes: ProposalDetailVote[]
+  /** Proposal id hash — lets the list surface the actor's just-confirmed vote
+   *  (from the session echo) before the subgraph indexes it. Omitted by the
+   *  /dev fixtures, which have no echo. */
+  proposalIdHash?: `0x${string}`
+}
+
+function shortAddr(a: string): string {
+  return a.length < 10 ? a : `${a.slice(0, 6)}…${a.slice(-4)}`
 }
 
 const SUPPORT_STYLES: Record<
@@ -33,25 +42,45 @@ const INITIAL_LIMIT = 12
 
 type Filter = 'all' | 'for' | 'against' | 'abstain'
 
-export function ProposalVotesList({ votes }: Props) {
+export function ProposalVotesList({ votes, proposalIdHash }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
   const [expanded, setExpanded] = useState(false)
 
+  // The actor's just-confirmed vote (recorded on mine) shows here immediately —
+  // prepended until the subgraph indexes the real row, then dedup by voter drops
+  // the echo. Always-null hook call when there's no proposalIdHash keeps the
+  // hook order stable (empty string never matches a stored echo).
+  const echo = useVoteEcho(proposalIdHash ?? '')
+  const allVotes = useMemo<ProposalDetailVote[]>(() => {
+    if (!echo || votes.some((v) => v.voter.toLowerCase() === echo.voter.toLowerCase())) {
+      return votes
+    }
+    const echoed: ProposalDetailVote = {
+      voter: echo.voter,
+      voterShort: shortAddr(echo.voter),
+      voterEns: null,
+      support: echo.support,
+      weight: echo.weight,
+      reason: echo.reason,
+    }
+    return [echoed, ...votes]
+  }, [echo, votes])
+
   const counts = useMemo(() => {
     const c = { for: 0, against: 0, abstain: 0 }
-    for (const v of votes) c[v.support]++
+    for (const v of allVotes) c[v.support]++
     return c
-  }, [votes])
+  }, [allVotes])
 
   const filtered = useMemo(
-    () => (filter === 'all' ? votes : votes.filter((v) => v.support === filter)),
-    [votes, filter]
+    () => (filter === 'all' ? allVotes : allVotes.filter((v) => v.support === filter)),
+    [allVotes, filter]
   )
 
   const visible = expanded ? filtered : filtered.slice(0, INITIAL_LIMIT)
   const hidden = filtered.length - visible.length
 
-  if (votes.length === 0) {
+  if (allVotes.length === 0) {
     return <div className="text-sm text-muted-fg">No votes have been cast yet.</div>
   }
 
@@ -59,7 +88,7 @@ export function ProposalVotesList({ votes }: Props) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <FilterChip
-          label={`All ${votes.length}`}
+          label={`All ${allVotes.length}`}
           active={filter === 'all'}
           onClick={() => setFilter('all')}
         />
