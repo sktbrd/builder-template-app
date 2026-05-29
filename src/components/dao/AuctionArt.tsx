@@ -35,15 +35,15 @@ export function AuctionArt({
         <polygon points="120,20 145,35 145,60 120,75 95,60 95,35" fill={c2} />
         {/* dotted circle */}
         <g transform="translate(155,40)">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <circle
-              key={i}
-              cx={Math.cos((i / 12) * Math.PI * 2) * 14 + 14}
-              cy={Math.sin((i / 12) * Math.PI * 2) * 14 + 14}
-              r="2"
-              fill={c3}
-            />
-          ))}
+          {Array.from({ length: 12 }).map((_, i) => {
+            const angle = (i / 12) * Math.PI * 2
+            // Round trig output: Math.cos/sin aren't spec-required to be
+            // correctly rounded, so server (Node) and client can differ in the
+            // last bits and trip a hydration mismatch on these attributes.
+            const cx = Math.round((Math.cos(angle) * 14 + 14) * 1000) / 1000
+            const cy = Math.round((Math.sin(angle) * 14 + 14) * 1000) / 1000
+            return <circle key={i} cx={cx} cy={cy} r="2" fill={c3} />
+          })}
         </g>
         {/* arch trio */}
         <g transform="translate(70,90)">

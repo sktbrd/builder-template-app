@@ -1,27 +1,20 @@
 'use client'
 
-import { SWR_KEYS } from '@buildeross/constants/swrKeys'
-import { daoZoraCoinsRequest } from '@buildeross/sdk/subgraph'
-import { isChainIdSupportedByCoining } from '@buildeross/utils'
 import useSWR from 'swr'
 
-import { CoinCard } from '@/components/coins/CoinCard'
+import { DroposalCard } from '@/components/coins/DroposalCard'
 import { daoConfig } from '@/lib/dao.config'
+import { getDroposals } from '@/lib/droposals'
+import { isDroposalSupported } from '@/lib/proposal-tx'
 
-export function CoinsListView() {
-  const supported = isChainIdSupportedByCoining(daoConfig.chainId)
+export function DroposalsListView() {
+  const supported = isDroposalSupported()
 
   const { data, isLoading, error } = useSWR(
     supported
-      ? ([
-          SWR_KEYS.DAO_INFO,
-          'zora-coins',
-          daoConfig.chainId,
-          daoConfig.addresses.token,
-        ] as const)
+      ? (['droposals', daoConfig.chainId, daoConfig.addresses.token] as const)
       : null,
-    async ([, , chainId, daoAddress]) =>
-      daoZoraCoinsRequest(daoAddress as string, chainId as number, 100),
+    () => getDroposals(100),
     {
       refreshInterval: 30_000,
       revalidateOnFocus: false,
@@ -31,10 +24,9 @@ export function CoinsListView() {
   if (!supported) {
     return (
       <div className="mx-auto w-full max-w-md rounded-xl border border-border bg-surface px-6 py-10 text-center">
-        <h2 className="text-lg font-bold">Coins are not supported on this chain</h2>
+        <h2 className="text-lg font-bold">Droposals are not supported on this chain</h2>
         <p className="mt-1 text-sm text-muted-fg">
-          Builder&apos;s Zora content-coin factory is only deployed on Base and Base
-          Sepolia.
+          The Zora NFT Creator factory droposals deploy through is only available on Base.
         </p>
       </div>
     )
@@ -43,12 +35,12 @@ export function CoinsListView() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-muted-fg">
-        Zora content coins backed by {daoConfig.name}&apos;s creator coin.
+        NFT editions deployed by {daoConfig.name} through governance, mintable on Zora.
       </p>
 
       {error && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Failed to load coins: {(error as Error).message}
+          Failed to load droposals: {(error as Error).message}
         </div>
       )}
 
@@ -71,18 +63,18 @@ export function CoinsListView() {
 
       {!isLoading && (!data || data.length === 0) && (
         <div className="mx-auto w-full max-w-md rounded-xl border border-dashed border-border bg-surface-2 px-6 py-12 text-center text-muted-fg">
-          <p className="text-sm">No coins have been launched in this DAO yet.</p>
+          <p className="text-sm">No droposals have been created in this DAO yet.</p>
           <p className="mt-2 text-[12.5px]">
-            Be the first — every trade routes through {daoConfig.name}&apos;s creator
-            coin, so the DAO benefits.
+            A droposal is a governance proposal that deploys a Zora NFT edition — pass one
+            and it shows up here.
           </p>
         </div>
       )}
 
       {data && data.length > 0 && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {data.map((coin) => (
-            <CoinCard key={coin.coinAddress} coin={coin} />
+          {data.map((item) => (
+            <DroposalCard key={item.proposalNumber} item={item} />
           ))}
         </div>
       )}

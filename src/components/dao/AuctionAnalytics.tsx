@@ -20,9 +20,13 @@ const HEIGHT = 240
 const PAD_X = 24
 const PAD_Y = 28
 
-export function AuctionPriceChart({ data }: { data: AuctionPricePoint[] }) {
+/**
+ * DAO-wide auction analytics. A single period toggle drives the headline
+ * stat row plus two charts that share the same filtered window: winning bids
+ * per auction and the cumulative ETH raised over that window.
+ */
+export function AuctionAnalytics({ data }: { data: AuctionPricePoint[] }) {
   const [period, setPeriod] = useState<PeriodKey>('all')
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   // Snapshot "now" once at mount so the React compiler doesn't flag the
   // impure Date.now() call inside the period-filter memo.
@@ -46,14 +50,24 @@ export function AuctionPriceChart({ data }: { data: AuctionPricePoint[] }) {
     }
   }, [filtered])
 
+  // Running total of winning bids across the filtered window (oldest → newest).
+  const cumulative = useMemo(
+    () =>
+      filtered.reduce<number[]>((acc, p) => {
+        acc.push((acc[acc.length - 1] ?? 0) + p.ethAmount)
+        return acc
+      }, []),
+    [filtered]
+  )
+
   return (
-    <div className="rounded-xl border border-border bg-surface px-5 py-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <div className="rounded-xl border border-border bg-surface px-6 py-[22px]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
-            Auction history
+            All auctions
           </div>
-          <h2 className="text-lg font-bold tracking-tight">Winning bids over time</h2>
+          <h2 className="text-xl font-bold tracking-tight">Auction analytics</h2>
         </div>
         <div className="flex items-center gap-1 rounded-full border border-border bg-surface-2 p-0.5">
           {PERIODS.map((p) => (
@@ -74,7 +88,7 @@ export function AuctionPriceChart({ data }: { data: AuctionPricePoint[] }) {
       </div>
 
       {stats && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 border-b border-border pb-5 sm:grid-cols-4">
           <Stat label="Auctions" value={stats.count.toString()} />
           <Stat label="Highest" value={`${trim(stats.max, 4)} ETH`} />
           <Stat label="Average" value={`${trim(stats.avg, 4)} ETH`} />
@@ -89,13 +103,24 @@ export function AuctionPriceChart({ data }: { data: AuctionPricePoint[] }) {
             : 'Not enough data in the selected period.'}
         </div>
       ) : (
-        <Chart
-          points={filtered}
-          hoverIndex={hoverIndex}
-          onHover={setHoverIndex}
-          onLeave={() => setHoverIndex(null)}
-        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ChartBlock title="Winning bids over time">
+            <PriceLineChart points={filtered} />
+          </ChartBlock>
+          <ChartBlock title="Cumulative revenue">
+            <CumulativeAreaChart points={filtered} cumulative={cumulative} />
+          </ChartBlock>
+        </div>
       )}
+    </div>
+  )
+}
+
+function ChartBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-2 text-[12.5px] font-semibold text-muted-fg">{title}</div>
+      {children}
     </div>
   )
 }
@@ -109,57 +134,107 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Chart({
+function PriceLineChart({ points }: { points: AuctionPricePoint[] }) {
+  return (
+    <LineAreaChart
+      ys={points.map((p) => p.ethAmount)}
+      gradientId="auctionFill"
+      renderContent={(i) => {
+        const p = points[i]
+        return (
+          <>
+            <div className="text-[11px] uppercase tracking-wider text-muted-fg">
+              {formatDate(p.endTime)}
+            </div>
+            <div className="text-sm font-bold text-fg">{trim(p.ethAmount, 4)} ETH</div>
+            <Link
+              href={`/auction/${p.tokenId}`}
+              className="text-[11px] font-medium text-accent-strong hover:underline"
+            >
+              {daoConfig.name.split(' ')[0]} #{p.tokenId} →
+            </Link>
+          </>
+        )
+      }}
+    />
+  )
+}
+
+function CumulativeAreaChart({
   points,
-  hoverIndex,
-  onHover,
-  onLeave,
+  cumulative,
 }: {
   points: AuctionPricePoint[]
-  hoverIndex: number | null
-  onHover: (i: number) => void
-  onLeave: () => void
+  cumulative: number[]
 }) {
+  return (
+    <LineAreaChart
+      ys={cumulative}
+      gradientId="cumulativeFill"
+      renderContent={(i) => (
+        <>
+          <div className="text-[11px] uppercase tracking-wider text-muted-fg">
+            {formatDate(points[i].endTime)}
+          </div>
+          <div className="text-sm font-bold text-fg">{trim(cumulative[i], 2)} ETH</div>
+          <div className="text-[11px] font-medium text-muted-fg">total raised</div>
+        </>
+      )}
+    />
+  )
+}
+
+/**
+ * Shared SVG line+area chart. Scales the `ys` series to the viewBox, draws
+ * quartile gridlines, and surfaces a positioned hover card whose contents are
+ * supplied by the caller via `renderContent`.
+ */
+function LineAreaChart({
+  ys,
+  gradientId,
+  renderContent,
+}: {
+  ys: number[]
+  gradientId: string
+  renderContent: (index: number) => React.ReactNode
+}) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const innerW = WIDTH - PAD_X * 2
   const innerH = HEIGHT - PAD_Y * 2
-  const maxAmount = Math.max(...points.map((p) => p.ethAmount), 0.0001)
+  const maxAmount = Math.max(...ys, 0.0001)
 
   const xy = (i: number, amt: number) => {
     const x =
-      points.length === 1
-        ? innerW / 2 + PAD_X
-        : PAD_X + (i / (points.length - 1)) * innerW
+      ys.length === 1 ? innerW / 2 + PAD_X : PAD_X + (i / (ys.length - 1)) * innerW
     const y = PAD_Y + innerH - (amt / maxAmount) * innerH
     return { x, y }
   }
 
-  const linePoints = points.map((p, i) => {
-    const { x, y } = xy(i, p.ethAmount)
+  const linePoints = ys.map((amt, i) => {
+    const { x, y } = xy(i, amt)
     return `${x.toFixed(2)},${y.toFixed(2)}`
   })
 
   const areaPath = (() => {
-    if (points.length < 2) return ''
-    const first = xy(0, points[0].ethAmount)
-    const last = xy(points.length - 1, points[points.length - 1].ethAmount)
+    if (ys.length < 2) return ''
+    const first = xy(0, ys[0])
+    const last = xy(ys.length - 1, ys[ys.length - 1])
     return `M ${first.x.toFixed(2)},${(PAD_Y + innerH).toFixed(2)} L ${linePoints.join(
       ' L '
     )} L ${last.x.toFixed(2)},${(PAD_Y + innerH).toFixed(2)} Z`
   })()
 
-  const active = hoverIndex != null ? points[hoverIndex] : null
-  const activeXY = active ? xy(hoverIndex!, active.ethAmount) : null
+  const activeXY = hoverIndex != null ? xy(hoverIndex, ys[hoverIndex]) : null
 
   const handleMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const svg = e.currentTarget
-    const rect = svg.getBoundingClientRect()
+    const rect = e.currentTarget.getBoundingClientRect()
     const xRatio = (e.clientX - rect.left) / rect.width
     const xInChart = xRatio * WIDTH - PAD_X
     const idx = Math.max(
       0,
-      Math.min(points.length - 1, Math.round((xInChart / innerW) * (points.length - 1)))
+      Math.min(ys.length - 1, Math.round((xInChart / innerW) * (ys.length - 1)))
     )
-    onHover(idx)
+    setHoverIndex(idx)
   }
 
   return (
@@ -168,10 +243,10 @@ function Chart({
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-[240px] w-full touch-none"
         onPointerMove={handleMove}
-        onPointerLeave={onLeave}
+        onPointerLeave={() => setHoverIndex(null)}
       >
         <defs>
-          <linearGradient id="auctionFill" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.25" />
             <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
           </linearGradient>
@@ -194,7 +269,7 @@ function Chart({
           )
         })}
 
-        {areaPath && <path d={areaPath} fill="url(#auctionFill)" />}
+        {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} />}
 
         <polyline
           points={linePoints.join(' ')}
@@ -229,49 +304,28 @@ function Chart({
         )}
       </svg>
 
-      {active && activeXY && (
-        <HoverCard
-          point={active}
-          xPct={(activeXY.x / WIDTH) * 100}
-          alignRight={activeXY.x > WIDTH * 0.65}
-        />
+      {hoverIndex != null && activeXY && (
+        <div
+          className="pointer-events-auto absolute top-2 z-10 rounded-md border border-border bg-surface px-3 py-2 shadow-md"
+          style={{
+            left: `${(activeXY.x / WIDTH) * 100}%`,
+            transform:
+              activeXY.x > WIDTH * 0.65 ? 'translateX(-100%)' : 'translateX(-50%)',
+          }}
+        >
+          {renderContent(hoverIndex)}
+        </div>
       )}
     </div>
   )
 }
 
-function HoverCard({
-  point,
-  xPct,
-  alignRight,
-}: {
-  point: AuctionPricePoint
-  xPct: number
-  alignRight: boolean
-}) {
-  const date = new Date(point.endTime * 1000).toLocaleDateString(undefined, {
+function formatDate(unixSec: number): string {
+  return new Date(unixSec * 1000).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   })
-  return (
-    <div
-      className="pointer-events-auto absolute top-2 z-10 -translate-x-1/2 rounded-md border border-border bg-surface px-3 py-2 shadow-md"
-      style={{
-        left: `${xPct}%`,
-        transform: alignRight ? 'translateX(-100%)' : 'translateX(-50%)',
-      }}
-    >
-      <div className="text-[11px] uppercase tracking-wider text-muted-fg">{date}</div>
-      <div className="text-sm font-bold text-fg">{trim(point.ethAmount, 4)} ETH</div>
-      <Link
-        href={`/auction/${point.tokenId}`}
-        className="text-[11px] font-medium text-accent-strong hover:underline"
-      >
-        {daoConfig.name.split(' ')[0]} #{point.tokenId} →
-      </Link>
-    </div>
-  )
 }
 
 function trim(n: number, max: number): string {
