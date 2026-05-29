@@ -185,7 +185,6 @@ function VotePanelInner({
         />
         {address && (
           <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
-            <span>Voting as</span>
             <WalletPill address={address} ens={ensName} link={false} size="xs" />
           </div>
         )}
@@ -285,7 +284,6 @@ function VotePanelInner({
 
       {address && (
         <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
-          <span>Voting as</span>
           <WalletPill address={address} ens={ensName} link={false} size="xs" />
           {votingPower > 0 && (
             <>
