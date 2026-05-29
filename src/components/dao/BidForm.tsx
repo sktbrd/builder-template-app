@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import { cn } from '@/lib/utils'
 
+import { addBidEcho } from './useBidEcho'
+
 type Props = {
   /** ERC721 token id of the live auction. */
   tokenId: number
@@ -28,10 +30,13 @@ type Props = {
   topBid: number
   /** Increment factor — Builder default 1.02 (2%). */
   minIncrementPct?: number
-  /** Whether to surface the optional 140-char on-chain comment field.
-   * The comment is informational only — Builder's createBid doesn't take a
-   * comment parameter on-chain. The field exists for future surfacing on
-   * the bid history once a Bid Comments contract / hook lands upstream. */
+  /** Whether to surface the optional 140-char comment field.
+   * IMPORTANT: this contract's auction ABI has no comment-carrying bid function
+   * (only createBid / createBidWithReferral), so the comment can NOT go onchain.
+   * It's improvised as a tx-keyed local echo (see useBidEcho): when the bid
+   * mines we stash the comment by tx hash and the hero merges it into "Recent
+   * bids" so the actor sees their own bid + comment immediately. It is
+   * per-session — gone on reload, never visible to other viewers. */
   enableComment?: boolean
   /**
    * When true, drops the surrounding card chrome (border / bg / padding) and
@@ -110,7 +115,20 @@ function BidFormInner({
     // pattern. Intentional sync setState — this is the success-handoff edge.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setJustBidEth(bid)
-    // Refresh server data so the new top bid appears immediately
+    // Improvise the comment as a tx-keyed local echo — it can't go onchain, so
+    // this is the only way the actor sees "my bid + my comment" right away. The
+    // hero merges it into Recent bids until the subgraph row arrives.
+    if (txHash && address && enableComment && comment.trim()) {
+      addBidEcho({
+        txHash,
+        tokenId,
+        bidder: address,
+        amountEth: bid,
+        comment: comment.trim(),
+      })
+    }
+    // Nudge the server data toward the subgraph's eventual row; the onchain
+    // top-bid read in the hero is what actually makes the bid show immediately.
     router.refresh()
     const t = setTimeout(() => {
       setBid('')
@@ -119,7 +137,7 @@ function BidFormInner({
       resetWrite()
     }, 3500)
     return () => clearTimeout(t)
-  }, [isMined, resetWrite, router, bid])
+  }, [isMined, resetWrite, router, bid, txHash, address, enableComment, comment, tokenId])
 
   const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
     !isConnected
@@ -307,8 +325,8 @@ function BidFormInner({
             type="text"
             placeholder={
               compact
-                ? 'Say something (optional)'
-                : 'Optional onchain comment (140 chars)'
+                ? 'Comment on your bid (optional)'
+                : 'Add a comment to your bid (140 chars)'
             }
             maxLength={140}
             value={comment}
@@ -330,9 +348,7 @@ function BidFormInner({
         </div>
       )}
 
-      <div
-        className={cn('text-[12px] text-muted-fg', compact && 'pl-5')}
-      >
+      <div className={cn('text-[12px] text-muted-fg', compact && 'pl-5')}>
         {phase === 'switch' ? (
           <span className="text-warning">
             Wrong network — switch to {chainNameOf(daoConfig.chainId)}.

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 
 import type { RecentTokenSummary } from '@/lib/dao-data'
 import { cn, resolveIpfs } from '@/lib/utils'
@@ -119,6 +120,9 @@ function TokenTile({
   liveEndTimeUnix?: number
 }) {
   const imageSrc = token.image ? resolveIpfs(token.image) : null
+  // Cold/failed nouns.build renders fall back to the gradient tile rather than
+  // a broken-image box (matters most for a freshly settled token).
+  const [imgFailed, setImgFailed] = useState(false)
   const status = classifyToken(token, liveEndTimeUnix)
   const ariaLabel =
     status.kind === 'live'
@@ -156,12 +160,13 @@ function TokenTile({
       )}
     >
       <div className="relative aspect-square w-[88px] overflow-hidden bg-surface-2">
-        {imageSrc ? (
+        {imageSrc && !imgFailed ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={imageSrc}
             alt=""
             loading="lazy"
+            onError={() => setImgFailed(true)}
             className={cn(
               'h-full w-full object-cover',
               status.kind === 'burned' && 'grayscale opacity-60'
