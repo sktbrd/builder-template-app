@@ -5,9 +5,9 @@ import { ProposalTransactionList } from '@/components/dao/ProposalTransactionLis
 import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
 import { TreasuryInsufficientBadge } from '@/components/dao/TreasuryInsufficientBadge'
-import { VoteBar } from '@/components/dao/VoteBar'
 import { VoteCountdownLabel } from '@/components/dao/VoteCountdownLabel'
 import { VotePanel } from '@/components/dao/VotePanel'
+import { VoteSummary } from '@/components/dao/VoteSummary'
 import { WalletPill } from '@/components/dao/WalletPill'
 import { Markdown } from '@/components/Markdown'
 import { PropdateThread } from '@/components/propdates/PropdateThread'
@@ -22,7 +22,6 @@ import type { ProposalDetail } from '@/lib/dao-data'
  */
 export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
   const { summary: p, description, transactions } = detail
-  const totalCast = p.forVotes + p.againstVotes + p.abstainVotes
   // Render the vote panel for both pending and active. Pending shows a
   // "voting opens in X" callout; active enables the choice form + submit.
   const showVotePanel = p.status === 'active' || p.status === 'pending'
@@ -71,20 +70,13 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
             viewers without reserving an empty 360px column. */}
         {!showVotePanel && <ProposalActions detail={detail} />}
 
-        <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
-          <h3 className="mb-3 text-base font-bold">Vote summary</h3>
-          <VoteBar
-            forV={p.forVotes}
-            against={p.againstVotes}
-            abstain={p.abstainVotes}
-            quorum={p.quorum}
-            height={14}
-            showLabels
-          />
-          <div className="mt-2 text-[12.5px] text-muted-fg">
-            Quorum: {p.quorum} · Total cast: {totalCast}
-          </div>
-        </section>
+        <VoteSummary
+          proposalIdHash={detail.proposalIdHash}
+          forVotes={p.forVotes}
+          againstVotes={p.againstVotes}
+          abstainVotes={p.abstainVotes}
+          quorum={p.quorum}
+        />
 
         <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
           <h3 className="mb-3 text-base font-bold">Description</h3>
@@ -138,6 +130,7 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
             proposalIdHash={detail.proposalIdHash}
             voteStart={detail.voteStart}
             active={isActive}
+            votes={detail.votes}
           />
           <ProposalActions detail={detail} />
         </div>
