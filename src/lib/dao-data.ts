@@ -247,8 +247,8 @@ export type RecentTokenSummary = {
   owner: string
   /**
    * Display label for the owner pill on the strip. "Treasury" when the
-   * treasury holds it; otherwise short owner address. ENS resolution is
-   * skipped to keep the call count bounded.
+   * treasury holds it; otherwise the owner's ENS name, falling back to the
+   * short address.
    */
   ownerLabel: string
   /** Unix seconds when the token was minted (i.e. auction started). */
@@ -469,6 +469,13 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const treasuryLc = daoConfig.addresses.treasury.toLowerCase()
   const liveTokenId = currentAuction?.tokenId
+  // Resolve ENS for the recent winners so the strip shows names, not just
+  // truncated addresses (bounded batch — only the tokens shown on the strip).
+  const winnerEns = await resolveEnsNames(
+    (recentTokensResp.tokens ?? [])
+      .map((t) => String(t.owner ?? '').toLowerCase())
+      .filter((a) => a && a !== treasuryLc)
+  )
   const recentTokens: RecentTokenSummary[] = (recentTokensResp.tokens ?? []).map((t) => {
     const ownerLc = String(t.owner ?? '').toLowerCase()
     const tokenId = Number(t.tokenId)
@@ -482,7 +489,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       name: t.name ?? null,
       image: t.image ?? null,
       owner: ownerLc,
-      ownerLabel: ownerLc === treasuryLc ? 'Treasury' : short(ownerLc),
+      ownerLabel:
+        ownerLc === treasuryLc ? 'Treasury' : (winnerEns.get(ownerLc) ?? short(ownerLc)),
       mintedAt: Number(t.mintedAt ?? 0),
       topBidEth,
       endedAtUnix: auctionRow?.endTime ?? null,

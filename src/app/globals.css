@@ -76,6 +76,41 @@
   --muted-fg: #9a9aa2;
 }
 
+/* Applied to content sitting on a colored hero band: rebinds tokens to
+   white-on-translucent so child widgets (bid form, settle panel, success /
+   error states) read against an arbitrary tint. `--accent` is intentionally
+   NOT rebound — the primary action button keeps its brand color. */
+[data-theme='tint'] {
+  --surface: rgba(255, 255, 255, 0.1);
+  --surface-2: rgba(255, 255, 255, 0.12);
+  --surface-3: rgba(255, 255, 255, 0.16);
+  --border: rgba(255, 255, 255, 0.25);
+  --border-strong: rgba(255, 255, 255, 0.4);
+  --fg: #ffffff;
+  --fg-2: rgba(255, 255, 255, 0.85);
+  --muted-fg: rgba(255, 255, 255, 0.7);
+  --success: #ffffff;
+  --destructive: #fecaca;
+  --warning: #fde68a;
+}
+
+/* Applied to content on a LIGHT colored hero band: forces the light-theme
+   tokens (white surfaces, dark text) regardless of the page's light/dark mode,
+   so child widgets read against the light tint. */
+[data-theme='tint-light'] {
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #ededee;
+  --border: #e5e5e7;
+  --border-strong: #d4d4d7;
+  --fg: #0b0b0c;
+  --fg-2: #2a2a2e;
+  --muted-fg: #71717a;
+  --success: #16a34a;
+  --destructive: #dc2626;
+  --warning: #ea580c;
+}
+
 @keyframes marquee {
   from {
     transform: translateX(0);

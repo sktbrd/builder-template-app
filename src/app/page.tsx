@@ -41,11 +41,12 @@ export default async function Dashboard() {
        * mirrors nouns.game's high-contrast top→bottom split regardless of
        * whether the user is in light or dark mode. The data-theme attribute
        * re-binds every --bg/--surface/--border var inside this subtree to
-       * its dark-mode value (see globals.css). Main is unpadded on the
-       * dashboard, so the panel handles its own internal padding only. */}
+       * its dark-mode value (see globals.css). Negative margins cancel the
+       * MainContainer column padding so the dark band fills the full column
+       * width, then it re-pads its own content. */}
       <section
         data-theme="dark"
-        className="mt-2 bg-bg px-4 py-8 text-fg sm:px-6 sm:py-10"
+        className="mt-2 -mx-4 bg-bg px-4 py-8 text-fg sm:-mx-6 sm:px-6 sm:py-10"
       >
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <HomeFeed />
