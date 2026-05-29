@@ -1,15 +1,14 @@
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { AuctionAnalytics } from '@/components/dao/AuctionAnalytics'
 import { AuctionArt } from '@/components/dao/AuctionArt'
 import { AuctionPoller } from '@/components/dao/AuctionPoller'
-import { AuctionPriceChart } from '@/components/dao/AuctionPriceChart'
 import { BidForm } from '@/components/dao/BidForm'
 import { BidHistory } from '@/components/dao/BidHistory'
 import { SettleAuctionAction } from '@/components/dao/SettleAuctionAction'
 import { ThreeDArtCard } from '@/components/dao/ThreeDArtCard'
-import { TimeAlert } from '@/components/dao/TimeAlert'
 import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
 import { getAuctionPageData, getAuctionPriceHistory } from '@/lib/dao-data'
 import { cn, resolveIpfs } from '@/lib/utils'
@@ -17,24 +16,15 @@ import { cn, resolveIpfs } from '@/lib/utils'
 export const revalidate = 30
 
 type Params = Promise<{ id: string }>
-type SearchParams = Promise<{ view?: string }>
 
-export default async function AuctionPage({
-  params,
-  searchParams,
-}: {
-  params: Params
-  searchParams: SearchParams
-}) {
+export default async function AuctionPage({ params }: { params: Params }) {
   const { id } = await params
-  const { view } = await searchParams
   const tokenId = parseInt(id, 10)
   if (!Number.isFinite(tokenId) || tokenId < 0) notFound()
 
-  const isChartView = view === 'chart'
   const [data, chartData] = await Promise.all([
     getAuctionPageData(tokenId),
-    isChartView ? getAuctionPriceHistory(365) : Promise.resolve(null),
+    getAuctionPriceHistory(365),
   ])
   const tokenLabel = daoConfig.name.split(' ')[0]
   const palette = fallbackArtPalette()
@@ -46,34 +36,34 @@ export default async function AuctionPage({
     : null
   const topBidNum = data.topBidEth ? Number(data.topBidEth) : 0
 
+  const bidAmounts = data.bids
+    .map((b) => Number(b.amountEth))
+    .filter((n) => Number.isFinite(n))
+  const bidStats = {
+    count: data.bids.length,
+    uniqueBidders: new Set(data.bids.map((b) => b.bidder.toLowerCase())).size,
+    low: bidAmounts.length ? Math.min(...bidAmounts) : null,
+    high: bidAmounts.length ? Math.max(...bidAmounts) : null,
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <AuctionPoller active={hasOpenAuction} />
-      {hasOpenAuction && endsIn && (
-        <TimeAlert icon={<Clock className="h-4 w-4" />} dismissible>
-          Auction for {tokenLabel} #{data.tokenId} ends in {endsIn}.
-        </TimeAlert>
-      )}
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_0.85fr]">
         <div>
-          <Tabs tokenId={tokenId} isChartView={isChartView} />
-          {isChartView && chartData ? (
-            <AuctionPriceChart data={chartData} />
-          ) : (
-            <ThreeDArtCard>
-              {data.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={resolveIpfs(data.image)}
-                  alt={data.name ?? `${tokenLabel} #${data.tokenId}`}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <AuctionArt palette={palette} />
-              )}
-            </ThreeDArtCard>
-          )}
+          <ThreeDArtCard>
+            {data.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolveIpfs(data.image)}
+                alt={data.name ?? `${tokenLabel} #${data.tokenId}`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <AuctionArt palette={palette} />
+            )}
+          </ThreeDArtCard>
         </div>
 
         <div className="flex flex-col gap-4 pt-3">
@@ -137,6 +127,26 @@ export default async function AuctionPage({
         <div className="mb-4">
           <h2 className="text-xl font-bold tracking-tight">Bid history</h2>
         </div>
+        <div className="mb-5 grid grid-cols-2 gap-4 border-b border-border pb-5 sm:grid-cols-4">
+          <Kv label="Total bids" value={bidStats.count.toString()} />
+          <Kv label="Unique bidders" value={bidStats.uniqueBidders.toString()} />
+          <Kv
+            label="Lowest bid"
+            value={
+              bidStats.low != null
+                ? `${trimDecimals(bidStats.low.toFixed(6), 4)} ETH`
+                : '—'
+            }
+          />
+          <Kv
+            label="Highest bid"
+            value={
+              bidStats.high != null
+                ? `${trimDecimals(bidStats.high.toFixed(6), 4)} ETH`
+                : '—'
+            }
+          />
+        </div>
         <BidHistory
           bids={data.bids.map((b) => ({
             amount: trimDecimals(b.amountEth, 4),
@@ -144,33 +154,8 @@ export default async function AuctionPage({
           }))}
         />
       </section>
-    </div>
-  )
-}
 
-function Tabs({ tokenId, isChartView }: { tokenId: number; isChartView: boolean }) {
-  const activeClass =
-    '-mb-px border-b-2 border-fg px-0 py-2.5 text-sm font-semibold text-fg'
-  const inactiveClass =
-    '-mb-px border-b-2 border-transparent px-0 py-2.5 text-sm font-semibold text-muted-fg hover:text-fg'
-  return (
-    <div className="mb-4 flex gap-4 border-b border-border">
-      <Link
-        href={`/auction/${tokenId}`}
-        scroll={false}
-        className={isChartView ? inactiveClass : activeClass}
-        aria-current={isChartView ? undefined : 'page'}
-      >
-        Auction
-      </Link>
-      <Link
-        href={`/auction/${tokenId}?view=chart`}
-        scroll={false}
-        className={isChartView ? activeClass : inactiveClass}
-        aria-current={isChartView ? 'page' : undefined}
-      >
-        Chart
-      </Link>
+      <AuctionAnalytics data={chartData} />
     </div>
   )
 }
