@@ -85,14 +85,14 @@ export function WalletPill({
 
   const inner = (
     <span className="min-w-0 truncate">
-      <span className={labelClassName} title={labelText}>{labelText}</span>
+      {/* Show the ENS / basename only; the full address stays reachable via
+          the hover title and the /members/[address] link. A caller that needs
+          a second line passes `meta` explicitly. */}
+      <span className={labelClassName} title={resolvedName ? address : labelText}>
+        {labelText}
+      </span>
       {meta != null && (
         <span className={cn('block truncate text-muted-fg', preset.addr)}>{meta}</span>
-      )}
-      {meta == null && resolvedName && (
-        <span className={cn('block truncate font-mono text-muted-fg', preset.addr)}>
-          {short(address)}
-        </span>
       )}
     </span>
   )

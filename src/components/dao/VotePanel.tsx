@@ -3,8 +3,8 @@
 import { useEnsName } from '@buildeross/hooks/useEnsName'
 import { governorAbi, tokenAbi } from '@buildeross/sdk/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Check, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useAccount,
   useChainId,
@@ -15,6 +15,13 @@ import {
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
+import { useProposalVotesTruth } from '@/components/dao/useProposalTruth'
+import {
+  addVoteEcho,
+  clearVoteEcho,
+  confirmVoteEcho,
+  useVoteEcho,
+} from '@/components/dao/useVoteEcho'
 import {
   VotingPowerExplainer,
   type VotingPowerScenario,
@@ -22,6 +29,7 @@ import {
 import { WalletPill } from '@/components/dao/WalletPill'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
+import { findMyVote, type VoteSupport } from '@/lib/proposal-truth'
 import { cn } from '@/lib/utils'
 
 type Choice = 'for' | 'against' | 'abstain'
@@ -32,6 +40,18 @@ const SUPPORT: Record<Choice, number> = {
   abstain: 2,
 }
 
+const VOTE_LABEL: Record<VoteSupport, string> = {
+  for: 'For',
+  against: 'Against',
+  abstain: 'Abstain',
+}
+
+const VOTED_TONE: Record<VoteSupport, string> = {
+  for: 'border-vote-for/30 bg-vote-for/10 text-vote-for',
+  against: 'border-vote-against/30 bg-vote-against/10 text-vote-against',
+  abstain: 'border-border-strong bg-surface-2 text-fg',
+}
+
 type Props = {
   proposalIdHash: `0x${string}`
   /** Unix timestamp when voting opens — passed to governor.getVotes(account, timestamp). */
@@ -39,6 +59,10 @@ type Props = {
   initialChoice?: Choice | null
   /** Whether voting is open (proposal is in active state). */
   active?: boolean
+  /** Subgraph votes — used to detect the connected wallet's existing vote so
+   *  the panel shows a confirmation instead of the form (durable across
+   *  reloads once indexed; the per-session echo covers the window before). */
+  votes?: ReadonlyArray<{ voter: string; support: VoteSupport; weight?: number }>
 }
 
 export function VotePanel(props: Props) {
@@ -60,12 +84,28 @@ function VotePanelInner({
   voteStart,
   initialChoice = null,
   active = true,
+  votes,
 }: Props) {
   const [choice, setChoice] = useState<Choice | null>(initialChoice)
   const [reason, setReason] = useState('')
 
   const { address, isConnected } = useAccount()
   const { ensName } = useEnsName(address)
+
+  // Shared with VoteSummary (same query key) — refetching here on a freshly
+  // mined vote updates the Vote summary's tally instantly. `chainTally` seeds
+  // the optimistic overlay's base when the actor submits.
+  const { tally: chainTally, refetch: refetchVotes } = useProposalVotesTruth(proposalIdHash)
+  // Has the connected wallet already voted? Echo = this session (instant, the
+  // actor's own just-cast vote); subgraph votes = durable across reloads once
+  // indexed. Only a *confirmed* echo flips the form — a pending one is still
+  // in-flight (could be rejected/reverted), so it only drives the optimistic
+  // bar overlay in VoteSummary, not the "You voted" confirmation here.
+  const echo = useVoteEcho(proposalIdHash)
+  const myVote =
+    echo && echo.status === 'confirmed'
+      ? { support: echo.support, weight: echo.weight }
+      : findMyVote(votes ?? [], address)
   const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
@@ -74,7 +114,14 @@ function VotePanelInner({
 
   // Resolve real voting power: getVotes at the proposal's snapshot timestamp +
   // current token balance (to distinguish "delegated away" from "no tokens").
-  const nowSec = Math.floor(Date.now() / 1000)
+  // Tick `nowSec` every second so the pending "opens in X" countdown stays
+  // live and the panel promotes to the active choice form the moment voteStart
+  // elapses (snapshotInPast / pending below both read it).
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [])
   const snapshotInPast = voteStart > 0 && voteStart <= nowSec
   // `pending` covers the gap between proposal creation and voteStart: the
   // governor reverts on getPastVotes for a future timestamp, so we can't infer
@@ -142,8 +189,40 @@ function VotePanelInner({
     return () => clearTimeout(t)
   }, [isMined, resetWrite])
 
+  // On a freshly mined vote, promote the pending echo to confirmed (flips the
+  // form to a confirmation immediately) and refetch the shared tally (updates
+  // the Vote summary now instead of on the next ~5s poll; the chain already
+  // reflects the vote, so the optimistic overlay reconciles to it). The ref
+  // fires this once per mine.
+  const recordedRef = useRef(false)
+  useEffect(() => {
+    if (!isMined) {
+      recordedRef.current = false
+      return
+    }
+    if (recordedRef.current) return
+    recordedRef.current = true
+    confirmVoteEcho(proposalIdHash)
+    refetchVotes()
+  }, [isMined, proposalIdHash, refetchVotes])
+
+  // Tx rejected in-wallet or reverted — drop the optimistic echo so the bar
+  // un-bumps and the form returns (the error message renders below it).
+  useEffect(() => {
+    if (writeError || mineError) clearVoteEcho(proposalIdHash)
+  }, [writeError, mineError, proposalIdHash])
+
   const submit = () => {
     if (!choice) return
+    // Record the optimistic overlay before sending: the Vote summary bar bumps
+    // by the actor's snapshot weight immediately, reconciling on mine / rolling
+    // back on error. Base = the live chain tally so totals line up on reconcile.
+    addVoteEcho({
+      proposalId: proposalIdHash,
+      support: choice,
+      weight: votingPower,
+      base: chainTally ?? { forVotes: 0, againstVotes: 0, abstainVotes: 0 },
+    })
     writeContract({
       address: daoConfig.addresses.governor as `0x${string}`,
       abi: governorAbi,
@@ -176,6 +255,39 @@ function VotePanelInner({
           votingPower={votingPower}
           voteStart={voteStart}
         />
+        {address && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
+            <span>Voting as</span>
+            <WalletPill address={address} ens={ensName} link={false} size="xs" />
+          </div>
+        )}
+      </aside>
+    )
+  }
+
+  // Already voted (this session via echo, or indexed in the subgraph) — show a
+  // confirmation instead of letting the wallet "re-vote".
+  if (myVote) {
+    return (
+      <aside className="flex flex-col gap-3.5 rounded-xl border border-border bg-surface px-6 py-[22px] lg:sticky lg:top-20">
+        <h3 className="text-base font-bold">Your vote</h3>
+        <div
+          className={cn(
+            'flex items-center gap-2.5 rounded-md border px-4 py-3.5',
+            VOTED_TONE[myVote.support]
+          )}
+        >
+          <Check className="h-4 w-4 shrink-0" />
+          <div className="text-sm font-semibold">
+            You voted {VOTE_LABEL[myVote.support]}
+            {myVote.weight > 0 && (
+              <span className="font-normal text-muted-fg">
+                {' · '}
+                {myVote.weight} {myVote.weight === 1 ? 'vote' : 'votes'}
+              </span>
+            )}
+          </div>
+        </div>
         {address && (
           <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-fg">
             <span>Voting as</span>

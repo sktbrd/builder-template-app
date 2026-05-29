@@ -21,9 +21,27 @@ import { daoConfig } from '@/lib/dao.config'
 import type { ProposalDetail } from '@/lib/dao-data'
 import type { ProposalStatus } from '@/lib/types'
 
+/**
+ * Dev/harness-only overrides. All default `undefined`, so the production call
+ * `<ProposalActions detail={detail} />` is byte-identical to before — these
+ * only let the /dev/proposal state matrix render states that otherwise depend
+ * on chain reads (governor.state / vetoer / proposalEta) or wallet identity.
+ */
+type DevOverrides = {
+  /** Force the resolved status instead of reading governor.state(). */
+  statusOverride?: ProposalStatus
+  /** Force proposer identity (skips the wallet === proposerFull match). */
+  isProposerOverride?: boolean
+  /** Force vetoer identity (skips the governor.vetoer() read). */
+  isVetoerOverride?: boolean
+  /** Force the execute timelock ETA (unix seconds) instead of reading
+   *  proposalEta(); `null` demonstrates the "checking timelock" state. */
+  etaOverride?: number | null
+}
+
 type Props = {
   detail: ProposalDetail
-}
+} & DevOverrides
 
 export function ProposalActions(props: Props) {
   const ready = useWeb3Ready()
@@ -66,7 +84,13 @@ const VETO_STATES: ReadonlySet<ProposalStatus> = new Set([
   'queued',
 ])
 
-function ProposalActionsInner({ detail }: Props) {
+function ProposalActionsInner({
+  detail,
+  statusOverride,
+  isProposerOverride,
+  isVetoerOverride,
+  etaOverride,
+}: Props) {
   const { address } = useAccount()
 
   // Action buttons should follow the governor's live state, not only the
@@ -78,10 +102,11 @@ function ProposalActionsInner({ detail }: Props) {
     functionName: 'state',
     args: [detail.proposalIdHash],
     chainId: daoConfig.chainId,
-    query: { refetchInterval: 15_000 },
+    query: { refetchInterval: 15_000, enabled: statusOverride === undefined },
   })
 
-  const status = mapLiveProposalState(liveState) ?? detail.summary.status
+  const status =
+    statusOverride ?? mapLiveProposalState(liveState) ?? detail.summary.status
 
   // Vetoer is set at DAO deploy time and may be `0x0` (burned). Only read
   // when we'd otherwise render a veto button, to keep the page lighter.
@@ -91,16 +116,18 @@ function ProposalActionsInner({ detail }: Props) {
     abi: governorAbi,
     functionName: 'vetoer',
     chainId: daoConfig.chainId,
-    query: { enabled: vetoStateEligible },
+    query: { enabled: vetoStateEligible && isVetoerOverride === undefined },
   })
 
   const isProposer =
-    !!address && address.toLowerCase() === detail.proposerFull.toLowerCase()
+    isProposerOverride ??
+    (!!address && address.toLowerCase() === detail.proposerFull.toLowerCase())
   const isVetoer =
-    !!address &&
-    !!vetoer &&
-    (vetoer as string).toLowerCase() !== zeroAddress &&
-    address.toLowerCase() === (vetoer as string).toLowerCase()
+    isVetoerOverride ??
+    (!!address &&
+      !!vetoer &&
+      (vetoer as string).toLowerCase() !== zeroAddress &&
+      address.toLowerCase() === (vetoer as string).toLowerCase())
 
   const showQueue = QUEUE_STATES.has(status)
   const showExecute = EXECUTE_STATES.has(status)
@@ -114,7 +141,7 @@ function ProposalActionsInner({ detail }: Props) {
   return (
     <aside className="flex flex-col gap-4 rounded-xl border border-border bg-surface px-6 py-[22px]">
       {showQueue && <QueueAction detail={detail} />}
-      {showExecute && <ExecuteAction detail={detail} />}
+      {showExecute && <ExecuteAction detail={detail} etaOverride={etaOverride} />}
       {showCancel && <CancelAction detail={detail} />}
       {showVeto && <VetoAction detail={detail} />}
     </aside>
@@ -146,21 +173,38 @@ function QueueAction({ detail }: { detail: ProposalDetail }) {
 
 // ── Execute ────────────────────────────────────────────────────
 
-function ExecuteAction({ detail }: { detail: ProposalDetail }) {
+function ExecuteAction({
+  detail,
+  etaOverride,
+}: {
+  detail: ProposalDetail
+  etaOverride?: number | null
+}) {
   const { phase, run, error } = useGovernorWrite()
   const now = useCountdownTick()
 
   // The timelock delay is set when queue() runs; we read it back from
-  // proposalEta(...) to know when execute() will actually succeed.
+  // proposalEta(...) to know when execute() will actually succeed. The harness
+  // injects etaOverride to demo the countdown without a live governor.
   const { data: eta, isLoading: etaLoading } = useReadContract({
     address: daoConfig.addresses.governor as Address,
     abi: governorAbi,
     functionName: 'proposalEta',
     args: [detail.proposalIdHash],
     chainId: daoConfig.chainId,
+    query: { enabled: etaOverride === undefined },
   })
 
-  const etaSec = useMemo(() => (eta !== undefined ? Number(eta as bigint) : null), [eta])
+  const etaSec = useMemo(
+    () =>
+      etaOverride !== undefined
+        ? etaOverride
+        : eta !== undefined
+          ? Number(eta as bigint)
+          : null,
+    [eta, etaOverride]
+  )
+  const loading = etaOverride === undefined && etaLoading
   // Wait for the read to resolve before enabling the button — a missing eta
   // (read still in flight) would otherwise look "ready" and the tx would
   // revert from the governor side.
@@ -171,7 +215,7 @@ function ExecuteAction({ detail }: { detail: ProposalDetail }) {
     <ActionShell
       title="Execute proposal"
       blurb={
-        etaLoading || etaSec === null
+        loading || etaSec === null
           ? 'Checking timelock…'
           : ready
             ? 'Timelock elapsed. Execute the proposal to run its transactions.'
@@ -416,15 +460,17 @@ function parseWriteError(err: unknown): string | null {
   return msg.split('\n')[0]
 }
 
+// Compound units (Xd Yh / Xh Ym) so "Available in 1d" doesn't hide a near-full
+// extra day — matches VotingPowerExplainer.formatOpensIn.
 function formatDuration(sec: number): string {
   if (sec <= 0) return 'now'
-  const d = Math.floor(sec / 86400)
-  if (d >= 1) return `${d}d`
-  const h = Math.floor(sec / 3600)
-  if (h >= 1) return `${h}h`
+  if (sec < 60) return `${sec}s`
   const m = Math.floor(sec / 60)
-  if (m >= 1) return `${m}m`
-  return `${sec}s`
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ${m % 60}m`
+  const d = Math.floor(h / 24)
+  return `${d}d ${h % 24}h`
 }
 
 function mapLiveProposalState(state: unknown): ProposalStatus | null {
