@@ -54,7 +54,7 @@ export function CoinsListView() {
             Zora content coins backed by {daoConfig.name}&apos;s creator coin.
           </p>
         </div>
-        <Link href="/coins/new">
+        <Link href="/coins/new" className="cap-nudge self-start">
           <Button type="button" size="md" className="min-h-11 md:min-h-10">
             <Plus className="h-4 w-4" />
             Create coin

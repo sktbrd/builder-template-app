@@ -69,7 +69,7 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
             last 5 proposals
           </p>
         </div>
-        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col items-stretch gap-2 sm:cap-nudge sm:flex-row sm:items-center">
           <div className="flex min-h-11 w-full items-center rounded-md border border-border bg-surface px-3 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 sm:w-auto sm:min-w-[260px] lg:min-w-[420px]">
             <Search className="h-4 w-4 text-muted-fg" />
             <input

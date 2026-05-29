@@ -88,7 +88,7 @@ export function FeedView() {
           </h1>
           <p className="mt-1 text-muted-fg">Real-time activity from {daoConfig.name}.</p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="cap-nudge flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
             <button
               key={f.key}

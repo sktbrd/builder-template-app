@@ -55,7 +55,7 @@ export function ProposalsListView({ proposals }: { proposals: ProposalSummary[] 
             How the community funds projects, media, and public work.
           </p>
         </div>
-        <Button asChild className="self-start">
+        <Button asChild className="cap-nudge self-start">
           <Link href="/proposals/new">
             <Plus className="h-4 w-4" />
             Create proposal

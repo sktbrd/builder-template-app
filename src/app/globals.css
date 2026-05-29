@@ -150,3 +150,15 @@
     color: inherit;
   }
 }
+
+/**
+ * Nudges a page header's right-hand control (button / filter pills / search)
+ * down so its TOP edge meets the CAP-HEIGHT of the adjacent display heading
+ * rather than the heading's line-box top. The big `clamp(36px,5vw,56px)`
+ * display font leaves a leading gap above its capitals; this offset (~0.18× the
+ * font size, tracked with the same clamp curve so it scales with the heading)
+ * cancels that gap, landing the control level with the visible title text.
+ */
+@utility cap-nudge {
+  margin-top: clamp(6.5px, 0.9vw, 10px);
+}
