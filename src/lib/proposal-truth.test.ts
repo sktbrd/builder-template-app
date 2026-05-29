@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  bumpTally,
   findMyVote,
   mergeVoteTally,
+  optimisticTally,
   tallyFromChain,
   totalCast,
   type VoteTally,
@@ -54,6 +56,48 @@ describe('mergeVoteTally', () => {
   it('falls back to server if the chain read is briefly behind', () => {
     const truth = tally({ forVotes: 4, againstVotes: 1, abstainVotes: 0 }) // total 5
     expect(mergeVoteTally(server, truth)).toBe(server)
+  })
+})
+
+describe('bumpTally', () => {
+  const base = tally({ forVotes: 5, againstVotes: 1, abstainVotes: 0 })
+
+  it('adds weight to the matching bucket only', () => {
+    expect(bumpTally(base, 'for', 3)).toEqual({ forVotes: 8, againstVotes: 1, abstainVotes: 0 })
+    expect(bumpTally(base, 'against', 2)).toEqual({ forVotes: 5, againstVotes: 3, abstainVotes: 0 })
+    expect(bumpTally(base, 'abstain', 4)).toEqual({ forVotes: 5, againstVotes: 1, abstainVotes: 4 })
+  })
+
+  it('does not mutate the input', () => {
+    bumpTally(base, 'for', 3)
+    expect(base.forVotes).toBe(5)
+  })
+})
+
+describe('optimisticTally', () => {
+  const real = tally({ forVotes: 5, againstVotes: 1, abstainVotes: 0 }) // total 6
+
+  it('returns the real tally when there is no pending overlay', () => {
+    expect(optimisticTally(real, null)).toBe(real)
+  })
+
+  it('shows the optimistic overlay while the real tally has not caught up', () => {
+    // actor just submitted a +3 For vote on top of the total-6 base
+    const pending = tally({ forVotes: 8, againstVotes: 1, abstainVotes: 0 }) // total 9
+    expect(optimisticTally(real, pending)).toBe(pending)
+  })
+
+  it('reconciles to the real tally once the chain read includes the vote', () => {
+    const pending = tally({ forVotes: 8, againstVotes: 1, abstainVotes: 0 }) // total 9
+    const caughtUp = tally({ forVotes: 8, againstVotes: 1, abstainVotes: 0 }) // total 9
+    // equal totals → real wins, so the lingering echo never double-counts
+    expect(optimisticTally(caughtUp, pending)).toBe(caughtUp)
+  })
+
+  it('yields to the real tally when others have pushed it past the overlay', () => {
+    const pending = tally({ forVotes: 8, againstVotes: 1, abstainVotes: 0 }) // total 9
+    const ahead = tally({ forVotes: 8, againstVotes: 5, abstainVotes: 0 }) // total 13
+    expect(optimisticTally(ahead, pending)).toBe(ahead)
   })
 })
 

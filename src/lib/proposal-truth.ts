@@ -62,6 +62,25 @@ export function mergeVoteTally(server: VoteTally, truth: VoteTally | null): Vote
   return totalCast(truth) >= totalCast(server) ? truth : server
 }
 
+/** Add `weight` to the bucket a support choice increments, leaving the rest. */
+export function bumpTally(t: VoteTally, support: VoteSupport, weight: number): VoteTally {
+  const key = SUPPORT_KEY[support]
+  return { ...t, [key]: t[key] + weight }
+}
+
+/**
+ * Overlay the actor's just-cast vote optimistically. `pending` is the tally as
+ * displayed when the vote was submitted plus the actor's weight; we show it only
+ * while the real (merged) tally hasn't yet reached that total. The instant the
+ * on-chain read includes the vote, totals equalize and we fall back to the real
+ * tally — self-reconciling, so the lingering echo never double-counts. Passing
+ * `pending: null` (no echo) returns the real tally unchanged.
+ */
+export function optimisticTally(real: VoteTally, pending: VoteTally | null): VoteTally {
+  if (!pending) return real
+  return totalCast(real) < totalCast(pending) ? pending : real
+}
+
 /**
  * The connected wallet's own vote, found in the subgraph votes list. Used to
  * keep the "You voted X" confirmation across reloads once the vote is indexed

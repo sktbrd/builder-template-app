@@ -16,7 +16,12 @@ import {
 
 import { useWeb3Ready } from '@/app/web3-providers'
 import { useProposalVotesTruth } from '@/components/dao/useProposalTruth'
-import { addVoteEcho, useVoteEcho } from '@/components/dao/useVoteEcho'
+import {
+  addVoteEcho,
+  clearVoteEcho,
+  confirmVoteEcho,
+  useVoteEcho,
+} from '@/components/dao/useVoteEcho'
 import {
   VotingPowerExplainer,
   type VotingPowerScenario,
@@ -88,15 +93,19 @@ function VotePanelInner({
   const { ensName } = useEnsName(address)
 
   // Shared with VoteSummary (same query key) — refetching here on a freshly
-  // mined vote updates the Vote summary's tally instantly.
-  const { refetch: refetchVotes } = useProposalVotesTruth(proposalIdHash)
+  // mined vote updates the Vote summary's tally instantly. `chainTally` seeds
+  // the optimistic overlay's base when the actor submits.
+  const { tally: chainTally, refetch: refetchVotes } = useProposalVotesTruth(proposalIdHash)
   // Has the connected wallet already voted? Echo = this session (instant, the
   // actor's own just-cast vote); subgraph votes = durable across reloads once
-  // indexed.
+  // indexed. Only a *confirmed* echo flips the form — a pending one is still
+  // in-flight (could be rejected/reverted), so it only drives the optimistic
+  // bar overlay in VoteSummary, not the "You voted" confirmation here.
   const echo = useVoteEcho(proposalIdHash)
-  const myVote = echo
-    ? { support: echo.support, weight: echo.weight }
-    : findMyVote(votes ?? [], address)
+  const myVote =
+    echo && echo.status === 'confirmed'
+      ? { support: echo.support, weight: echo.weight }
+      : findMyVote(votes ?? [], address)
   const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
@@ -180,24 +189,40 @@ function VotePanelInner({
     return () => clearTimeout(t)
   }, [isMined, resetWrite])
 
-  // On a freshly mined vote, record the per-session echo (flips the form to a
-  // confirmation immediately) and refetch the shared tally (updates the Vote
-  // summary now instead of on the next ~5s poll). The ref fires this once per
-  // mine even though `choice` resets a beat later.
+  // On a freshly mined vote, promote the pending echo to confirmed (flips the
+  // form to a confirmation immediately) and refetch the shared tally (updates
+  // the Vote summary now instead of on the next ~5s poll; the chain already
+  // reflects the vote, so the optimistic overlay reconciles to it). The ref
+  // fires this once per mine.
   const recordedRef = useRef(false)
   useEffect(() => {
     if (!isMined) {
       recordedRef.current = false
       return
     }
-    if (recordedRef.current || !choice) return
+    if (recordedRef.current) return
     recordedRef.current = true
-    addVoteEcho({ proposalId: proposalIdHash, support: choice, weight: votingPower })
+    confirmVoteEcho(proposalIdHash)
     refetchVotes()
-  }, [isMined, choice, votingPower, proposalIdHash, refetchVotes])
+  }, [isMined, proposalIdHash, refetchVotes])
+
+  // Tx rejected in-wallet or reverted — drop the optimistic echo so the bar
+  // un-bumps and the form returns (the error message renders below it).
+  useEffect(() => {
+    if (writeError || mineError) clearVoteEcho(proposalIdHash)
+  }, [writeError, mineError, proposalIdHash])
 
   const submit = () => {
     if (!choice) return
+    // Record the optimistic overlay before sending: the Vote summary bar bumps
+    // by the actor's snapshot weight immediately, reconciling on mine / rolling
+    // back on error. Base = the live chain tally so totals line up on reconcile.
+    addVoteEcho({
+      proposalId: proposalIdHash,
+      support: choice,
+      weight: votingPower,
+      base: chainTally ?? { forVotes: 0, againstVotes: 0, abstainVotes: 0 },
+    })
     writeContract({
       address: daoConfig.addresses.governor as `0x${string}`,
       abi: governorAbi,

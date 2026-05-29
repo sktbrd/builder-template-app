@@ -2,7 +2,14 @@
 
 import { useWeb3Ready } from '@/app/web3-providers'
 import { VoteBar } from '@/components/dao/VoteBar'
-import { mergeVoteTally, totalCast, type VoteTally } from '@/lib/proposal-truth'
+import { useVoteEcho } from '@/components/dao/useVoteEcho'
+import {
+  bumpTally,
+  mergeVoteTally,
+  optimisticTally,
+  totalCast,
+  type VoteTally,
+} from '@/lib/proposal-truth'
 
 import { useProposalVotesTruth } from './useProposalTruth'
 
@@ -27,8 +34,11 @@ function serverTally(p: Props): VoteTally {
  * subgraph-rendered server tallies, it overlays the live Governor
  * `proposalVotes` read (useProposalVotesTruth) whenever chain is ahead — so a
  * freshly cast vote (and other voters' votes) show up without waiting on
- * subgraph indexing. Before wagmi mounts (useWeb3Ready) it renders the plain
- * server values, so SSR/first paint match (no hydration drift).
+ * subgraph indexing. On top of that it overlays the actor's own *in-flight*
+ * vote (useVoteEcho): the bar bumps by their weight the instant they submit,
+ * then reconciles to the real tally once the chain read includes it (and rolls
+ * back if the tx errors). Before wagmi mounts (useWeb3Ready) it renders the
+ * plain server values, so SSR/first paint match (no hydration drift).
  */
 export function VoteSummary(props: Props) {
   const ready = useWeb3Ready()
@@ -38,7 +48,10 @@ export function VoteSummary(props: Props) {
 
 function VoteSummaryConnected(props: Props) {
   const { tally: truth } = useProposalVotesTruth(props.proposalIdHash)
-  const tally = mergeVoteTally(serverTally(props), truth)
+  const echo = useVoteEcho(props.proposalIdHash)
+  const real = mergeVoteTally(serverTally(props), truth)
+  const pending = echo ? bumpTally(echo.base, echo.support, echo.weight) : null
+  const tally = optimisticTally(real, pending)
   return <VoteSummaryView quorum={props.quorum} tally={tally} />
 }
 

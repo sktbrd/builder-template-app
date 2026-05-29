@@ -2,21 +2,36 @@
 
 import { useSyncExternalStore } from 'react'
 
-import type { VoteSupport } from '@/lib/proposal-truth'
+import type { VoteSupport, VoteTally } from '@/lib/proposal-truth'
 
 /**
  * Per-session record of the vote the actor just cast, keyed by proposalId. The
  * Governor exposes no `getReceipt`/`hasVoted`, so until the subgraph indexes the
- * vote there's no way to tell the actor it landed — this bridges that window so
- * the "Cast your vote" form flips to a "You voted X" confirmation the instant
- * their tx mines, and survives a client-side remount within the session
- * (navigating away and back). Ephemeral: gone on reload, pruned on a TTL; the
- * durable signal is the subgraph votes list (see findMyVote).
+ * vote there's no way to tell the actor it landed — this bridges that window.
+ *
+ * Two roles, distinguished by `status`:
+ *  - `pending` (recorded on submit): drives the optimistic Vote summary overlay
+ *    (the bar bumps by the actor's weight the instant they submit). The form
+ *    stays in its submitting state — a pending echo does NOT flip it to "You
+ *    voted", since the tx could still be rejected or revert.
+ *  - `confirmed` (set on mine): flips the "Cast your vote" form to a "You voted
+ *    X" confirmation; the optimistic overlay reconciles away once the on-chain
+ *    read catches up.
+ * Cleared (clearVoteEcho) on tx error so the optimistic bump rolls back.
+ *
+ * Survives a client-side remount within the session (navigating away and back).
+ * Ephemeral: gone on reload, pruned on a TTL; the durable signal is the subgraph
+ * votes list (see findMyVote).
  */
+export type VoteEchoStatus = 'pending' | 'confirmed'
+
 export type VoteEcho = {
   proposalId: string
   support: VoteSupport
   weight: number
+  status: VoteEchoStatus
+  /** Tally as displayed when the vote was submitted — base for the optimistic overlay. */
+  base: VoteTally
   /** ms epoch when recorded — used for TTL pruning. */
   ts: number
 }
@@ -37,11 +52,25 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
-/** Record (or replace) the actor's vote for a proposal. */
-export function addVoteEcho(echo: Omit<VoteEcho, 'ts'>): void {
+/** Record the actor's just-submitted vote as `pending` (optimistic overlay on). */
+export function addVoteEcho(echo: Omit<VoteEcho, 'ts' | 'status'>): void {
   prune()
-  store.set(echo.proposalId.toLowerCase(), { ...echo, ts: Date.now() })
+  store.set(echo.proposalId.toLowerCase(), { ...echo, status: 'pending', ts: Date.now() })
   emit()
+}
+
+/** Promote the actor's pending vote to `confirmed` once its tx mines. No-op if absent. */
+export function confirmVoteEcho(proposalId: string): void {
+  const key = proposalId.toLowerCase()
+  const existing = store.get(key)
+  if (!existing) return
+  store.set(key, { ...existing, status: 'confirmed' })
+  emit()
+}
+
+/** Drop the actor's echo (e.g. tx rejected/reverted) so the optimistic bump rolls back. */
+export function clearVoteEcho(proposalId: string): void {
+  if (store.delete(proposalId.toLowerCase())) emit()
 }
 
 function subscribe(onChange: () => void): () => void {
