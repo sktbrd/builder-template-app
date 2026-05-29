@@ -1,11 +1,8 @@
 'use client'
 
-import { Plus } from 'lucide-react'
-import Link from 'next/link'
 import useSWR from 'swr'
 
 import { DroposalCard } from '@/components/coins/DroposalCard'
-import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import { getDroposals } from '@/lib/droposals'
 import { isDroposalSupported } from '@/lib/proposal-tx'
@@ -37,17 +34,9 @@ export function DroposalsListView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-muted-fg">
-          NFT editions deployed by {daoConfig.name} through governance, mintable on Zora.
-        </p>
-        <Link href="/proposals/new" className="cap-nudge self-start">
-          <Button type="button" size="md" className="min-h-11 md:min-h-10">
-            <Plus className="h-4 w-4" />
-            Create droposal
-          </Button>
-        </Link>
-      </div>
+      <p className="text-muted-fg">
+        NFT editions deployed by {daoConfig.name} through governance, mintable on Zora.
+      </p>
 
       {error && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">

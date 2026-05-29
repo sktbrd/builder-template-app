@@ -1,7 +1,10 @@
 import { isChainIdSupportedByCoining } from '@buildeross/utils'
+import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
 import { isDroposalSupported } from '@/lib/proposal-tx'
 
@@ -32,15 +35,37 @@ export default async function ContentPage({
   const coinsSupported = isChainIdSupportedByCoining(daoConfig.chainId)
   const droposalsSupported = isDroposalSupported()
 
+  // The top-right create action follows the active tab: "Create coin" deep-links
+  // to the coin wizard, "Create droposal" to the proposal wizard (droposals are
+  // created as governance proposals). Hidden when the active tab is unsupported.
+  const createAction =
+    tab === 'droposals'
+      ? droposalsSupported
+        ? { href: '/proposals/new', label: 'Create droposal' }
+        : null
+      : coinsSupported
+        ? { href: '/coins/new', label: 'Create coin' }
+        : null
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
-          Content
-        </h1>
-        <p className="mt-1 text-muted-fg">
-          Coins and NFT editions created in the {daoConfig.name} context.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
+            Content
+          </h1>
+          <p className="mt-1 text-muted-fg">
+            Coins and NFT editions created in the {daoConfig.name} context.
+          </p>
+        </div>
+        {createAction && (
+          <Link href={createAction.href} className="cap-nudge self-start">
+            <Button type="button" size="md" className="min-h-11 md:min-h-10">
+              <Plus className="h-4 w-4" />
+              {createAction.label}
+            </Button>
+          </Link>
+        )}
       </div>
 
       {!coinsSupported && !droposalsSupported ? (
