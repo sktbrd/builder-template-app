@@ -1,14 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { BidForm } from '@/components/dao/BidForm'
 import { ActorIdentity } from '@/components/feed/ActorIdentity'
+import { mergeBidEchoes } from '@/lib/auction-truth'
+import { daoConfig } from '@/lib/dao.config'
 import { cn, resolveIpfs } from '@/lib/utils'
 
 import { AuctionArt } from './AuctionArt'
 import { SettleAuctionAction } from './SettleAuctionAction'
+import { useBidEchoes } from './useBidEcho'
 
 export type AuctionHeroBid = {
   id: string
@@ -187,6 +190,77 @@ function formatBornDate(unixSeconds: number | undefined): string | null {
     .toUpperCase()
 }
 
+// A freshly-settled token's nouns.build art is often still compositing for the
+// first seconds-to-minute after mint, so the URL is known but 404s/errors. Rather
+// than fall back to the placeholder forever, retry the SAME url on a backoff and
+// fade the real art in the instant it's ready — no manual refresh. Capped so a
+// genuinely-broken image host doesn't poll indefinitely (stays on AuctionArt).
+const MAX_ART_RETRIES = 8
+
+/**
+ * Hero artwork with a cold-render fallback that auto-heals. Shows the generative
+ * <AuctionArt> while the image is missing/loading/erroring, then fades in the
+ * real art once a (re)load succeeds. Keyed by `imageSrc` at the call site so all
+ * retry state resets when the token's art URL changes (new auction, or the
+ * subgraph delivering the canonical URL after indexing catches up).
+ */
+function HeroArt({
+  imageSrc,
+  alt,
+  palette,
+}: {
+  imageSrc: string | null
+  alt: string
+  palette: [string, string, string]
+}) {
+  const [attempt, setAttempt] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const [errored, setErrored] = useState(false)
+
+  useEffect(() => {
+    if (!imageSrc || !errored || attempt >= MAX_ART_RETRIES) return
+    const delay = Math.min(2000 * 2 ** attempt, 20000) // 2s, 4s, 8s, 16s, 20s…
+    const id = setTimeout(() => {
+      setErrored(false)
+      setAttempt((a) => a + 1)
+    }, delay)
+    return () => clearTimeout(id)
+  }, [imageSrc, errored, attempt])
+
+  if (!imageSrc) {
+    return <AuctionArt palette={palette} className="absolute inset-0" />
+  }
+
+  // Cache-bust retries so the browser re-requests the warming art; attempt 0
+  // stays canonical so a warm image hits the shared cache and shows instantly.
+  const src =
+    attempt === 0
+      ? imageSrc
+      : `${imageSrc}${imageSrc.includes('?') ? '&' : '?'}_r=${attempt}`
+
+  return (
+    <>
+      {(!loaded || errored) && (
+        <AuctionArt palette={palette} className="absolute inset-0" />
+      )}
+      {/* `object-bottom` anchors the character's feet to the bottom of the
+          column so the figure looks grounded (nouns.game style). */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={attempt}
+        src={src}
+        alt={alt}
+        onLoad={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+        className={cn(
+          'absolute inset-0 z-10 h-full w-full object-contain object-bottom px-4 pt-4 transition-[opacity,transform] duration-500 group-hover:scale-[1.02] md:px-8 md:pt-8',
+          loaded && !errored ? 'opacity-100' : 'opacity-0'
+        )}
+      />
+    </>
+  )
+}
+
 export function AuctionHero({ auction, palette, tokenLabel }: Props) {
   const secs = useCountdown(auction?.endTimeUnix ?? 0)
   const ended = secs <= 0
@@ -195,6 +269,18 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
 
   const imageSrc = auction?.image ? resolveIpfs(auction.image) : null
   const tint = useDominantColor(imageSrc)
+
+  // The actor's just-placed bid + comment, merged into the subgraph bid list so
+  // they appear before indexing catches up (and the comment — which never
+  // reaches chain — shows at all). Scoped to this token; past tiles get none.
+  const echoes = useBidEchoes(auction?.tokenId)
+  const mergedBids = useMemo(
+    () =>
+      auction && auction.kind !== 'past'
+        ? mergeBidEchoes(auction.recentBids ?? [], echoes)
+        : [],
+    [auction, echoes]
+  )
 
   if (!auction) {
     return (
@@ -249,19 +335,12 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
           tabIndex={-1}
           aria-label={`View auction for ${tokenName}`}
         >
-          {imageSrc ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={imageSrc}
-              alt={tokenName}
-              // `object-bottom` anchors the character's feet to the bottom of
-              // the column so the figure looks grounded (nouns.game style).
-              // Padding intentionally drops on the bottom edge.
-              className="absolute inset-0 z-10 h-full w-full object-contain object-bottom px-4 pt-4 transition-transform duration-700 group-hover:scale-[1.02] md:px-8 md:pt-8"
-            />
-          ) : (
-            <AuctionArt palette={palette} className="absolute inset-0" />
-          )}
+          <HeroArt
+            key={imageSrc ?? 'art'}
+            imageSrc={imageSrc}
+            alt={tokenName}
+            palette={palette}
+          />
         </Link>
 
         {/* Info panel — no backdrop, sits on the same tint */}
@@ -344,7 +423,12 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                     To settle
                   </p>
                 ) : (
+                  // The countdown ticks every second, so the SSR snapshot is
+                  // ~1s stale by the time the client hydrates — an expected,
+                  // unavoidable text drift. Suppress the hydration warning for
+                  // this node; React adopts the client value on the next tick.
                   <p
+                    suppressHydrationWarning
                     className={cn(
                       'font-display text-[clamp(28px,3.4vw,42px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
                       critical
@@ -377,14 +461,14 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                 <BidForm
                   tokenId={auction.tokenId}
                   topBid={topBidNumeric}
-                  enableComment
+                  enableComment={daoConfig.features.bidComments}
                   compact
                 />
               )}
             </div>
           )}
 
-          {!isPast && auction.recentBids && auction.recentBids.length > 0 && (
+          {!isPast && mergedBids.length > 0 && (
             <div className="mt-5 flex flex-col gap-2.5">
               <p
                 className={cn(
@@ -395,7 +479,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                 Recent bids
               </p>
               <ul className="flex flex-col gap-2">
-                {auction.recentBids.slice(0, 3).map((b) => (
+                {mergedBids.slice(0, 3).map((b) => (
                   <li key={b.id} className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between gap-3">
                       <ActorIdentity
