@@ -13,7 +13,6 @@ import type { Hex } from 'viem'
 import { zeroHash } from 'viem'
 import {
   useAccount,
-  useChainId,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -52,13 +51,13 @@ export function PropdateForm({ proposalIdHash, replyTo, onPosted, onClose }: Pro
   // auto-closes after "Posted ✓".
   const handledTxRef = useRef<Hex | undefined>(undefined)
 
-  const { address, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
   const easContractAddress = EAS_CONTRACT_ADDRESS[daoConfig.chainId]
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   const {
     writeContract,

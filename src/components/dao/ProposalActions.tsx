@@ -8,7 +8,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { type Address, type Hex, zeroAddress } from 'viem'
 import {
   useAccount,
-  useChainId,
   useReadContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -388,9 +387,9 @@ function useGovernorWrite(): {
   run: (call: GovernorRunArgs) => void
   error: string | null
 } {
-  const { isConnected } = useAccount()
-  const connectedChainId = useChainId()
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const { isConnected, chainId: walletChainId } = useAccount()
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   const {
     writeContract,

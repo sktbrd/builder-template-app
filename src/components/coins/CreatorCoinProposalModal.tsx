@@ -12,7 +12,6 @@ import { type Address, formatEther, parseEther } from 'viem'
 import {
   useAccount,
   useBalance,
-  useChainId,
   usePublicClient,
   useReadContracts,
   useSwitchChain,
@@ -49,12 +48,12 @@ export function CreatorCoinProposalModal({ open, onClose }: Props) {
 
 function ModalContent({ onClose }: { onClose: () => void }) {
   const router = useRouter()
-  const { address, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
   const publicClient = usePublicClient({ chainId: daoConfig.chainId })
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   // Coin identity (collected here, drives the prefill).
   const [name, setName] = useState('')

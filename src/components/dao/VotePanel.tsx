@@ -7,7 +7,6 @@ import { Check, Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   useAccount,
-  useChainId,
   useReadContracts,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -89,13 +88,14 @@ function VotePanelInner({
   const [choice, setChoice] = useState<Choice | null>(initialChoice)
   const [reason, setReason] = useState('')
 
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { ensName } = useEnsName(address)
 
   // Shared with VoteSummary (same query key) — refetching here on a freshly
   // mined vote updates the Vote summary's tally instantly. `chainTally` seeds
   // the optimistic overlay's base when the actor submits.
-  const { tally: chainTally, refetch: refetchVotes } = useProposalVotesTruth(proposalIdHash)
+  const { tally: chainTally, refetch: refetchVotes } =
+    useProposalVotesTruth(proposalIdHash)
   // Has the connected wallet already voted? Echo = this session (instant, the
   // actor's own just-cast vote); subgraph votes = durable across reloads once
   // indexed. Only a *confirmed* echo flips the form — a pending one is still
@@ -106,11 +106,11 @@ function VotePanelInner({
     echo && echo.status === 'confirmed'
       ? { support: echo.support, weight: echo.weight }
       : findMyVote(votes ?? [], address)
-  const connectedChainId = useChainId()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   // Resolve real voting power: getVotes at the proposal's snapshot timestamp +
   // current token balance (to distinguish "delegated away" from "no tokens").

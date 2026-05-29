@@ -9,7 +9,6 @@ import { type Address, parseEther } from 'viem'
 import {
   useAccount,
   useBalance,
-  useChainId,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -72,8 +71,7 @@ function BidFormInner({
   const [justBidEth, setJustBidEth] = useState<string | null>(null)
   const router = useRouter()
 
-  const { address, isConnected } = useAccount()
-  const connectedChainId = useChainId()
+  const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
@@ -83,7 +81,8 @@ function BidFormInner({
     query: { enabled: !!address },
   })
 
-  const onWrongChain = isConnected && connectedChainId !== daoConfig.chainId
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
 
   const minBid = useMemo(
     () => (topBid * minIncrementPct).toFixed(3),
