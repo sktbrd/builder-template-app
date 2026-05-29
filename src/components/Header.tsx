@@ -125,10 +125,14 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { href: '/about', label: 'About', match: (p: string) => p === '/about' },
 ]
 
-const COINS_NAV_ITEM: NavItem = {
+const CONTENT_NAV_ITEM: NavItem = {
   href: '/coins',
-  label: 'Coins',
-  match: (p: string) => p === '/coins' || p.startsWith('/coins/'),
+  label: 'Content',
+  match: (p: string) =>
+    p === '/coins' ||
+    p.startsWith('/coins/') ||
+    p === '/droposals' ||
+    p.startsWith('/droposals/'),
 }
 
 const subscribeMounted = () => () => {}
@@ -156,10 +160,10 @@ export function Header() {
       daoConfig.features.coins && isChainIdSupportedByCoining(daoConfig.chainId)
     if (!coinsEnabled) return BASE_NAV_ITEMS
     const treasuryIdx = BASE_NAV_ITEMS.findIndex((i) => i.href === '/treasury')
-    if (treasuryIdx === -1) return [...BASE_NAV_ITEMS, COINS_NAV_ITEM]
+    if (treasuryIdx === -1) return [...BASE_NAV_ITEMS, CONTENT_NAV_ITEM]
     return [
       ...BASE_NAV_ITEMS.slice(0, treasuryIdx + 1),
-      COINS_NAV_ITEM,
+      CONTENT_NAV_ITEM,
       ...BASE_NAV_ITEMS.slice(treasuryIdx + 1),
     ]
   }, [])
