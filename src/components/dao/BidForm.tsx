@@ -221,7 +221,7 @@ function BidFormInner({
             // Compact = pill input that pairs with the accent button: same
             // accent hue, lighter shade — so input + button read as one unit.
             compact
-              ? 'h-12 rounded-full border border-accent/30 bg-accent/10 px-5 text-fg focus-within:border-accent'
+              ? 'h-12 rounded-full border border-border bg-surface px-5 text-fg focus-within:border-accent'
               : 'rounded-md border border-border bg-surface px-3 focus-within:border-accent'
           )}
         >
@@ -299,7 +299,7 @@ function BidFormInner({
             // Compact = pill that visually pairs with the bid pill above:
             // same accent tint, same rounded-full shape, shorter height.
             compact
-              ? 'gap-2 rounded-full border border-accent/30 bg-accent/10 px-5 py-2 focus-within:border-accent'
+              ? 'gap-2 rounded-full border border-border bg-surface px-5 py-2 focus-within:border-accent'
               : 'gap-2 rounded-md border border-border bg-surface px-3 py-2 focus-within:border-accent'
           )}
         >
@@ -331,7 +331,7 @@ function BidFormInner({
       )}
 
       <div
-        className={cn('text-[12px]', compact ? 'pl-5 text-neutral-500' : 'text-muted-fg')}
+        className={cn('text-[12px] text-muted-fg', compact && 'pl-5')}
       >
         {phase === 'switch' ? (
           <span className="text-warning">

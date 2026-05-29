@@ -227,19 +227,21 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
   // pure black on light tints and pure white on dark tints; secondary is a
   // single neutral gray for both. No hue cast.
   const textColor = tintIsLight ? 'text-black' : 'text-white'
-  const mutedColor = tintIsLight ? 'text-neutral-600' : 'text-neutral-300'
-  const subtleColor = tintIsLight ? 'text-neutral-700' : 'text-neutral-200'
+  // Hero text is all one high-contrast color — white on this dark band (flips
+  // to black only on very light-backed nouns so it stays legible).
+  const mutedColor = textColor
+  const subtleColor = textColor
   const dividerColor = tintIsLight ? 'border-black/15' : 'border-white/20'
 
   return (
     <section
       className={cn(
-        'overflow-hidden transition-[background] duration-500',
+        'relative left-1/2 w-screen -translate-x-1/2 overflow-hidden transition-[background] duration-500',
         tintRgb ? '' : 'bg-surface'
       )}
       style={heroStyle}
     >
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:min-h-[560px]">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:min-h-[560px]">
         {/* Artwork — visually dominant column, full-bleed and centered */}
         <Link
           href={`/auction/${auction.tokenId}`}
@@ -263,7 +265,10 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
         </Link>
 
         {/* Info panel — no backdrop, sits on the same tint */}
-        <div className={cn('flex flex-col px-6 py-6 md:px-8 md:py-8', textColor)}>
+        <div
+          data-theme={tintIsLight ? 'tint-light' : 'tint'}
+          className={cn('flex flex-col px-6 py-6 md:px-8 md:py-8', textColor)}
+        >
           <div className="flex flex-col gap-4">
             {bornLabel && (
               <p
@@ -333,7 +338,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                   <p
                     className={cn(
                       'font-display text-[clamp(18px,2vw,24px)] font-extrabold leading-none tracking-[-0.02em]',
-                      tintIsLight ? 'text-amber-700' : 'text-amber-300'
+                      textColor
                     )}
                   >
                     To settle
@@ -367,7 +372,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
           {!isPast && (
             <div className="mt-4 flex flex-col gap-3">
               {ended ? (
-                <SettleAuctionAction tokenId={auction.tokenId} />
+                <SettleAuctionAction tokenId={auction.tokenId} onTinted={!tintIsLight} />
               ) : (
                 <BidForm
                   tokenId={auction.tokenId}

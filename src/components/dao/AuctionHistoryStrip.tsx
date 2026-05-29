@@ -52,7 +52,7 @@ export function AuctionHistoryStrip({
         <li className="flex shrink-0 items-center">
           <Link
             href="/auction/latest"
-            className="flex h-[92px] w-[88px] flex-col items-center justify-center gap-0.5 rounded-[6px] border border-dashed border-border bg-surface/30 text-center text-[11px] font-semibold text-muted-fg transition-colors hover:border-border-strong hover:text-fg"
+            className="flex h-full w-[88px] flex-col items-center justify-center gap-0.5 rounded-[6px] border border-dashed border-border bg-surface/30 text-center text-[11px] font-semibold text-muted-fg transition-colors hover:border-border-strong hover:text-fg"
           >
             View
             <br />
@@ -67,7 +67,10 @@ export function AuctionHistoryStrip({
   )
 
   return (
-    <section aria-label="Recent auctions" className="group/marquee overflow-hidden">
+    <section
+      aria-label="Recent auctions"
+      className="group/marquee relative left-1/2 w-screen -translate-x-1/2 overflow-hidden"
+    >
       <div className="flex w-max gap-2 animate-[marquee_60s_linear_infinite] group-hover/marquee:[animation-play-state:paused]">
         {items}
         <div aria-hidden>{items}</div>
@@ -152,7 +155,7 @@ function TokenTile({
         ringClass
       )}
     >
-      <div className="relative h-[60px] w-[88px] overflow-hidden bg-surface-2">
+      <div className="relative aspect-square w-[88px] overflow-hidden bg-surface-2">
         {imageSrc ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -217,8 +220,15 @@ function StatusLine({ status }: { status: TileStatus }) {
       </span>
     )
   }
+  // ENS names render natural-case + proportional; short addresses stay mono + uppercase.
+  const isEns = status.label.includes('.')
   return (
-    <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-fg/80">
+    <span
+      className={cn(
+        'truncate text-[10px] tracking-wider text-muted-fg/80',
+        isEns ? 'lowercase' : 'font-mono uppercase'
+      )}
+    >
       {status.label}
     </span>
   )

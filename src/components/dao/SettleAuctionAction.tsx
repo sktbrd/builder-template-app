@@ -23,6 +23,9 @@ type Props = {
   /** Token id of the auction this page represents. */
   tokenId: number
   onSettled?: () => void
+  /** Rendered on a dark tinted background (the dashboard hero) — use light
+   *  text + border so the panel reads against the color. */
+  onTinted?: boolean
 }
 
 let currentTimeMs = 0
@@ -56,7 +59,7 @@ export function SettleAuctionAction(props: Props) {
   return <SettleAuctionActionInner {...props} />
 }
 
-function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
+function SettleAuctionActionInner({ tokenId, onSettled, onTinted }: Props) {
   const { isConnected } = useAccount()
   const nowMs = useSyncExternalStore(subscribeNow, getNowSnapshot, getNowServerSnapshot)
   const connectedChainId = useChainId()
@@ -171,11 +174,13 @@ function SettleAuctionActionInner({ tokenId, onSettled }: Props) {
   }
 
   return (
-    <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-3">
+    <div
+      className={`rounded-md border px-4 py-3 ${onTinted ? 'border-white/25 bg-white/5' : 'border-accent/30 bg-accent/5'}`}
+    >
       <div className="mb-2 text-sm font-semibold">
         This auction is awaiting settlement
       </div>
-      <div className="mb-2.5 text-[12.5px] text-muted-fg">
+      <div className={`mb-2.5 text-[12.5px] ${onTinted ? 'text-white/85' : 'text-muted-fg'}`}>
         Anyone can call settle to finalise this auction and seed the next one.
       </div>
 
