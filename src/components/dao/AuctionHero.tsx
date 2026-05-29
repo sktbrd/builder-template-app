@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -9,7 +10,6 @@ import { mergeBidEchoes } from '@/lib/auction-truth'
 import { daoConfig } from '@/lib/dao.config'
 import { cn, resolveIpfs } from '@/lib/utils'
 
-import { AuctionArt } from './AuctionArt'
 import { SettleAuctionAction } from './SettleAuctionAction'
 import { useBidEchoes } from './useBidEcho'
 
@@ -43,7 +43,12 @@ type Auction = {
 
 type Props = {
   auction: Auction | null
-  palette: [string, string, string]
+  /**
+   * Fallback art palette. Retained on the call API (callers still compute and
+   * pass it) but unused by the hero now that the artwork column falls back to a
+   * spinner instead of the generative <AuctionArt>.
+   */
+  palette?: [string, string, string]
   tokenLabel: string
 }
 
@@ -198,21 +203,13 @@ function formatBornDate(unixSeconds: number | undefined): string | null {
 const MAX_ART_RETRIES = 8
 
 /**
- * Hero artwork with a cold-render fallback that auto-heals. Shows the generative
- * <AuctionArt> while the image is missing/loading/erroring, then fades in the
- * real art once a (re)load succeeds. Keyed by `imageSrc` at the call site so all
+ * Hero artwork with a cold-render fallback that auto-heals. Shows a loading
+ * spinner while the image is missing/loading/erroring, then fades in the real
+ * art once a (re)load succeeds. Keyed by `imageSrc` at the call site so all
  * retry state resets when the token's art URL changes (new auction, or the
  * subgraph delivering the canonical URL after indexing catches up).
  */
-function HeroArt({
-  imageSrc,
-  alt,
-  palette,
-}: {
-  imageSrc: string | null
-  alt: string
-  palette: [string, string, string]
-}) {
+function HeroArt({ imageSrc, alt }: { imageSrc: string | null; alt: string }) {
   const [attempt, setAttempt] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
@@ -227,9 +224,18 @@ function HeroArt({
     return () => clearTimeout(id)
   }, [imageSrc, errored, attempt])
 
-  if (!imageSrc) {
-    return <AuctionArt palette={palette} className="absolute inset-0" />
-  }
+  const spinner = (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <Loader2
+        className="h-8 w-8 animate-spin text-muted-fg"
+        aria-label="Loading artwork"
+      />
+    </div>
+  )
+
+  // No art configured (e.g. local/sandbox DAOs) — sit on the theme surface and
+  // keep the spinner. There's no URL to (re)try, so it stays put.
+  if (!imageSrc) return spinner
 
   // Cache-bust retries so the browser re-requests the warming art; attempt 0
   // stays canonical so a warm image hits the shared cache and shows instantly.
@@ -240,9 +246,7 @@ function HeroArt({
 
   return (
     <>
-      {(!loaded || errored) && (
-        <AuctionArt palette={palette} className="absolute inset-0" />
-      )}
+      {(!loaded || errored) && spinner}
       {/* `object-bottom` anchors the character's feet to the bottom of the
           column so the figure looks grounded (nouns.game style). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -261,7 +265,7 @@ function HeroArt({
   )
 }
 
-export function AuctionHero({ auction, palette, tokenLabel }: Props) {
+export function AuctionHero({ auction, tokenLabel }: Props) {
   const secs = useCountdown(auction?.endTimeUnix ?? 0)
   const ended = secs <= 0
   const critical = !ended && secs < 300
@@ -304,20 +308,39 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
   // column and the info column sit on the exact sampled bg. No gradient, no
   // backdrop on the info column.
   const tintRgb = tint?.rgb ?? null
+  const hasTint = tintRgb !== null
   const tintIsLight = tint?.isLight ?? true
   const heroStyle = tintRgb ? { background: tintRgb } : undefined
 
   const topBidNumeric = auction.topBidEth ? parseFloat(auction.topBidEth) : 0
 
-  // Strict black/white/gray palette per nouns.game's hero: primary text is
-  // pure black on light tints and pure white on dark tints; secondary is a
-  // single neutral gray for both. No hue cast.
-  const textColor = tintIsLight ? 'text-black' : 'text-white'
-  // Hero text is all one high-contrast color — white on this dark band (flips
-  // to black only on very light-backed nouns so it stays legible).
-  const mutedColor = textColor
-  const subtleColor = textColor
-  const dividerColor = tintIsLight ? 'border-black/15' : 'border-white/20'
+  // With a sampled tint: strict black/white per nouns.game's hero (pure black on
+  // light tints, pure white on dark). Without one (no art → spinner on the theme
+  // surface): fall back to theme tokens so the hero respects light/dark mode
+  // instead of forcing black text onto a dark surface.
+  const textColor = hasTint ? (tintIsLight ? 'text-black' : 'text-white') : 'text-fg'
+  const mutedColor = hasTint ? textColor : 'text-muted-fg'
+  const subtleColor = mutedColor
+  const dividerColor = hasTint
+    ? tintIsLight
+      ? 'border-black/15'
+      : 'border-white/20'
+    : 'border-border'
+  // Countdown emphasis: red/amber over a tint, theme warning otherwise so it
+  // stays legible on either surface.
+  const countdownColor = critical
+    ? hasTint
+      ? tintIsLight
+        ? 'text-red-700'
+        : 'text-red-300'
+      : 'text-warning'
+    : urgent
+      ? hasTint
+        ? tintIsLight
+          ? 'text-amber-700'
+          : 'text-amber-300'
+        : 'text-warning'
+      : textColor
 
   return (
     <section
@@ -335,17 +358,16 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
           tabIndex={-1}
           aria-label={`View auction for ${tokenName}`}
         >
-          <HeroArt
-            key={imageSrc ?? 'art'}
-            imageSrc={imageSrc}
-            alt={tokenName}
-            palette={palette}
-          />
+          <HeroArt key={imageSrc ?? 'art'} imageSrc={imageSrc} alt={tokenName} />
         </Link>
 
         {/* Info panel — no backdrop, sits on the same tint */}
         <div
-          data-theme={tintIsLight ? 'tint-light' : 'tint'}
+          // Only override the theme tokens when sitting on a sampled tint. With
+          // no tint the column sits on the ambient theme surface, so we let it
+          // inherit the page's light/dark tokens — forcing 'tint-light' here is
+          // what made the text render dark on a dark surface.
+          data-theme={hasTint ? (tintIsLight ? 'tint-light' : 'tint') : undefined}
           className={cn('flex flex-col px-6 py-6 md:px-8 md:py-8', textColor)}
         >
           <div className="flex flex-col gap-4">
@@ -431,15 +453,7 @@ export function AuctionHero({ auction, palette, tokenLabel }: Props) {
                     suppressHydrationWarning
                     className={cn(
                       'font-display text-[clamp(28px,3.4vw,42px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
-                      critical
-                        ? tintIsLight
-                          ? 'text-red-700'
-                          : 'text-red-300'
-                        : urgent
-                          ? tintIsLight
-                            ? 'text-amber-700'
-                            : 'text-amber-300'
-                          : textColor
+                      countdownColor
                     )}
                   >
                     {formatCountdown(secs)}
