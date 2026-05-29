@@ -612,6 +612,10 @@ type FormatProposalOptions = {
 function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): ProposalSummary {
   const status = mapProposalState(p.state)
   const created = Number(p.timeCreated) * 1000
+  // The subgraph fragment carries voteStart/voteEnd/expiresAt/executedAt (unix
+  // seconds) but the typed shape doesn't expose them — same cast pattern as
+  // `votes` below. Missing fields read as 0 so callers degrade gracefully.
+  const sec = (k: string) => Number((p as unknown as Record<string, unknown>)[k] ?? 0)
   const date = new Date(created).toLocaleDateString(undefined, {
     month: 'short',
     day: '2-digit',
@@ -659,8 +663,13 @@ function formatProposal(p: Proposal, opts: FormatProposalOptions = {}): Proposal
     againstVotes: Number(p.againstVotes ?? 0),
     abstainVotes: Number(p.abstainVotes ?? 0),
     quorum: Number(p.quorumVotes ?? 0),
-    endsLabel: relativeLabel(status, created),
-    voteEnd: Number((p as unknown as { voteEnd?: unknown }).voteEnd ?? 0),
+    endsLabel: relativeLabel(status, created, {
+      voteStartMs: sec('voteStart') * 1000,
+      voteEndMs: sec('voteEnd') * 1000,
+      expiresMs: sec('expiresAt') * 1000,
+      executedMs: sec('executedAt') * 1000,
+    }),
+    voteEnd: sec('voteEnd'),
     requested,
     treasuryInsufficient,
     thumbnail: extractFirstImage(p.description ?? ''),
@@ -851,24 +860,48 @@ async function fetchTreasuryBalances(): Promise<TreasuryBalances> {
   return { ethWei, byToken }
 }
 
-function relativeLabel(status: ProposalStatus, createdMs: number) {
+/**
+ * The header label rendered right after the StatusBadge. It must describe the
+ * *event* that defines the current state, not the creation age — otherwise a
+ * proposal that executed 2 days ago but was created 9 days ago reads
+ * "Executed · 9 days ago". The optional `ev` timestamps (ms) let
+ * terminal/decided states anchor on the real event; absent fields fall back to
+ * a neutral "Created …".
+ */
+function relativeLabel(
+  status: ProposalStatus,
+  createdMs: number,
+  ev: {
+    voteStartMs?: number
+    voteEndMs?: number
+    expiresMs?: number
+    executedMs?: number
+  } = {}
+) {
   const now = Date.now()
-  const ageMs = now - createdMs
-  const days = Math.floor(ageMs / (1000 * 60 * 60 * 24))
-  if (status === 'pending') {
-    return 'Voting opens soon'
+  const ago = (ms: number) => {
+    const days = Math.floor((now - ms) / 86_400_000)
+    if (days < 1) return 'today'
+    if (days === 1) return '1 day ago'
+    if (days < 30) return `${days} days ago`
+    const months = Math.floor(days / 30)
+    return months === 1 ? '1 month ago' : `${months} months ago`
   }
+  if (status === 'pending') return 'Voting opens soon'
   if (status === 'active') {
+    // Anchor on voteStart (when voting actually opened), not creation — a
+    // votingDelay can push them across a day boundary.
+    const base = ev.voteStartMs && ev.voteStartMs > 0 ? ev.voteStartMs : createdMs
+    const days = Math.floor((now - base) / 86_400_000)
     return days <= 0 ? 'Active now' : `Started ${days}d ago`
   }
-  if (status === 'queued') {
-    return 'Awaiting execution'
-  }
-  if (days < 1) return 'today'
-  if (days === 1) return '1 day ago'
-  if (days < 30) return `${days} days ago`
-  const months = Math.floor(days / 30)
-  return months === 1 ? '1 month ago' : `${months} months ago`
+  if (status === 'succeeded') return 'Ready to queue'
+  if (status === 'queued') return 'Awaiting execution'
+  if (status === 'executed' && ev.executedMs) return `Executed ${ago(ev.executedMs)}`
+  if (status === 'expired' && ev.expiresMs) return `Expired ${ago(ev.expiresMs)}`
+  if (status === 'defeated' && ev.voteEndMs) return `Voting ended ${ago(ev.voteEndMs)}`
+  // vetoed / cancelled carry no event timestamp on the fetched fragment.
+  return `Created ${ago(createdMs)}`
 }
 
 function bucketAuctionRevenueByMonth(
@@ -1441,31 +1474,34 @@ export async function getProposalByNumber(
   // pull them off the raw response.
   const rawVotes = (fragment as unknown as { votes?: Array<RawProposalVote> }).votes ?? []
 
-  // Resolve ENS for the proposer + the top 20 voters in one batched call.
+  // Subgraph returns votes in insertion order; the list renders newest-first,
+  // so reverse first and resolve ENS over the *rendered* leading window —
+  // otherwise (for >ENS_RESOLVE_LIMIT votes) ENS is spent on the oldest rows
+  // while the visible top rows fall back to bare addresses.
+  const ENS_RESOLVE_LIMIT = 20
+  const orderedVotes = rawVotes.slice().reverse()
+
+  // Resolve ENS for the proposer + the top voters in one batched call.
   // Treasury balances are fetched in parallel for the insufficient-treasury
   // badge on the summary.
   const proposerLc = String(fragment.proposer).toLowerCase()
-  const voterAddrs = rawVotes.slice(0, 20).map((v) => String(v.voter))
+  const voterAddrs = orderedVotes.slice(0, ENS_RESOLVE_LIMIT).map((v) => String(v.voter))
   const [ensMap, treasuryBalances] = await Promise.all([
     resolveEnsNames([fragment.proposer, ...voterAddrs]),
     fetchTreasuryBalances(),
   ])
   const proposerEns = ensMap.get(proposerLc) ?? null
 
-  const votes: ProposalDetailVote[] = rawVotes
-    .slice()
-    // Subgraph returns votes in insertion order; we want most recent first.
-    // ProposalVote fragment doesn't expose a timestamp, so reverse is the
-    // best we can do without a separate per-vote query.
-    .reverse()
-    .map((v) => ({
-      voter: String(v.voter),
-      voterShort: short(String(v.voter)),
-      voterEns: ensMap.get(String(v.voter).toLowerCase()) ?? null,
-      support: mapVoteSupport(v.support),
-      weight: Number(v.weight ?? 0),
-      reason: v.reason ?? null,
-    }))
+  const votes: ProposalDetailVote[] = orderedVotes.map((v) => ({
+    voter: String(v.voter),
+    voterShort: short(String(v.voter)),
+    voterEns: ensMap.get(String(v.voter).toLowerCase()) ?? null,
+    support: mapVoteSupport(v.support),
+    weight: Number(v.weight ?? 0),
+    // Match the homepage guard — a whitespace-only reason would render a blank
+    // paragraph on the votes list.
+    reason: v.reason && v.reason.trim().length > 0 ? v.reason : null,
+  }))
 
   return {
     summary: formatProposal(proposalLike, {

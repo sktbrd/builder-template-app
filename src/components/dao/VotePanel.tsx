@@ -74,7 +74,14 @@ function VotePanelInner({
 
   // Resolve real voting power: getVotes at the proposal's snapshot timestamp +
   // current token balance (to distinguish "delegated away" from "no tokens").
-  const nowSec = Math.floor(Date.now() / 1000)
+  // Tick `nowSec` every second so the pending "opens in X" countdown stays
+  // live and the panel promotes to the active choice form the moment voteStart
+  // elapses (snapshotInPast / pending below both read it).
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [])
   const snapshotInPast = voteStart > 0 && voteStart <= nowSec
   // `pending` covers the gap between proposal creation and voteStart: the
   // governor reverts on getPastVotes for a future timestamp, so we can't infer
