@@ -70,7 +70,7 @@ type ProposalFragmentLike = {
   title?: string | null
   description?: string | null
   targets?: readonly unknown[] | null
-  calldatas?: readonly unknown[] | null
+  calldatas?: string | readonly unknown[] | null
   values?: readonly unknown[] | null
   timeCreated?: unknown
   executedAt?: unknown
@@ -84,6 +84,18 @@ type ProposalFragmentLike = {
 
 function isOpenEdition(editionSize: string): boolean {
   return editionSize === '0' || editionSize === OPEN_EDITION_SENTINEL
+}
+
+/**
+ * Builder stores `calldatas` as a single colon-joined string. `getProposals`
+ * pre-splits it to an array, but a direct `SubgraphSDK.proposals` query returns
+ * the raw string — normalize either shape to an array so decoding works in
+ * both paths.
+ */
+function toCalldataArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((c) => String(c))
+  if (typeof v === 'string') return v.length ? v.split(':') : []
+  return []
 }
 
 /**
@@ -115,7 +127,7 @@ function deriveStatus(p: ProposalFragmentLike): DroposalStatus {
 /** Find the first createEdition tx in a proposal and map it to a list item. */
 function mapDroposal(p: ProposalFragmentLike): DroposalListItem | null {
   const targets = (p.targets ?? []) as unknown[]
-  const calldatas = (p.calldatas ?? []) as unknown[]
+  const calldatas = toCalldataArray(p.calldatas)
   const values = (p.values ?? []) as unknown[]
 
   for (let i = 0; i < targets.length; i++) {
@@ -222,7 +234,7 @@ export async function getDroposalByNumber(
 
   // Re-decode the droposal tx to pull royalty + sale window (not on the list item).
   const targets = (fragment.targets ?? []) as unknown[]
-  const calldatas = (fragment.calldatas ?? []) as unknown[]
+  const calldatas = toCalldataArray(fragment.calldatas)
   const values = (fragment.values ?? []) as unknown[]
   let royaltyBps = 0
   let saleStartMs = 0

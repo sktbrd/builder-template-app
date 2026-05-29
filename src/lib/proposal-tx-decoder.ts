@@ -26,7 +26,7 @@ const SEL_ERC20_TRANSFER = '0xa9059cbb' as const // transfer(address,uint256)
 const SEL_ERC721_TRANSFER_FROM = '0x23b872dd' as const // transferFrom(address,address,uint256)
 const SEL_ERC721_SAFE_TRANSFER_FROM = '0x42842e0e' as const // safeTransferFrom(address,address,uint256)
 const SEL_ERC721_SAFE_TRANSFER_FROM_DATA = '0xb88d4fde' as const // safeTransferFrom(address,address,uint256,bytes)
-const SEL_DROPOSAL_CREATE_EDITION = '0x36e2cd62' as const // createEdition(...) — Zora ZoraNFTCreatorV1
+const SEL_DROPOSAL_CREATE_EDITION = '0x3857fb13' as const // createEdition(string,string,uint64,uint16,address,address,(...),string,string,string) — Zora ZoraNFTCreatorV1
 
 // Per-chain Zora droposal proxy. Add more chains if/when we support them.
 const DROPOSAL_TARGET: Record<number, Address> = {
