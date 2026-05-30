@@ -113,7 +113,10 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
               {detail.votes.length}
             </span>
           </h3>
-          <ProposalVotesList votes={detail.votes} />
+          <ProposalVotesList
+            votes={detail.votes}
+            proposalIdHash={detail.proposalIdHash}
+          />
         </section>
 
         {showPropdates ? (
