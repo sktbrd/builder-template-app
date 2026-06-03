@@ -731,7 +731,16 @@ const ERC20_TRANSFER_SELECTOR = '0xa9059cbb' // transfer(address,uint256)
 function splitCalldatas(raw: string | string[] | null | undefined): string[] {
   if (!raw) return []
   const parts = Array.isArray(raw) ? raw : raw.split(':')
-  return parts.filter(Boolean).map((c) => (c.startsWith('0x') ? c : `0x${c}`))
+  // Keep every segment positionally aligned with targets[]/values[]. An empty
+  // segment is an ETH-only transfer (no calldata) and must normalize to '0x',
+  // NOT be dropped — filtering it shifts later calldatas onto the wrong target,
+  // mismatching the on-chain proposal hash so execute() reverts (and rendering
+  // decoded-tx cards against the wrong target).
+  return parts.map((c) => {
+    const t = (c ?? '').trim()
+    if (!t || t === '0x') return '0x'
+    return t.startsWith('0x') ? t : `0x${t}`
+  })
 }
 
 function decodeRequestedAmounts(

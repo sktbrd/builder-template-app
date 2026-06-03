@@ -2,9 +2,9 @@ import { isChainIdSupportedByCoining } from '@buildeross/utils'
 import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { assertCoinsEnabled } from '@/lib/coins-gate'
 import { daoConfig } from '@/lib/dao.config'
 import { isDroposalSupported } from '@/lib/proposal-tx'
 
@@ -28,7 +28,7 @@ export default async function ContentPage({
   // Gate consistently with the Header, which only surfaces /coins when the
   // feature flag is on. Without this, the route stays reachable directly even
   // when coins are disabled in daoConfig.
-  if (!daoConfig.features.coins) notFound()
+  assertCoinsEnabled()
 
   const tab = (await searchParams).tab === 'droposals' ? 'droposals' : 'coins'
 

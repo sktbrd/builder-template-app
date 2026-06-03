@@ -55,8 +55,14 @@ export function TweaksProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
+    // Hydration: loadTweaks() reads localStorage, which is client-only. Doing
+    // this post-mount (rather than in a lazy initializer) keeps SSR and the
+    // first client render identical, avoiding a hydration mismatch. The
+    // intentional synchronous setStates here are exempt from the rule.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setTweaks(loadTweaks())
     setHydrated(true)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
   useEffect(() => {

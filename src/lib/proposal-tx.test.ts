@@ -445,6 +445,34 @@ describe('buildApprovalDraft', () => {
     const draft: TxDraft = { kind: 'eth', recipient: SAMPLE.recipient, valueEth: '1' }
     expect(buildApprovalDraft(draft, {})).toBeNull()
   })
+
+  it('sums multi-entry airdrop approvals as bigint, not float (regression)', () => {
+    if (!isAirdropSupported()) return
+    // 0.7 + 0.1 is the canonical float trap: in IEEE-754 it evaluates to
+    // 0.7999999999999999, so the old float-sum-then-reparse path produced an
+    // approval of 799999999999999900 (18 decimals) — short of the 8e17 that
+    // disperseToken actually pulls, making execute() revert after the timelock.
+    // The approval must equal the exact sum of the per-entry parseUnits amounts.
+    const meta: TokenMetaMap = {
+      [SAMPLE.usdc.toLowerCase()]: { decimals: 18, symbol: 'TKN18' },
+    }
+    const airdrop: TxDraft = {
+      kind: 'airdrop',
+      token: SAMPLE.usdc,
+      recipients: [
+        { recipient: SAMPLE.recipient, amount: '0.7' },
+        { recipient: SAMPLE.other, amount: '0.1' },
+      ],
+    }
+    const approval = buildApprovalDraft(airdrop, meta)
+    expect(approval).not.toBeNull()
+    expectSelector(approval!.calldata, SEL.approve)
+    const approved = BigInt(`0x${approval!.calldata.slice(-64)}`)
+    // BigInt(string), not numeric/`n` literals: the values exceed
+    // Number.MAX_SAFE_INTEGER, and the tsconfig target predates BigInt literals.
+    expect(approved).toBe(BigInt('800000000000000000'))
+    expect(approved).toBeGreaterThan(BigInt('799999999999999900'))
+  })
 })
 
 describe('uniqueErc20Tokens', () => {

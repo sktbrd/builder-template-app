@@ -74,8 +74,11 @@ export function TreasuryTransfers() {
 
       const params = new URLSearchParams({ dir })
       if (!reset) {
-        if (dir !== 'out' && nextPageKeyIn) params.set('pageKey', nextPageKeyIn)
-        if (dir !== 'in' && nextPageKeyOut) params.set('pageKey', nextPageKeyOut)
+        // Carry each direction's cursor under its own param — 'all' mode
+        // paginates in- and out-bound independently, so a single shared
+        // pageKey would mix cursors and return duplicates past page 1.
+        if (dir !== 'out' && nextPageKeyIn) params.set('pageKeyIn', nextPageKeyIn)
+        if (dir !== 'in' && nextPageKeyOut) params.set('pageKeyOut', nextPageKeyOut)
       }
 
       try {

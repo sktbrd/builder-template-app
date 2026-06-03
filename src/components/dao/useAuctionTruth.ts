@@ -25,8 +25,9 @@ export type AuctionTruth = {
   settled: boolean
 }
 
-// Matches the global QueryClient default (web3-providers.tsx). Pinned here so a
-// passive viewer's freshness survives a change to that default elsewhere.
+// This hook owns its own polling: the global QueryClient default is
+// refetchInterval:false (web3-providers.tsx), so live-auction freshness for a
+// passive viewer comes from here explicitly, not the shared default.
 const POLL_MS = 5000
 
 /**

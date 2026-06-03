@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { DroposalDetail } from '@/components/coins/DroposalDetail'
+import { assertCoinsEnabled } from '@/lib/coins-gate'
 import { daoConfig } from '@/lib/dao.config'
 import { getDroposalByNumber } from '@/lib/droposals'
 
@@ -30,6 +31,7 @@ export async function generateMetadata({
 }
 
 export default async function DroposalDetailPage({ params }: { params: Params }) {
+  assertCoinsEnabled()
   const { id } = await params
   const n = Number.parseInt(id, 10)
   if (Number.isNaN(n)) notFound()

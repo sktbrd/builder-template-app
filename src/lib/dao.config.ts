@@ -31,16 +31,8 @@ export type DaoTheme = {
 }
 
 export type DaoFeatures = {
-  /** Show the auction-history chart tab on /auction. */
-  auctionChart: boolean
-  /** Show the analytics charts on /treasury. */
-  treasuryAnalytics: boolean
-  /** Expose /members in the nav. */
-  membersDirectory: boolean
   /** 140-char on-chain comment field on the bid form. */
   bidComments: boolean
-  /** Surface "voting closes in / auction ending" banners. */
-  timeBasedAlerts: boolean
   /** Expose /coins (Clanker direct-deploy + list + detail). Auto-hidden on
    * chains that don't support Clanker — leave true for the default Base setup. */
   coins: boolean
@@ -149,11 +141,7 @@ export const daoConfig: DaoConfig = {
   // Flip off anything you don't need. The template's components respect these
   // flags (e.g. BidForm hides its comment field when bidComments === false).
   features: {
-    auctionChart: true,
-    treasuryAnalytics: true,
-    membersDirectory: true,
     bidComments: true,
-    timeBasedAlerts: true,
     coins: true,
   },
 

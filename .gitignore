@@ -48,8 +48,12 @@ next-env.d.ts
 /public/icon.png
 .env*.local
 
-# claude code agent worktrees (multi-GB local clones)
-.claude/worktrees/
+# local agent / editor tooling (not part of the template)
+.claude/
 
 # session-local running notes
 implementation-notes.md
+
+# local dev-only artifacts (not part of the template)
+.vercel-deploy-trigger
+/sandbox/

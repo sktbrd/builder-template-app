@@ -50,10 +50,7 @@ export function CoinCard({ coin, className }: Props) {
         )}
       </div>
       <div className="flex flex-col gap-0.5 px-4 py-3">
-        <div
-          className="truncate text-sm font-bold"
-          title={coin.name ?? undefined}
-        >
+        <div className="truncate text-sm font-bold" title={coin.name ?? undefined}>
           {coin.name ?? 'Untitled coin'}
         </div>
         <div

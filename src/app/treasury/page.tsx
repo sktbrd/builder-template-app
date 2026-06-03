@@ -133,7 +133,6 @@ export default async function TreasuryPage() {
 
       {/* ── Two-column grid ── */}
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr] xl:grid-cols-[440px_1fr]">
-
         {/* Left column: donut + NFT mini-grid */}
         <div className="flex flex-col gap-4">
           {/* Donut card */}
@@ -247,7 +246,11 @@ function AssetRow({
   return (
     <div
       className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
-      style={{ gridTemplateColumns: showUsd ? '40px minmax(0,1fr) auto auto 200px' : '40px minmax(0,1fr) auto' }}
+      style={{
+        gridTemplateColumns: showUsd
+          ? '40px minmax(0,1fr) auto auto 200px'
+          : '40px minmax(0,1fr) auto',
+      }}
     >
       {/* icon */}
       <div className="shrink-0">{logo}</div>

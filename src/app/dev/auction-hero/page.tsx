@@ -3,11 +3,14 @@
 import { AuctionHero } from '@/components/dao/AuctionHero'
 import { fallbackArtPalette } from '@/lib/dao.config'
 
+// Neutral self-contained gradient so the harness exercises the image-render
+// path without referencing any specific DAO's artwork. (Replaced a hardcoded
+// foreign-DAO renderer URL — see git history if you need a real token image.)
 const SAMPLE_IMAGE =
-  'https://nouns.build/api/renderer/stack-images?contractAddress=0xaf2273eb279a37654a22ebf4c6bfec3366e9e3a3&tokenId=56&images=ipfs%3a%2f%2fbafybeihcsfjvnjmzivm4gxgt75zwajtfxumyxd7j6ibvloykpg4sx47uca%2f0-backgrounds%2fbg-cool.png&images=ipfs%3a%2f%2fbafybeihcsfjvnjmzivm4gxgt75zwajtfxumyxd7j6ibvloykpg4sx47uca%2f2-accessories%2faccessory-txt-ico.png&images=ipfs%3a%2f%2fbafybeihcsfjvnjmzivm4gxgt75zwajtfxumyxd7j6ibvloykpg4sx47uca%2f3-heads%2fhead-goldcoin.png&images=ipfs%3a%2f%2fbafybeihcsfjvnjmzivm4gxgt75zwajtfxumyxd7j6ibvloykpg4sx47uca%2f1-bodies%2fbody-rust.png&images=ipfs%3a%2f%2fbafybeihcsfjvnjmzivm4gxgt75zwajtfxumyxd7j6ibvloykpg4sx47uca%2f4-glasses%2fglasses-square-teal.png'
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="%236366f1"/><stop offset="1" stop-color="%2306b6d4"/></linearGradient></defs><rect width="320" height="320" fill="url(%23g)"/></svg>'
 
 const palette = fallbackArtPalette()
-const tokenLabel = 'HackerTestDAO'
+const tokenLabel = 'Sample DAO'
 
 const now = Math.floor(Date.now() / 1000)
 
@@ -27,7 +30,7 @@ const states: {
     props: {
       auction: {
         tokenId: 56,
-        name: 'HackerTestDAO #56',
+        name: 'Sample DAO #56',
         image: SAMPLE_IMAGE,
         endTimeUnix: now + 60 * 60 * 12,
         topBidEth: '0.42',
@@ -43,7 +46,7 @@ const states: {
     props: {
       auction: {
         tokenId: 57,
-        name: 'HackerTestDAO #57',
+        name: 'Sample DAO #57',
         image: SAMPLE_IMAGE,
         endTimeUnix: now + 60 * 45,
         topBidEth: '0.085',
@@ -59,7 +62,7 @@ const states: {
     props: {
       auction: {
         tokenId: 58,
-        name: 'HackerTestDAO #58',
+        name: 'Sample DAO #58',
         image: SAMPLE_IMAGE,
         endTimeUnix: now + 90,
         topBidEth: '1.337',
@@ -75,7 +78,7 @@ const states: {
     props: {
       auction: {
         tokenId: 59,
-        name: 'HackerTestDAO #59',
+        name: 'Sample DAO #59',
         image: SAMPLE_IMAGE,
         endTimeUnix: now + 60 * 60 * 6,
         topBidEth: null,
@@ -91,7 +94,7 @@ const states: {
     props: {
       auction: {
         tokenId: 60,
-        name: 'HackerTestDAO #60',
+        name: 'Sample DAO #60',
         image: SAMPLE_IMAGE,
         endTimeUnix: now - 60 * 30,
         topBidEth: '0.0001',
@@ -107,7 +110,7 @@ const states: {
     props: {
       auction: {
         tokenId: 61,
-        name: 'HackerTestDAO #61',
+        name: 'Sample DAO #61',
         image: SAMPLE_IMAGE,
         endTimeUnix: now - 60 * 5,
         topBidEth: null,
@@ -123,7 +126,7 @@ const states: {
     props: {
       auction: {
         tokenId: 62,
-        name: 'HackerTestDAO #62',
+        name: 'Sample DAO #62',
         image: null,
         endTimeUnix: now + 60 * 60 * 3,
         topBidEth: '0.21',
@@ -139,7 +142,7 @@ const states: {
     props: {
       auction: {
         tokenId: 63,
-        name: 'HackerTestDAO #63 — A Very Long Token Name For Layout Testing',
+        name: 'Sample DAO #63 — A Very Long Token Name For Layout Testing',
         image: SAMPLE_IMAGE,
         endTimeUnix: now + 60 * 60 * 2,
         topBidEth: '12.500001',

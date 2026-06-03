@@ -28,8 +28,14 @@ import { getDaoConfig } from '@/config'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5000,
-      refetchInterval: 5000,
+      // No GLOBAL polling. A 5s refetchInterval default made every mounted
+      // wagmi read (balances, eligibility multicalls, vetoer, …) poll the
+      // free-tier RPC/subgraph every 5s — the very endpoints the rest of the
+      // app carefully backs off from. The live surfaces (useAuctionTruth /
+      // useProposalTruth / ProposalActions / AuctionPoller) opt into their own
+      // polling explicitly; everything else refetches on mount/focus.
+      staleTime: 30_000,
+      refetchInterval: false,
     },
   },
 })

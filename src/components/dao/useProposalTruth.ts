@@ -8,8 +8,9 @@ import { useReadContract } from 'wagmi'
 import { daoConfig } from '@/lib/dao.config'
 import { tallyFromChain, type VoteTally } from '@/lib/proposal-truth'
 
-// Matches the global QueryClient default (web3-providers.tsx) — pinned so a
-// passive viewer's freshness survives a change to that default elsewhere.
+// This hook owns its own polling: the global QueryClient default is
+// refetchInterval:false (web3-providers.tsx), so live-tally freshness for a
+// passive viewer comes from here explicitly, not the shared default.
 const POLL_MS = 5000
 
 /**

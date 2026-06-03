@@ -63,9 +63,21 @@ describe('bumpTally', () => {
   const base = tally({ forVotes: 5, againstVotes: 1, abstainVotes: 0 })
 
   it('adds weight to the matching bucket only', () => {
-    expect(bumpTally(base, 'for', 3)).toEqual({ forVotes: 8, againstVotes: 1, abstainVotes: 0 })
-    expect(bumpTally(base, 'against', 2)).toEqual({ forVotes: 5, againstVotes: 3, abstainVotes: 0 })
-    expect(bumpTally(base, 'abstain', 4)).toEqual({ forVotes: 5, againstVotes: 1, abstainVotes: 4 })
+    expect(bumpTally(base, 'for', 3)).toEqual({
+      forVotes: 8,
+      againstVotes: 1,
+      abstainVotes: 0,
+    })
+    expect(bumpTally(base, 'against', 2)).toEqual({
+      forVotes: 5,
+      againstVotes: 3,
+      abstainVotes: 0,
+    })
+    expect(bumpTally(base, 'abstain', 4)).toEqual({
+      forVotes: 5,
+      againstVotes: 1,
+      abstainVotes: 4,
+    })
   })
 
   it('does not mutate the input', () => {

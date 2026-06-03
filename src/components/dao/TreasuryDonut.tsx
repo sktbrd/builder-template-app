@@ -28,19 +28,25 @@ export function TreasuryDonut({ slices, totalUsd, size = 280, thickness = 42 }: 
   const C = 2 * Math.PI * r
   const total = slices.reduce((s, x) => s + x.value, 0)
 
-  let off = 0
-  const paths = slices.map((s, i) => {
-    const len = total > 0 ? (s.value / total) * C : 0
-    const result = { ...s, dashOff: off, len, i }
-    off += len
-    return result
-  })
+  // Precompute each slice's arc length, then derive its dash-offset as the sum
+  // of the preceding lengths. Avoids mutating a render-scoped accumulator
+  // (which the React Compiler flags); n is tiny (treasury token count).
+  const lens = slices.map((s) => (total > 0 ? (s.value / total) * C : 0))
+  const paths = slices.map((s, i) => ({
+    ...s,
+    len: lens[i],
+    dashOff: lens.slice(0, i).reduce((acc, l) => acc + l, 0),
+    i,
+  }))
 
   const active = hovered !== null ? slices[hovered] : null
 
   return (
     <div>
-      <div className="relative mx-auto w-full" style={{ maxWidth: size, aspectRatio: '1 / 1' }}>
+      <div
+        className="relative mx-auto w-full"
+        style={{ maxWidth: size, aspectRatio: '1 / 1' }}
+      >
         <svg viewBox={`0 0 ${size} ${size}`} className="block h-auto w-full">
           <circle
             cx={size / 2}

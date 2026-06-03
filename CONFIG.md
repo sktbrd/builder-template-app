@@ -43,16 +43,12 @@ preview changes live before committing them to `src/config/dao.theme.json`.
 
 ### Features
 
-Flip any of these off if you don't want the corresponding routes/UI:
+Flip either of these off if you don't want the corresponding UI:
 
 ```ts
 features: {
-  auctionChart: true,        // /auction/[id]?view=chart tab
-  treasuryAnalytics: true,   // donut chart + revenue breakdown on /treasury
-  membersDirectory: true,    // /members and per-member pages
-  bidComments: true,         // optional comment field on BidForm
-  timeBasedAlerts: true,     // "Auction ends in N hours" banner
-  coins: true,               // /coins and creator coin proposals
+  bidComments: true,         // 140-char on-chain comment field on BidForm
+  coins: true,               // /coins + /droposals content hub and creator-coin proposals
 }
 ```
 
@@ -137,7 +133,7 @@ Put these in `.env.local` (not committed to git).
 
 | Variable | What it does | Where to get it |
 |---|---|---|
-| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | Pairs the WalletConnect modal for wallet connect/disconnect. Required in production builds; dev builds warn but still run. | https://cloud.walletconnect.com |
+| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | Pairs the WalletConnect modal for wallet connect/disconnect. Required in production builds; dev builds warn but still run. | https://cloud.reown.com |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URL used by the sitemap, OG metadata, and robots.txt. Falls back to `VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL` → `localhost:3000`. | The domain you ship under |
 
 ### Optional integrations
@@ -177,13 +173,18 @@ deployment.
 
 ## Switching between DAOs
 
-The repo supports multiple DAO configs via `pnpm switch-dao` and
-`pnpm fetch-dao`. The token address lives in `src/config/dao.config.json`
-and the script refreshes the cached on-chain values into
-`src/config/dao.onchain.json` and `src/config/dao.theme.json`.
+`pnpm switch-dao` retargets the local app at another Builder DAO. Pass a
+built-in preset name, or a `0x` token address with an optional `--chain`
+(chain id, default `8453` / Base) and `--network` (`mainnet` | `testnet`):
 
 ```bash
-pnpm switch-dao 0xDaoTokenAddress base
-pnpm fetch-dao
+pnpm switch-dao gnars                       # a built-in preset
+pnpm switch-dao 0xYourToken --chain 8453    # any DAO by token address
 pnpm dev
 ```
+
+It writes the target into `.env.local`, merges any theme overrides into
+`src/config/dao.theme.json`, and then runs `pnpm fetch-dao` for you to
+resolve the on-chain addresses + image into the generated (gitignored)
+`src/config/dao.json` + `src/config/dao.ts`. `pnpm build` also runs
+`fetch-dao` automatically.

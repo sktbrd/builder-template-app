@@ -11,6 +11,9 @@ const PINATA_BASE_URL = 'https://api.pinata.cloud'
 const PINATA_UPLOAD_URL = 'https://uploads.pinata.cloud'
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX = 30
+// Cap on distinct buckets before we sweep expired ones, so the per-instance
+// Map can't grow unbounded across the lifetime of a serverless worker.
+const RATE_LIMIT_MAX_BUCKETS = 10_000
 
 type RateBucket = { count: number; resetAt: number }
 const rateBuckets = new Map<string, RateBucket>()
@@ -113,6 +116,15 @@ function assertRateLimit(req: Request) {
     'unknown'
   const path = new URL(req.url).pathname
   const key = `${ip}:${path}`
+
+  // Opportunistically evict expired buckets when the Map gets large, so it
+  // can't leak one entry per distinct client IP for the worker's lifetime.
+  if (rateBuckets.size > RATE_LIMIT_MAX_BUCKETS) {
+    for (const [k, b] of rateBuckets) {
+      if (now > b.resetAt) rateBuckets.delete(k)
+    }
+  }
+
   const bucket = rateBuckets.get(key)
 
   if (!bucket || now > bucket.resetAt) {

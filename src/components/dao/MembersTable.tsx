@@ -90,10 +90,7 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
       {/* Mobile: card list (<md) */}
       <ul className="grid gap-3 md:hidden">
         {filtered.map((m) => (
-          <li
-            key={m.addrFull}
-            className="rounded-xl border border-border bg-surface p-4"
-          >
+          <li key={m.addrFull} className="rounded-xl border border-border bg-surface p-4">
             <WalletPill address={m.addrFull} ens={m.ens} showAvatar size="md" />
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-fg">
               <span>

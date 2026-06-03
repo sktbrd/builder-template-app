@@ -141,8 +141,11 @@ export function ProposalCard({
         {/* Footer — always present */}
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3.5 text-[13px]">
           <span className="min-w-0 truncate text-muted-fg">
-            <span className="font-medium text-fg-2">{p.proposerEns ?? shortAddress(p.proposer)}</span>
-            {' · '}{p.date}
+            <span className="font-medium text-fg-2">
+              {p.proposerEns ?? shortAddress(p.proposer)}
+            </span>
+            {' · '}
+            {p.date}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             {p.treasuryInsufficient && <TreasuryInsufficientBadge />}

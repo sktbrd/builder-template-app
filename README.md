@@ -6,9 +6,6 @@ community site with light + dark themes, real on-chain governance UI (vote / bid
 propose), treasury analytics, member directory, and Open Graph share images — out
 of the box.
 
-> 🎨 **Built under [Builder DAO proposal #61](https://nouns.build/dao/base/0xe8af882f2f5c79580230710ac0e2344070099432/vote/61)** — three milestones cherry-picking production-tested patterns from [gnars.com](https://gnars.com) into a generic, fork-ready template (M1) plus two batches of upstream PRs into `@buildeross/*` (M2, M3).
-> See the [Scope map](#scope-map-template-vs-upstream) below for what lives in this template versus what is heading upstream.
-
 ## What you get
 
 | Page | Route | What's on it |
@@ -18,7 +15,7 @@ of the box.
 | Proposals | `/proposals` | Filterable card grid against real subgraph data, embedded vote bars + status badges |
 | Proposal | `/proposals/[id]` | Markdown description, decoded transaction list, sticky vote panel with real `castVoteWithReason` and live voting-power resolution |
 | Create | `/proposals/new` | Eligibility-gated proposal create flow with markdown editor + preview, transaction builder, real `propose(...)` |
-| Treasury | `/treasury` | Real ETH balance, ERC-20 holdings via multicall, NFT grid (DAO-owned tokens), 3 Recharts analytics with axes + tooltips |
+| Treasury | `/treasury` | Real ETH balance, ERC-20 holdings via multicall, NFT grid (DAO-owned tokens), allocation donut + recent transfer history |
 | Members | `/members` | Real holder list with ENS resolution (top 20, gated on Alchemy), CSV export |
 | About | `/about` | Real on-chain founders, smart-contract list with copy-to-clipboard |
 
@@ -32,7 +29,7 @@ Plus:
 
 ## Stack
 
-Next.js 15 (App Router) · React 19 · Tailwind v4 + Typography plugin · `wagmi` + RainbowKit · `next-themes` · `recharts` · `react-markdown` (gfm + breaks + sanitize) · `@buildeross/sdk` for the Builder subgraph + ABIs · TypeScript everywhere.
+Next.js 16 (App Router) · React 19 · Tailwind v4 + Typography plugin · `wagmi` + RainbowKit · `next-themes` · `react-markdown` (gfm + breaks + sanitize) · `@buildeross/sdk` for the Builder subgraph + ABIs · TypeScript everywhere.
 
 ---
 
@@ -61,14 +58,7 @@ Edit `.env.local`:
 | `NEXT_PUBLIC_ALCHEMY_API_KEY` | recommended | Faster RPC + enables ENS resolution on `/members` |
 | `PINATA_API_KEY` | media uploads | [Pinata](https://pinata.cloud) scoped-key JWT — required for `/coins` (coin media + metadata) and future proposal/propdate attachments |
 | `NEXT_PUBLIC_PINATA_GATEWAY` | optional | Public gateway hostname override (e.g. `your-gateway.mypinata.cloud`) |
-
-Optional features (all off by default — flip the disable flag):
-
-| Var | Purpose |
-|---|---|
-| `NEXT_PUBLIC_DISABLE_TENDERLY_SIMULATION` | `false` to enable proposal simulation. Requires `TENDERLY_*` keys + `NEXT_PUBLIC_TENDERLY_RPC_KEY`. |
-| `NEXT_PUBLIC_DISABLE_AI_SUMMARY` | `false` to enable AI tx summaries. Requires `AI_GATEWAY_API_KEY` + `AI_MODEL`. |
-| `REDIS_URL` | Caches AI summaries + rate limits API routes. |
+| `NEXT_PUBLIC_SITE_URL` | optional | Deployed URL (no trailing slash) so `sitemap.xml` / `robots.txt` resolve correctly |
 
 ### 3. Resolve your DAO's on-chain config
 
@@ -165,11 +155,8 @@ export const daoConfig: DaoConfig = {
 
   // Optional feature flags
   features: {
-    auctionChart: true,
-    treasuryAnalytics: true,
-    membersDirectory: true,
     bidComments: true,
-    timeBasedAlerts: true,
+    coins: true,
   },
 
   // ERC-20 contracts shown on /treasury (opt-in)
@@ -205,32 +192,6 @@ Set up the domain in Vercel, point your DNS at it, done.
 
 ---
 
-## Scope map: template vs upstream
-
-What's already in this template versus what is proposed upstream into the official `@buildeross/*` packages.
-
-| Item | Lands in | Status |
-|---|---|---|
-| Dashboard page | **Template** | ✅ shipped |
-| Members page | **Template** | ✅ shipped |
-| Treasury KPI cards + analytics (Recharts) | **Template UI · upstream chart pkg** | ✅ Visuals here; reusable chart package proposed in batch 2 |
-| Proposal cards w/ VoteBar | **Template** | ✅ shipped |
-| Theme tokens / dark mode | **Template** | ✅ shipped |
-| Real on-chain vote/bid/propose/settle | **Template (template-side wagmi wiring)** | ✅ shipped |
-| OG images (Satori) | **Template** | ✅ shipped |
-| Setup & deploy docs (this README) | **Template README** | ✅ shipped |
-| Voting Power Explainer | **Upstream batch 1** | Local impl in template; will move to `@buildeross/proposal-ui` |
-| Vote Metrics suite | **Upstream batch 1** | Same |
-| Active Member Detection | **Upstream batch 1** | Local heuristic in template; will become a hook in `@buildeross/hooks` |
-| Time-Based Alerts | **Upstream batch 1** | Same |
-| Bid form UX + on-chain comments | **Upstream batch 2** | Local impl; comments need a contract surface |
-| Treasury analytics package | **Upstream batch 2** | Local Recharts impl; package proposed |
-| 0xSplits in proposal wizard | **Upstream batch 2** | Not yet in template |
-
-As upstream packages absorb these, the template's local copies get swapped for `@buildeross/*` imports — forks get the upgrade for free with a `pnpm up @buildeross/*`.
-
----
-
 ## Available scripts
 
 | Script | What it does |
@@ -248,13 +209,12 @@ As upstream packages absorb these, the template's local copies get swapped for `
 ## Project structure
 
 ```
-instrumentation.ts        # Silences known-harmless wagmi indexedDB SSR noise
 scripts/
 ├── fetchDaoAddresses.ts  # `pnpm fetch-dao`
 └── switchDao.ts          # `pnpm switch-dao` labrat CLI
 src/
 ├── app/                  # App Router pages + API + OG images
-│   ├── api/              # Pinata · simulate · AI summary route handlers
+│   ├── api/              # Pinata · feed · treasury · img-proxy route handlers
 │   ├── auction/[id]/     # + opengraph-image.tsx + latest/ redirect route
 │   ├── proposals/        # list · [id]/ detail · new/ create
 │   ├── treasury/
@@ -263,7 +223,7 @@ src/
 │   ├── globals.css       # Tailwind v4 @theme + CSS-var theme tokens
 │   ├── layout.tsx        # Root layout, fonts, theme injection
 │   ├── opengraph-image.tsx
-│   ├── providers.tsx     # wagmi, RainbowKit, react-query, next-themes
+│   ├── web3-providers.tsx # wagmi, RainbowKit, react-query, next-themes
 │   └── page.tsx          # Dashboard
 ├── components/
 │   ├── ui/               # shadcn-style atoms (Button)
@@ -283,7 +243,6 @@ src/
 │   ├── og-utils.ts       # Shared OG_SIZE, theme colors
 │   ├── types.ts          # ProposalStatus etc.
 │   └── utils.ts          # cn()
-├── services/             # Pinata · simulation · Redis
 └── config/               # Auto-generated by fetch-dao + per-fork theme
     ├── dao.ts            # ⚠️ Auto-generated, do not edit
     ├── dao.json          # Auto-generated companion
@@ -295,4 +254,4 @@ src/
 
 ## License
 
-Apache 2.0 — see [license.md](./license.md).
+MIT — see [license.md](./license.md).

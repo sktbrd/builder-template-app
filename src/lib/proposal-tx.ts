@@ -1116,33 +1116,23 @@ export function buildApprovalDraft(
   tokenMeta: TokenMetaMap
 ): TxDraftCustom | null {
   let token: string | null = null
-  let amount: string | null = null
+  let amountParts: string[] | null = null
   let spender: `0x${string}` | null = null
 
   if (source.kind === 'stream') {
     token = source.token
-    amount = source.totalAmount
+    amountParts = [source.totalAmount]
     spender = isAddress(source.sablierLL)
       ? (getAddress(source.sablierLL) as `0x${string}`)
       : null
   } else if (source.kind === 'airdrop') {
     token = source.token
     spender = disperseAddress(daoConfig.chainId)
-    const totals = source.recipients
-      .map((r) => Number(r.amount))
-      .filter((n) => Number.isFinite(n))
-    if (totals.length === source.recipients.length) {
-      amount = totals.reduce((a, b) => a + b, 0).toString()
-    }
+    amountParts = source.recipients.map((r) => r.amount)
   } else if (source.kind === 'milestone') {
     token = source.token
     spender = resolvedEscrowBundler()
-    const totals = source.milestones
-      .map((m) => Number(m.amount))
-      .filter((n) => Number.isFinite(n))
-    if (totals.length === source.milestones.length) {
-      amount = totals.reduce((a, b) => a + b, 0).toString()
-    }
+    amountParts = source.milestones.map((m) => m.amount)
   } else {
     return null
   }
@@ -1150,14 +1140,22 @@ export function buildApprovalDraft(
   if (!token || !isAddress(token)) return null
   if (token.toLowerCase() === ZERO_ADDRESS) return null // native ETH — no approval
   if (!spender || !isAddress(spender)) return null
-  if (!amount) return null
+  if (!amountParts || amountParts.length === 0) return null
 
   const meta = tokenMeta[tokenKey(token)]
   if (!meta) return null
 
+  // Sum the approval total in token base units (bigint), mirroring exactly how
+  // encodeDraft sums the transfer amounts (per-entry parseUnits, then add). The
+  // previous path summed JS floats and re-parsed the result, which lost
+  // precision and could under-approve — making disperseToken / deployEscrow
+  // revert at execute() time, after the timelock had already elapsed.
   let parsed: bigint
   try {
-    parsed = parseUnits(amount, meta.decimals)
+    parsed = amountParts.reduce(
+      (acc, part) => acc + parseUnits((part ?? '').trim() || '0', meta.decimals),
+      BigInt(0)
+    )
   } catch {
     return null
   }

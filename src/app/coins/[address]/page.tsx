@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation'
 import { getAddress, isAddress } from 'viem'
 
 import { CoinDetailLoader } from '@/components/coins/CoinDetailLoader'
+import { assertCoinsEnabled } from '@/lib/coins-gate'
 import { daoConfig } from '@/lib/dao.config'
 
 export const revalidate = 30
@@ -32,6 +33,7 @@ export async function generateMetadata({
 }
 
 export default async function CoinDetailPage({ params }: { params: Params }) {
+  assertCoinsEnabled()
   const { address } = await params
   if (!isAddress(address)) notFound()
   if (!isChainIdSupportedByCoining(daoConfig.chainId)) notFound()

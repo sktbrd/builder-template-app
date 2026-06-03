@@ -55,7 +55,9 @@ export default async function AboutPage() {
       </section>
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
-        <h2 className="mb-3 text-xl font-bold tracking-tight md:text-2xl">About {daoConfig.name}</h2>
+        <h2 className="mb-3 text-xl font-bold tracking-tight md:text-2xl">
+          About {daoConfig.name}
+        </h2>
         <Markdown className="text-fg-2">{data.description ?? daoConfig.tagline}</Markdown>
       </section>
 
@@ -86,7 +88,9 @@ export default async function AboutPage() {
 
       <section className="rounded-xl border border-border bg-surface px-6 py-[22px]">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold tracking-tight md:text-2xl">Smart contracts</h2>
+          <h2 className="text-xl font-bold tracking-tight md:text-2xl">
+            Smart contracts
+          </h2>
         </div>
         <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {contracts.map((c) => (

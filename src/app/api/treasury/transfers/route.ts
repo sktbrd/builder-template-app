@@ -126,7 +126,11 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url)
-  const pageKey = searchParams.get('pageKey') ?? undefined
+  // Each direction paginates independently — Alchemy returns a separate cursor
+  // for the in- and out-bound queries, so they must be tracked separately. A
+  // single shared pageKey mixes cursors and yields duplicates/errors past page 1.
+  const pageKeyIn = searchParams.get('pageKeyIn') ?? undefined
+  const pageKeyOut = searchParams.get('pageKeyOut') ?? undefined
   const dir = (searchParams.get('dir') ?? 'all') as 'in' | 'out' | 'all'
 
   const treasury = daoConfig.addresses.treasury.toLowerCase()
@@ -135,9 +139,9 @@ export async function GET(req: Request) {
     const fetches: Promise<{ transfers: AlchemyTransfer[]; pageKey?: string }>[] = []
 
     if (dir === 'in' || dir === 'all')
-      fetches.push(fetchTransfers(apiKey, network, treasury, 'in', pageKey))
+      fetches.push(fetchTransfers(apiKey, network, treasury, 'in', pageKeyIn))
     if (dir === 'out' || dir === 'all')
-      fetches.push(fetchTransfers(apiKey, network, treasury, 'out', pageKey))
+      fetches.push(fetchTransfers(apiKey, network, treasury, 'out', pageKeyOut))
 
     const results = await Promise.all(fetches)
 
@@ -179,6 +183,6 @@ export async function GET(req: Request) {
     })
   } catch (err) {
     console.error('[treasury/transfers]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to load transfers' }, { status: 500 })
   }
 }

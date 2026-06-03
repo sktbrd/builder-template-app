@@ -15,7 +15,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@0xsplits/splits-sdk": "^6.5.0",
     "@buildeross/constants": "0.3.2",
     "@buildeross/hooks": "0.3.2",
     "@buildeross/ipfs-service": "0.3.2",
@@ -39,7 +38,6 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^9.0.1",
-    "recharts": "^2.15.0",
     "rehype-autolink-headings": "^7.1.0",
     "rehype-external-links": "^3.0.0",
     "rehype-sanitize": "^6.0.0",
@@ -53,6 +51,10 @@
     "wagmi": "^2.18.1"
   },
   "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=20 <23",
+    "pnpm": ">=10"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.0.0",
