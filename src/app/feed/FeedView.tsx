@@ -15,7 +15,9 @@ import {
   QuoteBlock,
   VoteSupportBadge,
 } from '@/components/feed/primitives'
+import { Markdown } from '@/components/Markdown'
 import { daoConfig } from '@/lib/dao.config'
+import { decodePropdateContent } from '@/lib/propdates'
 import { cn, resolveIpfs } from '@/lib/utils'
 
 const ALL_EVENT_TYPES = Object.values(FeedEventType)
@@ -333,7 +335,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               #{item.proposalNumber} {item.proposalTitle}
             </Link>
           </p>
-          {item.message ? <QuoteBlock>{item.message}</QuoteBlock> : null}
+          <PropdateBody messageType={item.messageType} message={item.message} />
         </Card>
       )
 
@@ -408,6 +410,24 @@ function FeedCard({ item }: { item: FeedItem }) {
     default:
       return null
   }
+}
+
+// ── Propdate body (decode messageType, render markdown) ───────
+
+function PropdateBody({
+  messageType,
+  message,
+}: {
+  messageType: number
+  message: string
+}) {
+  const content = decodePropdateContent(messageType, message)
+  if (!content) return null
+  return (
+    <div className="mt-2 border-l-2 border-border-strong bg-surface-2/60 py-1.5 pl-3 pr-2">
+      <Markdown className="prose-sm max-w-none">{content}</Markdown>
+    </div>
+  )
 }
 
 // ── Body with optional left thumbnail ─────────────────────────
