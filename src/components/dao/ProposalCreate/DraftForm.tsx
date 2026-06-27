@@ -136,7 +136,10 @@ export function DraftForm({
       {draft.kind === 'stream' && (
         <StreamFields draft={draft} onChange={onChange} tokenMeta={tokenMeta} />
       )}
-      {CUSTOM_LIKE_KINDS.has(draft.kind) && (
+      {/* walletconnect is custom-like for encoding but has its own editor above;
+          only the artwork kinds use CustomLikeFields (which renders an
+          artwork-specific notice that must not leak into other kinds). */}
+      {draft.kind !== 'walletconnect' && CUSTOM_LIKE_KINDS.has(draft.kind) && (
         <CustomLikeFields
           draft={draft as Extract<TxDraft, { kind: 'add_artwork' | 'replace_artwork' }>}
           onChange={onChange}
