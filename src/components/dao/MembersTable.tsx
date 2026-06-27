@@ -30,9 +30,12 @@ export function MembersTable({ members, totalMembers, activeMembers }: Props) {
 
   const filtered = useMemo(() => {
     const ql = q.toLowerCase()
-    return members.filter((m) =>
+    const matched = members.filter((m) =>
       ((m.ens ?? '') + m.addr + m.addrFull).toLowerCase().includes(ql)
     )
+    // Active members first so they read at a glance. Array.sort is stable, so
+    // the incoming token-count order is preserved within each group.
+    return matched.sort((a, b) => Number(b.active) - Number(a.active))
   }, [members, q])
 
   const exportCsv = () => {
