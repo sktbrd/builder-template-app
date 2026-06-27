@@ -43,19 +43,17 @@ import { type WizardStep, WizardTabs } from './ProposalCreate/WizardTabs'
 
 const BASIC_KINDS: TxKind[] = ['eth', 'erc20', 'nft']
 
+// Only simple, self-contained, on-chain-correct kinds are offered. The complex
+// external-contract flows (stream/airdrop/milestone/delegate/pin_asset) and the
+// raw artwork pass-throughs (add_artwork/replace_artwork) are intentionally
+// hidden until they're verified against a real proposal — their encoder code is
+// kept in proposal-tx.ts, just not reachable from the picker.
 const ADVANCED_KINDS: TxKind[] = [
-  'stream',
-  'airdrop',
-  'milestone',
   'mint_gov',
   'walletconnect',
-  'delegate',
-  'pin_asset',
   'custom',
   'droposal',
   'pause_auction',
-  'add_artwork',
-  'replace_artwork',
 ]
 
 type ProposalCreateFormProps = {

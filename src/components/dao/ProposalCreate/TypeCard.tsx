@@ -69,8 +69,8 @@ const KIND_META: Record<
   },
   mint_gov: {
     icon: Layers,
-    label: 'Mint Governance Tokens',
-    description: 'Mint governance tokens to selected addresses.',
+    label: 'Mint Governance Token',
+    description: 'Mint a single governance token (the next token ID) to one address.',
     iconClass: 'bg-success/15 text-success',
   },
   walletconnect: {

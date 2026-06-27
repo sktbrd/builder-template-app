@@ -439,7 +439,7 @@ export const TX_KIND_LABELS: Record<TxKind, string> = {
   stream: 'Stream Tokens',
   airdrop: 'Airdrop Tokens',
   milestone: 'Milestone Payments',
-  mint_gov: 'Mint Governance Tokens',
+  mint_gov: 'Mint Governance Token',
   delegate: 'Nominate Delegate',
   pause_auction: 'Pause Auctions',
   walletconnect: 'WalletConnect',
