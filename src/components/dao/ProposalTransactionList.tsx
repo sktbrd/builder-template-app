@@ -1,5 +1,6 @@
 'use client'
 
+import type { DecodedArg, DecodedTransactionData } from '@buildeross/types'
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useState } from 'react'
+import { isAddress } from 'viem'
 
 import { WalletPill } from '@/components/dao/WalletPill'
 import {
@@ -19,6 +21,7 @@ import {
   type ProposalTxKind,
   type RawProposalTx,
 } from '@/lib/proposal-tx-decoder'
+import { useDecodedTx } from '@/lib/use-decoded-tx'
 import { cn, resolveIpfs } from '@/lib/utils'
 
 type Props = {
@@ -106,6 +109,20 @@ function Row({
   const iconClass = KIND_ICON_CLASS[decoded.type]
   const label = PROPOSAL_TX_LABELS[decoded.type]
 
+  // For custom txs the offline decoder couldn't classify, fetch the target
+  // contract's ABI (Etherscan, server-side) and decode the function + args.
+  const needsAbiDecode =
+    decoded.type === 'custom' &&
+    (decoded.reason === 'unknown-selector' || decoded.reason === 'decode-failed') &&
+    decoded.calldata.length >= 10
+  const { data: abiDecodedResult } = useDecodedTx({
+    chainId,
+    target: decoded.target,
+    calldata: decoded.calldata,
+    enabled: needsAbiDecode,
+  })
+  const abiDecoded = abiDecodedResult ?? null
+
   return (
     <li className="rounded-md border border-border bg-surface-2">
       <button
@@ -137,7 +154,7 @@ function Row({
             </span>
             <span className="text-sm font-semibold text-fg">{label}</span>
           </div>
-          <Summary decoded={decoded} chainId={chainId} />
+          <Summary decoded={decoded} chainId={chainId} abiDecoded={abiDecoded} />
         </div>
         <span className="mt-1 shrink-0 text-muted-fg">
           {open ? (
@@ -158,14 +175,22 @@ function Row({
               className="mb-3 h-32 w-32 rounded-md border border-border bg-surface object-cover"
             />
           )}
-          <Details decoded={decoded} chainId={chainId} />
+          <Details decoded={decoded} chainId={chainId} abiDecoded={abiDecoded} />
         </div>
       )}
     </li>
   )
 }
 
-function Summary({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: number }) {
+function Summary({
+  decoded,
+  chainId,
+  abiDecoded,
+}: {
+  decoded: DecodedProposalTx
+  chainId: number
+  abiDecoded: DecodedTransactionData | null
+}) {
   if (decoded.type === 'send-eth') {
     return (
       <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
@@ -252,10 +277,14 @@ function Summary({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
   }
 
   // custom
+  const fnName = abiDecoded?.functionName
   return (
     <div className="flex flex-col gap-1 text-[12.5px]">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-muted-fg">Target</span>
+        {fnName ? (
+          <span className="font-mono font-semibold text-fg">{fnName}()</span>
+        ) : null}
+        <span className="text-muted-fg">{fnName ? 'on' : 'Target'}</span>
         <WalletPill
           address={decoded.target}
           link={false}
@@ -272,7 +301,7 @@ function Summary({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
           </>
         )}
       </div>
-      {decoded.calldata && decoded.calldata !== '0x' && (
+      {!fnName && decoded.calldata && decoded.calldata !== '0x' && (
         <div className="truncate font-mono text-[11px] text-muted-fg">
           {decoded.calldata.slice(0, 14)}…
         </div>
@@ -281,7 +310,15 @@ function Summary({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
   )
 }
 
-function Details({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: number }) {
+function Details({
+  decoded,
+  chainId,
+  abiDecoded,
+}: {
+  decoded: DecodedProposalTx
+  chainId: number
+  abiDecoded: DecodedTransactionData | null
+}) {
   return (
     <dl className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr]">
       <DetailRow label="Target">
@@ -380,6 +417,24 @@ function Details({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
       {decoded.type === 'custom' && (
         <>
           <DetailRow label="Value">{decoded.valueEth} ETH</DetailRow>
+          {abiDecoded ? (
+            <>
+              <DetailRow label="Function">
+                <span className="font-mono break-all text-fg">
+                  {abiDecoded.functionName}(
+                  {abiDecoded.argOrder
+                    .map((k) => abiDecoded.args[k]?.type ?? '')
+                    .join(', ')}
+                  )
+                </span>
+              </DetailRow>
+              {abiDecoded.argOrder.map((key) => (
+                <DetailRow key={key} label={key}>
+                  <DecodedArgValue arg={abiDecoded.args[key]} />
+                </DetailRow>
+              ))}
+            </>
+          ) : null}
           <DetailRow label="Calldata">
             {/* Long hex payloads can be 1500+ chars; cap the visible block so
                 a single custom tx can't take over the page on mobile. */}
@@ -387,14 +442,47 @@ function Details({ decoded, chainId }: { decoded: DecodedProposalTx; chainId: nu
               {decoded.calldata}
             </pre>
           </DetailRow>
-          <DetailRow label="Note">
-            <span className="italic text-muted-fg">
-              {customReasonLabel(decoded.reason)}
-            </span>
-          </DetailRow>
+          {!abiDecoded && (
+            <DetailRow label="Note">
+              <span className="italic text-muted-fg">
+                {customReasonLabel(decoded.reason)}
+              </span>
+            </DetailRow>
+          )}
         </>
       )}
     </dl>
+  )
+}
+
+function DecodedArgValue({ arg }: { arg: DecodedArg | undefined }) {
+  if (!arg) return <span className="italic text-muted-fg">—</span>
+  const { type, value } = arg
+
+  if (typeof value === 'string') {
+    if (type === 'address' && isAddress(value)) {
+      return <WalletPill address={value} link={false} size="xs" />
+    }
+    return <span className="font-mono break-all">{value}</span>
+  }
+
+  if (Array.isArray(value)) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        {value.map((v, i) => (
+          <span key={i} className="font-mono break-all">
+            {typeof v === 'string' ? v : JSON.stringify(v)}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // tuple (nested struct)
+  return (
+    <pre className="max-h-[16rem] overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-surface-2 p-2 font-mono text-[11.5px] leading-snug">
+      {JSON.stringify(value, null, 2)}
+    </pre>
   )
 }
 
