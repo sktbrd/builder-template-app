@@ -78,7 +78,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }
   const rootStyle: React.CSSProperties & Record<string, string> = {
     '--accent': accent,
-    '--accent-strong': `color-mix(in oklab, ${accent} 80%, black)`,
     '--radius': `${radius}px`,
     '--font-display-active': resolvedFont ?? 'var(--font-geist)',
   }

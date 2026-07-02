@@ -69,10 +69,6 @@ export function TweaksProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return
     const root = document.documentElement
     root.style.setProperty('--accent', tweaks.accent)
-    root.style.setProperty(
-      '--accent-strong',
-      `color-mix(in oklab, ${tweaks.accent} 80%, black)`
-    )
     root.style.setProperty('--radius', `${tweaks.radius}px`)
     const fontFamily = FONT_OPTIONS[tweaks.displayFont] ?? 'var(--font-geist)'
     root.style.setProperty('--font-display-active', fontFamily)
