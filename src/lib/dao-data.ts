@@ -4,6 +4,7 @@ import { PUBLIC_DEFAULT_CHAINS } from '@buildeross/constants/chains'
 import { erc20Abi, tokenAbi } from '@buildeross/sdk/contract'
 import {
   Auction_OrderBy,
+  daoZoraCoinsRequest,
   FeedEventType,
   getBids,
   getProposals,
@@ -51,10 +52,24 @@ async function safeFetch<T>(
   fn: () => Promise<T>,
   fallback: T
 ): Promise<T> {
+  return (await safeFetchResult(label, fn, fallback)).data
+}
+
+/**
+ * Like {@link safeFetch}, but reports whether the fetch actually succeeded so
+ * callers can tell "the query returned nothing" apart from "the query failed
+ * and we fell back". Needed where an empty fallback would otherwise be
+ * indistinguishable from a real empty result (e.g. 404-ing a token on outage).
+ */
+async function safeFetchResult<T>(
+  label: string,
+  fn: () => Promise<T>,
+  fallback: T
+): Promise<{ ok: boolean; data: T }> {
   const maxAttempts = 3
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await fn()
+      return { ok: true, data: await fn() }
     } catch (e) {
       if (attempt < maxAttempts && isRateLimited(e)) {
         const backoff = 500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 250)
@@ -62,10 +77,10 @@ async function safeFetch<T>(
         continue
       }
       console.error(`[dao-data] ${label} failed:`, e)
-      return fallback
+      return { ok: false, data: fallback }
     }
   }
-  return fallback
+  return { ok: false, data: fallback }
 }
 
 /**
@@ -951,6 +966,14 @@ export type TreasuryTokenHolding = {
   balance: string
   /** Raw balance as string (for sorting / future USD price math). */
   balanceRaw: string
+  /**
+   * True for subgraph-discovered DAO coins whose symbol is read from the coin
+   * contract itself (unvetted). Consumers MUST NOT apply symbol-based USD
+   * pricing to these — a content coin could spoof USDC/WETH and inflate totals.
+   * Only the static `daoConfig.treasuryTokens` allowlist (discovered=false) may
+   * reach the pricing path.
+   */
+  discovered: boolean
 }
 
 export type TreasuryNft = {
@@ -1255,38 +1278,106 @@ function txRelativeTime(timestamp: number): string {
 async function fetchTreasuryTokenHoldings(
   treasuryAddrLc: `0x${string}`
 ): Promise<TreasuryTokenHolding[]> {
-  const tokens = daoConfig.treasuryTokens
-  if (!tokens.length || !publicClient) return []
+  const knownTokens = daoConfig.treasuryTokens
+  if (!publicClient) return []
+
+  // Discover the DAO's own Zora content coins via the subgraph. These aren't in
+  // the static allowlist, so we read their decimals/symbol on-chain below. A
+  // subgraph failure just means we fall back to the allowlist-only view.
+  const knownAddrs = new Set(knownTokens.map((t) => t.address.toLowerCase()))
+  const discovered: Array<{ address: `0x${string}`; symbol: string }> = []
+  try {
+    const coins = await daoZoraCoinsRequest(
+      daoConfig.addresses.token,
+      daoConfig.chainId,
+      100
+    )
+    const seen = new Set<string>()
+    for (const c of coins) {
+      const addr = String(c.coinAddress).toLowerCase()
+      if (!addr.startsWith('0x') || knownAddrs.has(addr) || seen.has(addr)) continue
+      seen.add(addr)
+      discovered.push({ address: addr as `0x${string}`, symbol: c.symbol })
+    }
+  } catch {
+    // Subgraph unavailable — proceed with the static allowlist only.
+  }
+
+  if (!knownTokens.length && !discovered.length) return []
+
+  // Single multicall: balanceOf for every token, plus decimals/symbol for the
+  // discovered coins (which aren't described by the static config).
+  const contracts = [
+    ...knownTokens.map((t) => ({
+      address: t.address,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [treasuryAddrLc],
+    })),
+    ...discovered.flatMap((c) => [
+      {
+        address: c.address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [treasuryAddrLc],
+      },
+      { address: c.address, abi: erc20Abi, functionName: 'decimals' },
+      { address: c.address, abi: erc20Abi, functionName: 'symbol' },
+    ]),
+  ]
 
   const result = await safeFetch(
     'treasuryPage.tokenHoldings.multicall',
     () =>
       publicClient.multicall({
-        contracts: tokens.map((t) => ({
-          address: t.address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [treasuryAddrLc],
-        })),
+        contracts,
         allowFailure: true,
       }),
     [] as Array<{ status: 'success' | 'failure'; result?: unknown }>
   )
 
-  return tokens
-    .map((t, i) => {
-      const r = result[i]
-      const raw =
-        r?.status === 'success' && typeof r.result === 'bigint' ? r.result : BigInt(0)
-      const display = formatTokenAmount(raw, t.decimals)
-      return {
-        symbol: t.symbol,
-        address: t.address,
-        decimals: t.decimals,
-        balance: display,
-        balanceRaw: raw.toString(),
-      }
+  const holdings: TreasuryTokenHolding[] = knownTokens.map((t, i) => {
+    const r = result[i]
+    const raw =
+      r?.status === 'success' && typeof r.result === 'bigint' ? r.result : BigInt(0)
+    return {
+      symbol: t.symbol,
+      address: t.address,
+      decimals: t.decimals,
+      balance: formatTokenAmount(raw, t.decimals),
+      balanceRaw: raw.toString(),
+      discovered: false,
+    }
+  })
+
+  // Discovered coins occupy 3 result slots each (balanceOf, decimals, symbol).
+  let offset = knownTokens.length
+  for (const c of discovered) {
+    const balR = result[offset]
+    const decR = result[offset + 1]
+    const symR = result[offset + 2]
+    offset += 3
+    const raw =
+      balR?.status === 'success' && typeof balR.result === 'bigint'
+        ? balR.result
+        : BigInt(0)
+    const decimals =
+      decR?.status === 'success' && typeof decR.result === 'number' ? decR.result : 18
+    const symbol =
+      symR?.status === 'success' && typeof symR.result === 'string'
+        ? symR.result
+        : c.symbol
+    holdings.push({
+      symbol,
+      address: c.address,
+      decimals,
+      balance: formatTokenAmount(raw, decimals),
+      balanceRaw: raw.toString(),
+      discovered: true,
     })
+  }
+
+  return holdings
     .filter((h) => h.balanceRaw !== '0')
     .sort((a, b) => (BigInt(b.balanceRaw) > BigInt(a.balanceRaw) ? 1 : -1))
 }
@@ -2142,7 +2233,7 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
   const tokenIdBig = BigInt(tokenId).toString() as unknown as bigint
   const nowUnixSec = Math.floor(Date.now() / 1000)
 
-  const [auctionsResp, bidsResp, prevNextResp] = await Promise.all([
+  const [auctionsResp, bidsResp, prevNextResult] = await Promise.all([
     safeFetch(
       'auctionPage.findAuctions',
       () =>
@@ -2161,7 +2252,7 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
       () => getBids(chainId, daoConfig.addresses.token, tokenIdStr),
       [] as Awaited<ReturnType<typeof getBids>>
     ),
-    safeFetch(
+    safeFetchResult(
       'auctionPage.prevNext',
       () =>
         SubgraphSDK.connect(chainId).daoNextAndPreviousTokens({
@@ -2173,6 +2264,8 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
       >
     ),
   ])
+  const prevNextResp = prevNextResult.data
+  const prevNextOk = prevNextResult.ok
 
   const auction = auctionsResp.auctions.find((a) => Number(a.token.tokenId) === tokenId)
 
@@ -2193,14 +2286,42 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
   const isLatest = latestId === tokenId
 
   if (!auction) {
-    // Auction not in the last 50; if we have a prev/next cursor, the token
-    // exists but its auction may already be settled and pruned from the
-    // recent window. Show what we can.
+    // Auction not in the last 50 window — fetch the Token entity directly so
+    // old (or founder-vested, never-auctioned) tokens still render their real
+    // name/artwork instead of a boilerplate-looking fallback.
+    const tokenResult = await safeFetchResult(
+      'auctionPage.tokenFallback',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: {
+            tokenContract: tokenAddressLc,
+            tokenId: tokenIdBig,
+          } as never,
+          first: 1,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    )
+    const token = tokenResult.data.tokens?.[0] ?? null
+
+    // Only report the token as absent (→ 404) when we're confident:
+    //  - the id is above the latest minted token (prev/next query succeeded and
+    //    reported a `latest`), or
+    //  - both the token-entity and prev/next queries SUCCEEDED yet found nothing.
+    // A subgraph outage / 429 collapses every query to an empty fallback; in
+    // that case we stay unsure and render the degraded page rather than
+    // replacing a previously-good ISR-cached page with a 404.
+    const hasCursor = prevNextResp.prev.length > 0 || prevNextResp.next.length > 0
+    const aboveLatest = latestId != null && tokenId > latestId
+    const confidentlyAbsent =
+      !token && (aboveLatest || (prevNextOk && tokenResult.ok && !hasCursor))
+
     return {
-      exists: prevNextResp.prev.length > 0 || prevNextResp.next.length > 0,
+      exists: !confidentlyAbsent,
       tokenId,
-      name: null,
-      image: null,
+      name: token?.name ?? null,
+      image: token?.image ?? null,
       endTimeUnix: null,
       topBidEth: null,
       bidderShort: null,

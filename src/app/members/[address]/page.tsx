@@ -82,6 +82,7 @@ export default async function MemberDetailPage({ params }: { params: Params }) {
             address={detail.address}
             ens={null}
             link={false}
+            showAvatar
             showCopy
             showExplorer
             chainId={daoConfig.chainId}

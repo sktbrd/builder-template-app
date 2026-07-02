@@ -87,9 +87,19 @@ export default async function TreasuryPage() {
   const ethUsd = ethBal * ethUsdPrice
 
   const tokenAssets = data.tokenHoldings.map((t, i) => {
-    const usd = tokenUsdValue(t.balanceRaw, t.decimals, t.symbol, ethUsdPrice)
+    // Discovered DAO coins are unvetted — their symbol is read from the coin
+    // contract and can collide with (or spoof) USDC/WETH. Never price them by
+    // symbol; only the static allowlist reaches the pricing path.
+    const usd = t.discovered
+      ? 0
+      : tokenUsdValue(t.balanceRaw, t.decimals, t.symbol, ethUsdPrice)
     const color = tokenColor(t.symbol, i)
-    return { ...t, usd, color }
+    // "Priced" = we have a real USD figure. Unpriced assets (e.g. the DAO's own
+    // content coins) render an em dash instead of a misleading $0 / 0.0%.
+    const sym = t.symbol.toUpperCase()
+    const priced =
+      !t.discovered && (usd > 0 || STABLE_SYMBOLS.has(sym) || WETH_SYMBOLS.has(sym))
+    return { ...t, usd, color, priced }
   })
 
   const totalUsd = ethUsd + tokenAssets.reduce((s, t) => s + t.usd, 0)
@@ -126,7 +136,7 @@ export default async function TreasuryPage() {
         </h1>
         <p className="mt-2 max-w-xl text-[15.5px] text-muted-fg">
           {hasUsd
-            ? `Composition of ${fmtUSD(totalUsd)} across ${daoConfig.name}'s ETH, stables, and in-treasury collection.`
+            ? `${fmtUSD(totalUsd)} in priced assets (ETH and stables) held by ${daoConfig.name}. Content coins and other unpriced tokens are listed below at balance only.`
             : `Holdings and financial position of the ${daoConfig.name} treasury.`}
         </p>
       </div>
@@ -166,6 +176,7 @@ export default async function TreasuryPage() {
               usd={ethUsd}
               pct={totalUsd > 0 ? ethUsd / totalUsd : 0}
               showUsd={hasUsd}
+              priced={ethUsd > 0}
             />
 
             {/* ERC-20 rows */}
@@ -193,6 +204,7 @@ export default async function TreasuryPage() {
                 usd={t.usd}
                 pct={totalUsd > 0 ? t.usd / totalUsd : 0}
                 showUsd={hasUsd}
+                priced={t.priced}
               />
             ))}
           </div>
@@ -233,6 +245,7 @@ function AssetRow({
   usd,
   pct,
   showUsd,
+  priced,
 }: {
   logo: React.ReactNode
   name: string
@@ -242,6 +255,8 @@ function AssetRow({
   usd: number
   pct: number
   showUsd: boolean
+  /** False when we have no USD price for this asset (e.g. content coins). */
+  priced: boolean
 }) {
   return (
     <div
@@ -266,22 +281,27 @@ function AssetRow({
         {bal}
       </div>
 
-      {/* USD + bar — only when price data available */}
+      {/* USD + bar — only when price data available. Unpriced assets show an
+          em dash and no share bar rather than a misleading $0 / 0.0%. */}
       {showUsd && (
         <>
           <div className="w-full text-right font-mono text-[13.5px] tabular-nums text-muted-fg sm:w-auto">
-            {fmtUSD(usd)}
+            {priced ? fmtUSD(usd) : '—'}
           </div>
           <div className="w-full sm:w-auto">
-            <div className="h-1 overflow-hidden rounded-full bg-surface-3">
-              <div
-                className="h-full rounded-full transition-[width]"
-                style={{ width: `${pct * 100}%`, background: color }}
-              />
-            </div>
-            <div className="mt-1 text-right text-xs text-muted-fg tabular-nums">
-              {(pct * 100).toFixed(1)}%
-            </div>
+            {priced && (
+              <>
+                <div className="h-1 overflow-hidden rounded-full bg-surface-3">
+                  <div
+                    className="h-full rounded-full transition-[width]"
+                    style={{ width: `${pct * 100}%`, background: color }}
+                  />
+                </div>
+                <div className="mt-1 text-right text-xs text-muted-fg tabular-nums">
+                  {(pct * 100).toFixed(1)}%
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
