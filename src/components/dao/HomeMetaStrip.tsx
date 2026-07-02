@@ -31,7 +31,7 @@ export function HomeMetaStrip({
   }
 
   return (
-    <div className="flex flex-wrap items-baseline gap-x-7 gap-y-1.5 px-4 sm:px-6">
+    <div className="flex flex-wrap items-baseline gap-x-7 gap-y-1.5 border-y border-border px-4 py-2.5 sm:px-6">
       {stats.map((s) => (
         <div key={s.label} className="flex items-baseline gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-fg">
