@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { isAddress } from 'viem'
 
+import { AddressInput } from '@/components/dao/ProposalCreate/AddressInput'
 import { TokenLogo } from '@/components/dao/TokenLogo'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
@@ -176,14 +177,10 @@ function EthFields({
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_160px]">
       <Field label="Recipient">
-        <input
-          type="text"
+        <AddressInput
           value={draft.recipient}
-          onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
-          placeholder="0x…"
-          className={textInputClass(
-            draft.recipient.length > 0 && !isAddress(draft.recipient)
-          )}
+          onChange={(recipient) => onChange({ ...draft, recipient })}
+          invalid={draft.recipient.length > 0 && !isAddress(draft.recipient)}
         />
       </Field>
       <Field label="Amount (ETH)">
@@ -299,14 +296,10 @@ function Erc20Fields({
           />
         </Field>
         <Field label="Recipient">
-          <input
-            type="text"
+          <AddressInput
             value={draft.recipient}
-            onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
-            placeholder="0x…"
-            className={textInputClass(
-              draft.recipient.length > 0 && !isAddress(draft.recipient)
-            )}
+            onChange={(recipient) => onChange({ ...draft, recipient })}
+            invalid={draft.recipient.length > 0 && !isAddress(draft.recipient)}
           />
         </Field>
         <Field
@@ -451,14 +444,10 @@ function NftFields({
       )}
 
       <Field label="Recipient">
-        <input
-          type="text"
+        <AddressInput
           value={draft.recipient}
-          onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
-          placeholder="0x…"
-          className={textInputClass(
-            draft.recipient.length > 0 && !isAddress(draft.recipient)
-          )}
+          onChange={(recipient) => onChange({ ...draft, recipient })}
+          invalid={draft.recipient.length > 0 && !isAddress(draft.recipient)}
         />
       </Field>
 
@@ -585,14 +574,10 @@ function MintGovFields({
   return (
     <div className="flex flex-col gap-3">
       <Field label="Recipient address">
-        <input
-          type="text"
+        <AddressInput
           value={draft.recipient}
-          onChange={(e) => onChange({ ...draft, recipient: e.target.value })}
-          placeholder="0x…"
-          className={textInputClass(
-            draft.recipient.length > 0 && !isAddress(draft.recipient)
-          )}
+          onChange={(recipient) => onChange({ ...draft, recipient })}
+          invalid={draft.recipient.length > 0 && !isAddress(draft.recipient)}
         />
       </Field>
       <div className="text-[12px] text-muted-fg">
@@ -621,14 +606,10 @@ function DelegateFields({
         </div>
       )}
       <Field label="Escrow delegate address">
-        <input
-          type="text"
+        <AddressInput
           value={draft.delegatee}
-          onChange={(e) => onChange({ ...draft, delegatee: e.target.value })}
-          placeholder="0x…"
-          className={textInputClass(
-            draft.delegatee.length > 0 && !isAddress(draft.delegatee)
-          )}
+          onChange={(delegatee) => onChange({ ...draft, delegatee })}
+          invalid={draft.delegatee.length > 0 && !isAddress(draft.delegatee)}
         />
       </Field>
       <div className="text-[12px] text-muted-fg">
