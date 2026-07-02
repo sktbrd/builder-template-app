@@ -27,11 +27,23 @@ import {
   type CreatorCoinProposalTx,
 } from '@/lib/creatorCoinProposal'
 import { daoConfig } from '@/lib/dao.config'
+import type { TxDraft } from '@/lib/proposal-tx'
 import { composeDescription, parseWriteError } from '@/lib/proposal-validation'
+
+/** Payload handed to the wizard when the modal runs in queue mode. */
+export type QueuedCreatorCoinTx = {
+  draft: TxDraft
+  suggestedTitle: string
+  suggestedDescription: string
+}
 
 type Props = {
   open: boolean
   onClose: () => void
+  /** When provided, the modal builds the deploy tx and hands it to the wizard
+   *  queue instead of proposing directly. The standalone /coins entry omits
+   *  this to keep its one-shot direct-propose flow. */
+  onQueue?: (queued: QueuedCreatorCoinTx) => void
 }
 
 const CHAIN_NAMES: Record<number, string> = {
@@ -41,12 +53,18 @@ const CHAIN_NAMES: Record<number, string> = {
   84532: 'Base Sepolia',
 }
 
-export function CreatorCoinProposalModal({ open, onClose }: Props) {
+export function CreatorCoinProposalModal({ open, onClose, onQueue }: Props) {
   if (!open) return null
-  return <ModalContent onClose={onClose} />
+  return <ModalContent onClose={onClose} onQueue={onQueue} />
 }
 
-function ModalContent({ onClose }: { onClose: () => void }) {
+function ModalContent({
+  onClose,
+  onQueue,
+}: {
+  onClose: () => void
+  onQueue?: (queued: QueuedCreatorCoinTx) => void
+}) {
   const router = useRouter()
   const { address, isConnected, chainId: walletChainId } = useAccount()
   const { openConnectModal } = useConnectModal()
@@ -215,7 +233,8 @@ function ModalContent({ onClose }: { onClose: () => void }) {
     resetWrite()
     setPrepError(null)
 
-    if (!eligible) {
+    // In queue mode the wizard gates eligibility at its own submit, so skip it.
+    if (!onQueue && !eligible) {
       setPrepError(
         `Not eligible to propose — you hold ${myBalance} ${myBalance === 1 ? 'token' : 'tokens'} (threshold ${proposalThreshold + 1}+).`
       )
@@ -251,6 +270,27 @@ function ModalContent({ onClose }: { onClose: () => void }) {
         { publicClient: publicClient ?? undefined }
       )
       setPreparedTx(built)
+
+      // Queue mode: hand the deploy tx to the wizard as a custom draft and let
+      // it flow through the normal Details → Transactions → Review path (and
+      // localStorage persistence) instead of proposing directly here.
+      if (onQueue) {
+        onQueue({
+          draft: {
+            kind: 'custom',
+            target: built.target,
+            valueEth: formatEther(built.value),
+            calldata: built.calldata,
+          },
+          // Honor anything the user typed into the (editable) preview fields;
+          // fall back to the built suggestions for untouched fields. Passing the
+          // raw suggestions here would silently drop the user's edits.
+          suggestedTitle: titleTouched ? proposalTitle : built.suggestedTitle,
+          suggestedDescription: bodyTouched ? proposalBody : built.suggestedDescription,
+        })
+        onClose()
+        return
+      }
 
       // Apply suggestions only to fields the user hasn't touched.
       const finalTitle = titleTouched ? proposalTitle : built.suggestedTitle
@@ -319,12 +359,14 @@ function ModalContent({ onClose }: { onClose: () => void }) {
             <SuccessPanel />
           ) : (
             <>
-              <EligibilityRow
-                connected={isConnected}
-                eligible={eligible}
-                balance={myBalance}
-                threshold={proposalThreshold}
-              />
+              {!onQueue && (
+                <EligibilityRow
+                  connected={isConnected}
+                  eligible={eligible}
+                  balance={myBalance}
+                  threshold={proposalThreshold}
+                />
+              )}
 
               <Field label="Coin name" hint={`${name.length}/50`}>
                 <input
@@ -498,7 +540,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   disabled={
                     !valid ||
                     !accepted ||
-                    !eligible ||
+                    (!onQueue && !eligible) ||
                     !ethUsdPrice ||
                     priceLoading ||
                     !!priceError ||
@@ -527,7 +569,8 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                       Submitting on-chain…
                     </>
                   )}
-                  {(phase === 'idle' || phase === 'error') && 'Submit proposal'}
+                  {(phase === 'idle' || phase === 'error') &&
+                    (onQueue ? 'Add to queue' : 'Submit proposal')}
                 </Button>
               )}
 

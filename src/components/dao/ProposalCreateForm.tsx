@@ -17,7 +17,10 @@ import {
 } from 'wagmi'
 
 import { useWeb3Ready } from '@/app/web3-providers'
-import { CreatorCoinProposalModal } from '@/components/coins/CreatorCoinProposalModal'
+import {
+  CreatorCoinProposalModal,
+  type QueuedCreatorCoinTx,
+} from '@/components/coins/CreatorCoinProposalModal'
 import { Markdown } from '@/components/Markdown'
 import { Button } from '@/components/ui/button'
 import { daoConfig } from '@/lib/dao.config'
@@ -399,6 +402,22 @@ function ProposalCreateFormInner({
   const removeDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i))
   const setEditorDraft = (next: TxDraft) =>
     setEditor((cur) => (cur.mode === 'list' ? cur : { ...cur, draft: next }))
+
+  // ── Creator-coin modal → queue. The modal builds its deploy tx and hands it
+  //    back here as a custom draft. Append it to the queue and prefill
+  //    title/description only when the user hasn't typed their own (never
+  //    overwrite existing text). From here it flows through the normal
+  //    Details → Transactions → Review path + localStorage persistence.
+  const queueCreatorCoin = ({
+    draft,
+    suggestedTitle,
+    suggestedDescription,
+  }: QueuedCreatorCoinTx) => {
+    setDrafts((prev) => [...prev, draft])
+    setTitle((prev) => (prev.trim() ? prev : suggestedTitle))
+    setDescription((prev) => (prev.trim() ? prev : suggestedDescription))
+  }
+
   // ── Navigation
   const goNext = () => {
     if (step === 'details' && unlocked.transactions) setStep('transactions')
@@ -463,6 +482,7 @@ function ProposalCreateFormInner({
           onSaveEdit={saveEdit}
           onRemove={removeDraft}
           onEditorChange={setEditorDraft}
+          onQueueCreatorCoin={queueCreatorCoin}
         />
       )}
 
@@ -587,6 +607,7 @@ function TransactionsStep({
   onSaveEdit,
   onRemove,
   onEditorChange,
+  onQueueCreatorCoin,
 }: {
   drafts: TxDraft[]
   tokenMeta: TokenMetaMap
@@ -599,6 +620,7 @@ function TransactionsStep({
   onSaveEdit: () => void
   onRemove: (i: number) => void
   onEditorChange: (next: TxDraft) => void
+  onQueueCreatorCoin: (queued: QueuedCreatorCoinTx) => void
 }) {
   const [creatorCoinOpen, setCreatorCoinOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -626,6 +648,10 @@ function TransactionsStep({
         <CreatorCoinProposalModal
           open={creatorCoinOpen}
           onClose={() => setCreatorCoinOpen(false)}
+          onQueue={(queued) => {
+            onQueueCreatorCoin(queued)
+            setCreatorCoinOpen(false)
+          }}
         />
       )}
       <div className="flex flex-col gap-4">

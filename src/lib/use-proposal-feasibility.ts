@@ -5,9 +5,11 @@ import { useReadContracts } from 'wagmi'
 
 import { daoConfig } from '@/lib/dao.config'
 import {
+  CUSTOM_LIKE_KINDS,
   tokenKey,
   type TokenMetaMap,
   type TxDraft,
+  type TxDraftCustom,
   ZERO_ADDRESS,
 } from '@/lib/proposal-tx'
 
@@ -28,6 +30,30 @@ export type FeasibilityWarning = {
   message: string
 }
 
+export type Erc20Requirement = {
+  token: `0x${string}`
+  symbol: string
+  decimals: number
+  /** Total outflow across the queued drafts, in token base units. */
+  required: bigint
+}
+
+/** Feasibility result — the failure warnings plus the raw totals behind them. */
+export type FeasibilityResult = {
+  warnings: FeasibilityWarning[]
+  loading: boolean
+  /** Total native ETH the proposal spends, in wei. */
+  ethRequiredWei: bigint
+  /** Per-token ERC-20 outflow totals. */
+  erc20Required: Erc20Requirement[]
+  /** Treasury balances read on-chain (base units); undefined until loaded. */
+  balances: {
+    ethWei?: bigint
+    /** Keyed by lowercased token address. */
+    erc20: Record<string, bigint | undefined>
+  }
+}
+
 type Erc20Check = {
   kind: 'erc20'
   token: `0x${string}`
@@ -44,7 +70,7 @@ type NftCheck = { kind: 'nft'; index: number; contract: `0x${string}`; tokenId: 
 export function useProposalFeasibility(
   drafts: TxDraft[],
   tokenMeta: TokenMetaMap
-): { warnings: FeasibilityWarning[]; loading: boolean } {
+): FeasibilityResult {
   const treasury = daoConfig.addresses.treasury
 
   // ── Compute outflows ─────────────────────────────────────────────────────
@@ -136,6 +162,19 @@ export function useProposalFeasibility(
           contract: getAddress(d.contract) as `0x${string}`,
           tokenId: BigInt(d.tokenId),
         })
+      }
+    } else if (d.kind === 'custom' || CUSTOM_LIKE_KINDS.has(d.kind)) {
+      // custom + custom-like drafts carry any native spend in `valueEth`
+      // (e.g. the creator-coin deploy's treasury dev-buy). Fold it into the
+      // ETH outflow so the warning path and Treasury-impact rows reflect it.
+      const { valueEth } = d as TxDraftCustom
+      const n = Number(valueEth)
+      if (Number.isFinite(n) && n > 0) {
+        try {
+          ethRequired += parseUnits(valueEth || '0', 18)
+        } catch {
+          // ignore
+        }
       }
     }
   }
@@ -254,7 +293,28 @@ export function useProposalFeasibility(
     }
   })
 
-  return { warnings, loading: isLoading || ethLoading }
+  // ── Surface the raw totals + balances for read-only UI (Treasury impact).
+  const erc20Balances: Record<string, bigint | undefined> = {}
+  erc20CheckList.forEach((c, i) => {
+    const read = reads?.[i]
+    erc20Balances[c.token.toLowerCase()] =
+      read?.status === 'success' ? (read.result as bigint) : undefined
+  })
+  const ethWei =
+    ethBalance?.[0]?.status === 'success' ? (ethBalance[0].result as bigint) : undefined
+
+  return {
+    warnings,
+    loading: isLoading || ethLoading,
+    ethRequiredWei: ethRequired,
+    erc20Required: erc20CheckList.map((c) => ({
+      token: c.token,
+      symbol: c.symbol,
+      decimals: c.decimals,
+      required: c.required,
+    })),
+    balances: { ethWei, erc20: erc20Balances },
+  }
 }
 
 function formatBig(v: bigint, decimals: number, maxFrac = 4): string {
