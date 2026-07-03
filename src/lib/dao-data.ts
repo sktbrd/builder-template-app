@@ -4,7 +4,6 @@ import { PUBLIC_DEFAULT_CHAINS } from '@buildeross/constants/chains'
 import { erc20Abi, tokenAbi } from '@buildeross/sdk/contract'
 import {
   Auction_OrderBy,
-  daoZoraCoinsRequest,
   FeedEventType,
   getBids,
   getProposals,
@@ -20,7 +19,14 @@ import { mainnet } from 'viem/chains'
 
 import { daoConfig } from './dao.config'
 import { decodeProposalTx } from './proposal-tx-decoder'
+import {
+  fetchAlchemyTreasuryHoldings,
+  formatTokenAmount,
+  type TreasuryTokenHolding,
+} from './treasury-holdings'
 import type { ProposalStatus } from './types'
+
+export type { TreasuryTokenHolding } from './treasury-holdings'
 
 const chainId = daoConfig.chainId
 const tokenAddressLc = daoConfig.addresses.token.toLowerCase() as `0x${string}`
@@ -958,24 +964,6 @@ function short(addr: string) {
 
 // ── Treasury page ──────────────────────────────────────────
 
-export type TreasuryTokenHolding = {
-  symbol: string
-  address: string
-  decimals: number
-  /** Formatted balance, trimmed (e.g. "1,234.56"). */
-  balance: string
-  /** Raw balance as string (for sorting / future USD price math). */
-  balanceRaw: string
-  /**
-   * True for subgraph-discovered DAO coins whose symbol is read from the coin
-   * contract itself (unvetted). Consumers MUST NOT apply symbol-based USD
-   * pricing to these — a content coin could spoof USDC/WETH and inflate totals.
-   * Only the static `daoConfig.treasuryTokens` allowlist (discovered=false) may
-   * reach the pricing path.
-   */
-  discovered: boolean
-}
-
 export type TreasuryNft = {
   tokenId: number
   name: string
@@ -1278,53 +1266,38 @@ function txRelativeTime(timestamp: number): string {
 async function fetchTreasuryTokenHoldings(
   treasuryAddrLc: `0x${string}`
 ): Promise<TreasuryTokenHolding[]> {
+  // Primary path: Alchemy discovers *every* ERC-20 the treasury holds (including
+  // tokens received by transfer that the DAO never created), enriches with USD
+  // prices, and drops sub-$5 dust. Returns null when there's no API key or the
+  // balances call fails — then we fall back to the static allowlist multicall.
+  const alchemy = await fetchAlchemyTreasuryHoldings(
+    daoConfig.chainId,
+    treasuryAddrLc,
+    daoConfig.treasuryTokens
+  )
+  if (alchemy) return alchemy
+
+  return fetchAllowlistTokenHoldings(treasuryAddrLc)
+}
+
+/**
+ * Fallback discovery: multicall `balanceOf` over the static
+ * `daoConfig.treasuryTokens` allowlist. No price oracle here, so `usdPrice` /
+ * `usdValue` are null — the page prices these by symbol (stables ≈ $1, WETH ×
+ * ETH price) instead.
+ */
+async function fetchAllowlistTokenHoldings(
+  treasuryAddrLc: `0x${string}`
+): Promise<TreasuryTokenHolding[]> {
   const knownTokens = daoConfig.treasuryTokens
-  if (!publicClient) return []
+  if (!publicClient || !knownTokens.length) return []
 
-  // Discover the DAO's own Zora content coins via the subgraph. These aren't in
-  // the static allowlist, so we read their decimals/symbol on-chain below. A
-  // subgraph failure just means we fall back to the allowlist-only view.
-  const knownAddrs = new Set(knownTokens.map((t) => t.address.toLowerCase()))
-  const discovered: Array<{ address: `0x${string}`; symbol: string }> = []
-  try {
-    const coins = await daoZoraCoinsRequest(
-      daoConfig.addresses.token,
-      daoConfig.chainId,
-      100
-    )
-    const seen = new Set<string>()
-    for (const c of coins) {
-      const addr = String(c.coinAddress).toLowerCase()
-      if (!addr.startsWith('0x') || knownAddrs.has(addr) || seen.has(addr)) continue
-      seen.add(addr)
-      discovered.push({ address: addr as `0x${string}`, symbol: c.symbol })
-    }
-  } catch {
-    // Subgraph unavailable — proceed with the static allowlist only.
-  }
-
-  if (!knownTokens.length && !discovered.length) return []
-
-  // Single multicall: balanceOf for every token, plus decimals/symbol for the
-  // discovered coins (which aren't described by the static config).
-  const contracts = [
-    ...knownTokens.map((t) => ({
-      address: t.address,
-      abi: erc20Abi,
-      functionName: 'balanceOf',
-      args: [treasuryAddrLc],
-    })),
-    ...discovered.flatMap((c) => [
-      {
-        address: c.address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [treasuryAddrLc],
-      },
-      { address: c.address, abi: erc20Abi, functionName: 'decimals' },
-      { address: c.address, abi: erc20Abi, functionName: 'symbol' },
-    ]),
-  ]
+  const contracts = knownTokens.map((t) => ({
+    address: t.address,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: [treasuryAddrLc],
+  }))
 
   const result = await safeFetch(
     'treasuryPage.tokenHoldings.multicall',
@@ -1345,57 +1318,18 @@ async function fetchTreasuryTokenHoldings(
       address: t.address,
       decimals: t.decimals,
       balance: formatTokenAmount(raw, t.decimals),
-      balanceRaw: raw.toString(),
+      balanceRaw: raw,
+      usdPrice: null,
+      usdValue: null,
       discovered: false,
     }
   })
 
-  // Discovered coins occupy 3 result slots each (balanceOf, decimals, symbol).
-  let offset = knownTokens.length
-  for (const c of discovered) {
-    const balR = result[offset]
-    const decR = result[offset + 1]
-    const symR = result[offset + 2]
-    offset += 3
-    const raw =
-      balR?.status === 'success' && typeof balR.result === 'bigint'
-        ? balR.result
-        : BigInt(0)
-    const decimals =
-      decR?.status === 'success' && typeof decR.result === 'number' ? decR.result : 18
-    const symbol =
-      symR?.status === 'success' && typeof symR.result === 'string'
-        ? symR.result
-        : c.symbol
-    holdings.push({
-      symbol,
-      address: c.address,
-      decimals,
-      balance: formatTokenAmount(raw, decimals),
-      balanceRaw: raw.toString(),
-      discovered: true,
-    })
-  }
-
   return holdings
-    .filter((h) => h.balanceRaw !== '0')
-    .sort((a, b) => (BigInt(b.balanceRaw) > BigInt(a.balanceRaw) ? 1 : -1))
-}
-
-function formatTokenAmount(value: bigint, decimals: number): string {
-  if (value === BigInt(0)) return '0'
-  const base = BigInt(10) ** BigInt(decimals)
-  const whole = value / base
-  const fraction = value % base
-  if (fraction === BigInt(0)) {
-    return whole.toLocaleString('en-US')
-  }
-  // Show up to 4 fractional digits (trim trailing zeros).
-  const fracStr = fraction.toString().padStart(decimals, '0').slice(0, 4)
-  const trimmed = fracStr.replace(/0+$/, '')
-  return trimmed
-    ? `${whole.toLocaleString('en-US')}.${trimmed}`
-    : whole.toLocaleString('en-US')
+    .filter((h) => h.balanceRaw !== BigInt(0))
+    .sort((a, b) =>
+      b.balanceRaw > a.balanceRaw ? 1 : b.balanceRaw < a.balanceRaw ? -1 : 0
+    )
 }
 
 function bucketProposalsByMonth(proposals: Array<{ timeCreated: unknown }>): number[] {

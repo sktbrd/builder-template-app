@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og'
 import { daoConfig } from '@/lib/dao.config'
 import { getTreasuryPageData } from '@/lib/dao-data'
 import { OG_CONTENT_TYPE, OG_SIZE, ogColors, resolveIpfs, trimEth } from '@/lib/og-utils'
-import { ETH_EQUIVALENT_SYMBOLS, STABLE_SYMBOLS } from '@/lib/treasury-tokens'
+import { holdingUsdValue } from '@/lib/treasury-tokens'
 
 export const alt = `${daoConfig.name} Treasury`
 export const size = OG_SIZE
@@ -29,12 +29,12 @@ export default async function TreasuryOGImage() {
     treasuryEth = data.treasuryEth
     tokenCount = data.tokenHoldings.length
     const ethUsd = parseFloat(data.treasuryEth) * data.ethUsdPrice
+    // Mirror the page's valuation exactly (real usdValue first; symbol heuristic
+    // only for trusted allowlist tokens) so the OG total matches the page total
+    // and spoofed spam symbols can't inflate it.
     const tokensUsd = data.tokenHoldings.reduce((s, t) => {
-      const sym = t.symbol.toUpperCase()
-      const stable = (STABLE_SYMBOLS as readonly string[]).includes(sym)
-      const weth = (ETH_EQUIVALENT_SYMBOLS as readonly string[]).includes(sym)
-      const human = Number(BigInt(t.balanceRaw)) / 10 ** t.decimals
-      return s + (stable ? human : weth ? human * data.ethUsdPrice : 0)
+      const { usd, priced } = holdingUsdValue(t, data.ethUsdPrice)
+      return s + (priced ? usd : 0)
     }, 0)
     totalUsd = ethUsd + tokensUsd
   } catch {

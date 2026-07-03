@@ -59,7 +59,57 @@ export const ETHEREUM_COMMON_TOKENS: TreasuryToken[] = [
 ]
 
 /** Symbols treated as ~$1 for treasury USD estimates. */
-export const STABLE_SYMBOLS = ['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD'] as const
+export const STABLE_SYMBOLS = new Set([
+  'USDC',
+  'USDT',
+  'DAI',
+  'FRAX',
+  'LUSD',
+  'USDBC',
+  'USDS',
+  'USDGLO',
+  'GUSD',
+])
 
 /** Symbols treated as ETH-equivalent for treasury USD estimates. */
-export const ETH_EQUIVALENT_SYMBOLS = ['WETH', 'CBETH', 'STETH', 'RETH'] as const
+export const ETH_EQUIVALENT_SYMBOLS = new Set(['WETH', 'CBETH', 'STETH', 'RETH'])
+
+/** Minimal holding shape the {@link holdingUsdValue} pricing helper needs. */
+export type PricedHolding = {
+  symbol: string
+  decimals: number
+  balanceRaw: bigint
+  /** Real Alchemy USD value, or `null` when no price was resolved. */
+  usdValue: number | null
+  /** True when discovered on-chain (unvetted symbol), false for allowlist. */
+  discovered: boolean
+}
+
+/**
+ * Shared USD valuation for a single treasury holding, used by both the
+ * `/treasury` page and its OG image so the two totals can never drift.
+ *
+ * Prefers the real Alchemy `usdValue`. Only when that's absent AND the token
+ * comes from the trusted allowlist (`!discovered`) does it fall back to the
+ * symbol heuristic (stables ≈ $1, WETH-likes × ETH price). Discovered tokens
+ * never get the heuristic: an unvetted coin can spoof a well-known symbol, so
+ * without a real price it stays unpriced (and is already dropped by the $5
+ * floor upstream). `priced` is false for anything left without a USD figure —
+ * callers render an em dash rather than a misleading $0.
+ */
+export function holdingUsdValue(
+  holding: PricedHolding,
+  ethUsdPrice: number
+): { usd: number; priced: boolean } {
+  if (holding.usdValue != null) {
+    return { usd: holding.usdValue, priced: true }
+  }
+  if (holding.discovered) {
+    return { usd: 0, priced: false }
+  }
+  const sym = holding.symbol.toUpperCase()
+  const human = Number(holding.balanceRaw) / 10 ** holding.decimals
+  if (STABLE_SYMBOLS.has(sym)) return { usd: human, priced: true }
+  if (ETH_EQUIVALENT_SYMBOLS.has(sym)) return { usd: human * ethUsdPrice, priced: true }
+  return { usd: 0, priced: false }
+}

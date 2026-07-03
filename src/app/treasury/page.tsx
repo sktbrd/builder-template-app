@@ -7,6 +7,11 @@ import { type DonutSlice, TreasuryDonut } from '@/components/dao/TreasuryDonut'
 import { TreasuryTransfers } from '@/components/dao/TreasuryTransfers'
 import { daoConfig } from '@/lib/dao.config'
 import { getTreasuryPageData, type TreasuryTx } from '@/lib/dao-data'
+import {
+  ETH_EQUIVALENT_SYMBOLS as WETH_SYMBOLS,
+  holdingUsdValue,
+  STABLE_SYMBOLS,
+} from '@/lib/treasury-tokens'
 
 export const metadata: Metadata = {
   title: 'Treasury',
@@ -15,32 +20,6 @@ export const metadata: Metadata = {
 export const revalidate = 60
 
 // ── Token USD helpers ─────────────────────────────────────────────────────────
-
-const STABLE_SYMBOLS = new Set([
-  'USDC',
-  'USDT',
-  'DAI',
-  'FRAX',
-  'LUSD',
-  'USDBC',
-  'USDS',
-  'USDGLO',
-  'GUSD',
-])
-const WETH_SYMBOLS = new Set(['WETH', 'CBETH', 'STETH', 'RETH'])
-
-function tokenUsdValue(
-  balanceRaw: string,
-  decimals: number,
-  symbol: string,
-  ethUsdPrice: number
-): number {
-  const sym = symbol.toUpperCase()
-  const human = Number(BigInt(balanceRaw)) / 10 ** decimals
-  if (STABLE_SYMBOLS.has(sym)) return human
-  if (WETH_SYMBOLS.has(sym)) return human * ethUsdPrice
-  return 0
-}
 
 // Per-asset slice colors: ETH uses accent, stables green, WETH grey, others orange
 const TOKEN_COLORS: Record<string, string> = {
@@ -87,28 +66,20 @@ export default async function TreasuryPage() {
   const ethUsd = ethBal * ethUsdPrice
 
   const tokenAssets = data.tokenHoldings.map((t, i) => {
-    // Discovered DAO coins are unvetted — their symbol is read from the coin
-    // contract and can collide with (or spoof) USDC/WETH. Never price them by
-    // symbol; only the static allowlist reaches the pricing path.
-    const usd = t.discovered
-      ? 0
-      : tokenUsdValue(t.balanceRaw, t.decimals, t.symbol, ethUsdPrice)
+    // Shared valuation: real Alchemy usdValue first, symbol heuristic only for
+    // trusted allowlist tokens. Unpriced assets render an em dash, not $0.
+    const { usd, priced } = holdingUsdValue(t, ethUsdPrice)
     const color = tokenColor(t.symbol, i)
-    // "Priced" = we have a real USD figure. Unpriced assets (e.g. the DAO's own
-    // content coins) render an em dash instead of a misleading $0 / 0.0%.
-    const sym = t.symbol.toUpperCase()
-    const priced =
-      !t.discovered && (usd > 0 || STABLE_SYMBOLS.has(sym) || WETH_SYMBOLS.has(sym))
     return { ...t, usd, color, priced }
   })
 
-  const totalUsd = ethUsd + tokenAssets.reduce((s, t) => s + t.usd, 0)
+  const totalUsd = ethUsd + tokenAssets.reduce((s, t) => s + (t.priced ? t.usd : 0), 0)
 
-  // Donut slices (only include assets with known USD value)
+  // Donut slices (only include priced assets with a positive USD value)
   const slices: DonutSlice[] = [
     ...(ethUsd > 0 ? [{ name: 'ETH', color: 'var(--accent)', value: ethUsd }] : []),
     ...tokenAssets
-      .filter((t) => t.usd > 0)
+      .filter((t) => t.priced && t.usd > 0)
       .map((t) => ({
         name: t.symbol,
         color: t.color,
@@ -136,7 +107,7 @@ export default async function TreasuryPage() {
         </h1>
         <p className="mt-2 max-w-xl text-[15.5px] text-muted-fg">
           {hasUsd
-            ? `${fmtUSD(totalUsd)} in priced assets (ETH and stables) held by ${daoConfig.name}. Content coins and other unpriced tokens are listed below at balance only.`
+            ? `${fmtUSD(totalUsd)} across the priced assets held by ${daoConfig.name}. Small balances under $5 are hidden.`
             : `Holdings and financial position of the ${daoConfig.name} treasury.`}
         </p>
       </div>
