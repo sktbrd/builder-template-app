@@ -298,8 +298,10 @@ function HeroArt({ imageSrc, alt }: { imageSrc: string | null; alt: string }) {
   return (
     <>
       {(!loaded || errored) && spinner}
-      {/* `object-bottom` anchors the character's feet to the bottom of the
-          column so the figure looks grounded (nouns.game style). */}
+      {/* Centered with symmetric padding: object-contain in a taller-than-wide
+          column leaves vertical slack, and object-bottom + top-only padding
+          dumped all of it above the art — an off-balance gap now that the tint
+          matches the art background and makes the slack visible. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         key={attempt}
@@ -308,7 +310,7 @@ function HeroArt({ imageSrc, alt }: { imageSrc: string | null; alt: string }) {
         onLoad={() => setLoaded(true)}
         onError={() => setErrored(true)}
         className={cn(
-          'absolute inset-0 z-10 h-full w-full object-contain object-bottom px-4 pt-4 transition-[opacity,transform] duration-500 group-hover:scale-[1.02] md:px-8 md:pt-8',
+          'absolute inset-0 z-10 h-full w-full object-contain object-center p-4 transition-[opacity,transform] duration-500 group-hover:scale-[1.02] md:p-8',
           loaded && !errored ? 'opacity-100' : 'opacity-0'
         )}
       />
