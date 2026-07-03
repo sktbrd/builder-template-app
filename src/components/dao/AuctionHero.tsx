@@ -122,6 +122,18 @@ function relativeLuminance(r: number, g: number, b: number): number {
   return 0.2126 * norm[0] + 0.7152 * norm[1] + 0.0722 * norm[2]
 }
 
+// Corner patches whose channels differ by less than this are treated as the
+// same background color when clustering (JPEG/webp noise tolerance).
+const CORNER_TOLERANCE = 16
+
+function sameColor(a: number[], b: number[]): boolean {
+  return (
+    Math.abs(a[0] - b[0]) <= CORNER_TOLERANCE &&
+    Math.abs(a[1] - b[1]) <= CORNER_TOLERANCE &&
+    Math.abs(a[2] - b[2]) <= CORNER_TOLERANCE
+  )
+}
+
 /**
  * Resolves a tint color for the hero. Routes the image through `/api/img-proxy`
  * so the canvas stays clean (most DAO image hosts don't send CORS headers),
@@ -142,7 +154,8 @@ function useDominantColor(imageSrc: string | null): TintResult {
     }
     let cancelled = false
     // Prefer the lossless bg layer when we can find it.
-    const directSrc = deriveBgLayerUrl(imageSrc) ?? imageSrc
+    const bgLayerSrc = deriveBgLayerUrl(imageSrc)
+    const directSrc = bgLayerSrc ?? imageSrc
     const proxied = `/api/img-proxy?url=${encodeURIComponent(directSrc)}`
 
     const img = new Image()
@@ -157,15 +170,53 @@ function useDominantColor(imageSrc: string | null): TintResult {
         canvas.height = 1
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
         if (!ctx) return
-        // Downscaling to 1×1 averages the image. For the flat-fill bg layer
-        // this is the exact color; for a composite it's a usable average.
-        ctx.drawImage(img, 0, 0, 1, 1)
-        const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
-        if (a < 200) return
+        // Averages a source patch by downscaling it into the 1×1 canvas.
+        const sample = (sx: number, sy: number, sw: number, sh: number) => {
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 1, 1)
+          return Array.from(ctx.getImageData(0, 0, 1, 1).data)
+        }
+
+        let rgb: [number, number, number] | null = null
+
+        // Composite fallback: the whole-image average blends the subject into
+        // the background (white-bg art reads as gray), so the hero tint never
+        // matches the art and it renders as a boxed card. The actual bg color
+        // lives at the corners — sample all four and, when at least three
+        // agree, use their average. Disagreeing corners (full-bleed art) or
+        // transparent ones fall through to the whole-image average.
+        if (!bgLayerSrc) {
+          const w = img.naturalWidth
+          const h = img.naturalHeight
+          const p = Math.max(1, Math.round(Math.min(w, h) * 0.04))
+          const corners = [
+            sample(0, 0, p, p),
+            sample(w - p, 0, p, p),
+            sample(0, h - p, p, p),
+            sample(w - p, h - p, p, p),
+          ].filter((c) => c[3] >= 200)
+          let best: number[][] = []
+          for (const c of corners) {
+            const cluster = corners.filter((o) => sameColor(c, o))
+            if (cluster.length > best.length) best = cluster
+          }
+          if (best.length >= 3) {
+            const avg = (i: number) =>
+              Math.round(best.reduce((s, c) => s + c[i], 0) / best.length)
+            rgb = [avg(0), avg(1), avg(2)]
+          }
+        }
+
+        if (!rgb) {
+          // Bg layer is a flat fill, so its average IS the exact color.
+          const [r, g, b, a] = sample(0, 0, img.naturalWidth, img.naturalHeight)
+          if (a < 200) return
+          rgb = [r, g, b]
+        }
         if (cancelled) return
         setTint({
-          rgb: `rgb(${r}, ${g}, ${b})`,
-          isLight: relativeLuminance(r, g, b) > 0.5,
+          rgb: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
+          isLight: relativeLuminance(rgb[0], rgb[1], rgb[2]) > 0.5,
         })
       } catch {
         // Canvas tainted / CORS — leave fallback in place.
@@ -300,7 +351,14 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
   }
 
   const isPast = auction.kind === 'past'
-  const topBid = auction.topBidEth ? `${trimBid(auction.topBidEth)} ETH` : '—'
+  // Running auction with no bids gets a real empty state instead of an em
+  // dash — the dash next to the countdown read as broken data. Past/ended
+  // slots keep the dash (a settled token with no bid is genuinely "none").
+  const topBid = auction.topBidEth
+    ? `${trimBid(auction.topBidEth)} ETH`
+    : isPast || ended
+      ? '—'
+      : 'No bids yet'
   const tokenName = auction.name || `${tokenLabel} #${auction.tokenId}`
   const bornLabel = formatBornDate(auction.startTimeUnix)
 
@@ -368,7 +426,13 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
           // inherit the page's light/dark tokens — forcing 'tint-light' here is
           // what made the text render dark on a dark surface.
           data-theme={hasTint ? (tintIsLight ? 'tint-light' : 'tint') : undefined}
-          className={cn('flex flex-col px-6 py-6 md:px-8 md:py-8', textColor)}
+          // justify-center keeps the content block vertically balanced inside
+          // the min-h column — a bid-less auction used to cluster at the top
+          // with a dead band above the pinned footer link.
+          className={cn(
+            'flex flex-col justify-center px-6 py-6 md:px-8 md:py-8',
+            textColor
+          )}
         >
           <div className="flex flex-col gap-4">
             {bornLabel && (
@@ -393,8 +457,11 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
               </h1>
             </Link>
 
-            {/* Current bid + Ends in — side-by-side, no border divider */}
-            <div className="mt-1 grid grid-cols-2 gap-6">
+            {/* Current bid + Ends in — side-by-side, no border divider. Both
+                values share one type scale (the 42px countdown next to a 24px
+                bid read as two competing headlines) and auto/1fr sizing so the
+                countdown gets the leftover width and never wraps. */}
+            <div className="mt-1 grid grid-cols-[auto_1fr] gap-6">
               <div>
                 <p
                   className={cn(
@@ -406,7 +473,7 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
                 </p>
                 <p
                   className={cn(
-                    'font-display text-[clamp(18px,2vw,24px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
+                    'whitespace-nowrap font-display text-[clamp(20px,2.2vw,28px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
                     textColor
                   )}
                 >
@@ -425,7 +492,7 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
                 {isPast ? (
                   <p
                     className={cn(
-                      'font-display text-[clamp(18px,2vw,24px)] font-extrabold leading-none tracking-[-0.02em]',
+                      'font-display text-[clamp(20px,2.2vw,28px)] font-extrabold leading-none tracking-[-0.02em]',
                       auction.bidderShort?.startsWith('0x') ? 'font-mono' : '',
                       textColor
                     )}
@@ -438,7 +505,7 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
                   // as a still-running auction.
                   <p
                     className={cn(
-                      'font-display text-[clamp(18px,2vw,24px)] font-extrabold leading-none tracking-[-0.02em]',
+                      'font-display text-[clamp(20px,2.2vw,28px)] font-extrabold leading-none tracking-[-0.02em]',
                       textColor
                     )}
                   >
@@ -452,7 +519,7 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
                   <p
                     suppressHydrationWarning
                     className={cn(
-                      'font-display text-[clamp(28px,3.4vw,42px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
+                      'whitespace-nowrap font-display text-[clamp(20px,2.2vw,28px)] font-extrabold leading-none tracking-[-0.02em] tabular-nums',
                       countdownColor
                     )}
                   >
@@ -526,10 +593,12 @@ export function AuctionHero({ auction, tokenLabel }: Props) {
             </div>
           )}
 
+          {/* Follows the content instead of pinning to the column bottom
+              (mt-auto) — with the block vertically centered, a pinned footer
+              would reopen the dead band it exists to close. */}
           <div
             className={cn(
-              'mt-auto flex items-center gap-5 border-t pt-4 text-[11px] font-semibold uppercase tracking-[0.16em]',
-              isPast ? 'pt-6' : 'mt-6',
+              'mt-6 flex items-center gap-5 border-t pt-4 text-[11px] font-semibold uppercase tracking-[0.16em]',
               dividerColor,
               mutedColor
             )}
