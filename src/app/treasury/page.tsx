@@ -114,7 +114,7 @@ export default async function TreasuryPage() {
 
       {/* ── Two-column grid ── */}
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[380px_1fr] xl:grid-cols-[440px_1fr]">
-        {/* Left column: donut + NFT mini-grid */}
+        {/* Left column: donut + asset rows + NFT mini-grid */}
         <div className="flex flex-col gap-4">
           {/* Donut card */}
           <div className="rounded-[14px] border border-border bg-surface px-6 py-7 text-center">
@@ -127,14 +127,6 @@ export default async function TreasuryPage() {
             )}
           </div>
 
-          {/* NFT mini-grid */}
-          {data.nftHoldings.length > 0 && (
-            <NftSection nfts={data.nftHoldings} count={data.nftHoldingsCount} />
-          )}
-        </div>
-
-        {/* Right column: asset rows + tx card */}
-        <div className="flex min-h-full flex-col gap-4">
           {/* Asset rows */}
           <div className="flex flex-col gap-3">
             {/* ETH row */}
@@ -180,8 +172,17 @@ export default async function TreasuryPage() {
             ))}
           </div>
 
-          {/* Recent transactions */}
-          <div className="flex flex-1 flex-col">
+          {/* NFT mini-grid */}
+          {data.nftHoldings.length > 0 && (
+            <NftSection nfts={data.nftHoldings} count={data.nftHoldingsCount} />
+          )}
+        </div>
+
+        {/* Right column: recent transactions, height-capped to the left column
+            (absolute inset on lg+ so it can never stretch the grid row) with
+            the tx list scrolling internally. */}
+        <div className="lg:relative">
+          <div className="flex max-h-[520px] flex-col lg:absolute lg:inset-0 lg:max-h-none">
             <TxCard
               txs={data.recentTxs}
               explorer={explorer}
@@ -235,51 +236,40 @@ function AssetRow({
   priced: boolean
 }) {
   return (
-    <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2 sm:grid sm:items-center"
-      style={{
-        gridTemplateColumns: showUsd
-          ? '40px minmax(0,1fr) auto auto 200px'
-          : '40px minmax(0,1fr) auto',
-      }}
-    >
-      {/* icon */}
-      <div className="shrink-0">{logo}</div>
+    // Two-line card sized for the narrow allocation column: identity + amounts
+    // on top, share bar below. (The old 5-column grid assumed the wide column.)
+    <div className="rounded-xl border border-border bg-surface px-[18px] py-3.5 hover:bg-surface-2">
+      <div className="flex items-center gap-3">
+        <div className="shrink-0">{logo}</div>
 
-      {/* name */}
-      <div className="min-w-0 flex-1 sm:flex-none">
-        <div className="font-semibold">{name}</div>
-        <div className="mt-0.5 text-xs text-muted-fg">{sub}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold">{name}</div>
+          <div className="mt-0.5 text-xs text-muted-fg">{sub}</div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-[13.5px] tabular-nums">{bal}</div>
+          {/* Unpriced assets show an em dash rather than a misleading $0. */}
+          {showUsd && (
+            <div className="mt-0.5 font-mono text-xs tabular-nums text-muted-fg">
+              {priced ? fmtUSD(usd) : '—'}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* balance */}
-      <div className="ml-auto font-mono text-[13.5px] tabular-nums sm:ml-0 sm:text-right">
-        {bal}
-      </div>
-
-      {/* USD + bar — only when price data available. Unpriced assets show an
-          em dash and no share bar rather than a misleading $0 / 0.0%. */}
-      {showUsd && (
-        <>
-          <div className="w-full text-right font-mono text-[13.5px] tabular-nums text-muted-fg sm:w-auto">
-            {priced ? fmtUSD(usd) : '—'}
+      {showUsd && priced && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
+            <div
+              className="h-full rounded-full transition-[width]"
+              style={{ width: `${pct * 100}%`, background: color }}
+            />
           </div>
-          <div className="w-full sm:w-auto">
-            {priced && (
-              <>
-                <div className="h-1 overflow-hidden rounded-full bg-surface-3">
-                  <div
-                    className="h-full rounded-full transition-[width]"
-                    style={{ width: `${pct * 100}%`, background: color }}
-                  />
-                </div>
-                <div className="mt-1 text-right text-xs text-muted-fg tabular-nums">
-                  {(pct * 100).toFixed(1)}%
-                </div>
-              </>
-            )}
+          <div className="shrink-0 text-xs text-muted-fg tabular-nums">
+            {(pct * 100).toFixed(1)}%
           </div>
-        </>
+        </div>
       )}
     </div>
   )
@@ -303,7 +293,9 @@ function TxCard({
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col">
+      {/* min-h-0 lets the flex child actually shrink so the list scrolls
+          inside the height-capped card instead of growing it. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
         {txs.length === 0 && (
           <div className="py-8 text-center text-sm text-muted-fg">
             No transactions in the last 30 days.
