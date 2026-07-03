@@ -198,7 +198,12 @@ export default async function TreasuryPage() {
             <div className="h-40 rounded-[14px] border border-border bg-surface animate-pulse" />
           }
         >
-          <TreasuryTransfers />
+          <TreasuryTransfers
+            knownAssets={[
+              { symbol: 'ETH' },
+              ...tokenAssets.map((t) => ({ symbol: t.symbol, address: t.address })),
+            ]}
+          />
         </Suspense>
       )}
     </div>
