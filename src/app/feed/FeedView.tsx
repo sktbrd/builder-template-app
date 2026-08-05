@@ -160,16 +160,26 @@ function Card({
   actor,
   time,
   category,
+  href,
+  ariaLabel,
   children,
 }: {
   /** Omit for events with no meaningful actor (e.g. auctions settled with no bid). */
   actor?: React.ReactNode
   time: string
   category: EventCategory
+  /** When set, the whole card becomes a stretched link to this destination. */
+  href?: string
+  ariaLabel?: string
   children: React.ReactNode
 }) {
   return (
-    <article className="rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-border-strong">
+    <article
+      className={cn(
+        'rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-border-strong',
+        href && 'relative'
+      )}
+    >
       <header className="mb-2 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {actor}
@@ -183,7 +193,22 @@ function Card({
         </div>
         <EventTypeChip category={category} />
       </header>
-      <div>{children}</div>
+      {/* Body sits above the stretched link (`relative z-10`) so its text stays
+          selectable and any inner links/markdown anchors receive clicks + hover
+          instead of being hijacked by the overlay. */}
+      <div className="relative z-10">{children}</div>
+      {/* Stretched link: covers the card chrome (header + padding) so plain
+          clicks there navigate. Inner links keep their own `relative z-10` so
+          their clicks win. Keyboard focus stays on the visible inner links
+          (tabIndex={-1} here), so carded types must expose a real inner link. */}
+      {href ? (
+        <Link
+          href={href}
+          aria-label={ariaLabel}
+          tabIndex={-1}
+          className="absolute inset-0"
+        />
+      ) : null}
     </article>
   )
 }
@@ -200,13 +225,15 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={<ActorIdentity address={item.bidder} />}
           time={time}
           category="auction-bid"
+          href={`/auction/${item.tokenId}`}
+          ariaLabel={`View auction ${item.tokenName ?? `#${item.tokenId}`}`}
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
               bid <strong className="text-fg">{formatBidEth(item.amount)} ETH</strong> on{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
-                className="font-semibold text-fg hover:text-accent-strong"
+                className="relative z-10 font-semibold text-fg hover:text-accent-strong"
               >
                 {item.tokenName || `#${item.tokenId}`}
               </Link>
@@ -222,13 +249,15 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={<ActorIdentity address={item.actor} />}
           time={time}
           category="auction"
+          href={`/auction/${item.tokenId}`}
+          ariaLabel={`View auction ${item.tokenName ?? `#${item.tokenId}`}`}
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
               auction started for{' '}
               <Link
                 href={`/auction/${item.tokenId}`}
-                className="font-semibold text-fg hover:text-accent-strong"
+                className="relative z-10 font-semibold text-fg hover:text-accent-strong"
               >
                 {item.tokenName || `#${item.tokenId}`}
               </Link>
@@ -246,13 +275,15 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={noBids ? undefined : <ActorIdentity address={item.winner} />}
           time={time}
           category="auction-settled"
+          href={`/auction/${item.tokenId}`}
+          ariaLabel={`View auction ${item.tokenName ?? `#${item.tokenId}`}`}
         >
           <BodyWithThumb image={item.tokenImage} name={item.tokenName}>
             {noBids ? (
               <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
                 <Link
                   href={`/auction/${item.tokenId}`}
-                  className="font-semibold text-fg hover:text-accent-strong"
+                  className="relative z-10 font-semibold text-fg hover:text-accent-strong"
                 >
                   {item.tokenName || `#${item.tokenId}`}
                 </Link>{' '}
@@ -263,7 +294,7 @@ function FeedCard({ item }: { item: FeedItem }) {
                 won{' '}
                 <Link
                   href={`/auction/${item.tokenId}`}
-                  className="font-semibold text-fg hover:text-accent-strong"
+                  className="relative z-10 font-semibold text-fg hover:text-accent-strong"
                 >
                   {item.tokenName || `#${item.tokenId}`}
                 </Link>{' '}
@@ -281,12 +312,14 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={<ActorIdentity address={item.proposer} />}
           time={time}
           category="proposal"
+          href={`/proposals/${item.proposalNumber}`}
+          ariaLabel={`View proposal #${item.proposalNumber}`}
         >
           <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             created{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
-              className="font-semibold text-fg hover:text-accent-strong"
+              className="relative z-10 font-semibold text-fg hover:text-accent-strong"
             >
               #{item.proposalNumber} {item.proposalTitle}
             </Link>
@@ -296,14 +329,20 @@ function FeedCard({ item }: { item: FeedItem }) {
 
     case 'PROPOSAL_VOTED':
       return (
-        <Card actor={<ActorIdentity address={item.voter} />} time={time} category="vote">
+        <Card
+          actor={<ActorIdentity address={item.voter} />}
+          time={time}
+          category="vote"
+          href={`/proposals/${item.proposalNumber}`}
+          ariaLabel={`View proposal #${item.proposalNumber}`}
+        >
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <VoteSupportBadge support={item.support} />
               <span className="text-sm text-muted-fg">on</span>
               <Link
                 href={`/proposals/${item.proposalNumber}`}
-                className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold text-fg hover:text-accent-strong"
+                className="relative z-10 min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold text-fg hover:text-accent-strong"
               >
                 #{item.proposalNumber} {item.proposalTitle}
               </Link>
@@ -325,17 +364,23 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={<ActorIdentity address={item.proposer} />}
           time={time}
           category="proposal"
+          href={`/proposals/${item.proposalNumber}`}
+          ariaLabel={`View proposal #${item.proposalNumber}`}
         >
           <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             posted an update on{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
-              className="font-semibold text-fg hover:text-accent-strong"
+              className="relative z-10 font-semibold text-fg hover:text-accent-strong"
             >
               #{item.proposalNumber} {item.proposalTitle}
             </Link>
           </p>
-          <PropdateBody messageType={item.messageType} message={item.message} />
+          <PropdateBody
+            proposalNumber={item.proposalNumber}
+            messageType={item.messageType}
+            message={item.message}
+          />
         </Card>
       )
 
@@ -345,12 +390,14 @@ function FeedCard({ item }: { item: FeedItem }) {
           actor={<ActorIdentity address={item.proposer} />}
           time={time}
           category="executed"
+          href={`/proposals/${item.proposalNumber}`}
+          ariaLabel={`View proposal #${item.proposalNumber}`}
         >
           <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
             proposal{' '}
             <Link
               href={`/proposals/${item.proposalNumber}`}
-              className="font-semibold text-fg hover:text-accent-strong"
+              className="relative z-10 font-semibold text-fg hover:text-accent-strong"
             >
               #{item.proposalNumber} {item.proposalTitle}
             </Link>{' '}
@@ -376,13 +423,22 @@ function FeedCard({ item }: { item: FeedItem }) {
 
     case 'ZORA_COIN_CREATED':
       return (
-        <Card actor={<ActorIdentity address={item.actor} />} time={time} category="coin">
+        <Card
+          actor={<ActorIdentity address={item.actor} />}
+          time={time}
+          category="coin"
+          href={`/coins/${item.coinAddress}`}
+          ariaLabel={`View coin $${item.coinSymbol}`}
+        >
           <div className="min-w-0">
             <p className="text-sm leading-snug text-muted-fg break-words [overflow-wrap:anywhere] max-w-prose">
               launched{' '}
-              <strong className="text-fg break-words [overflow-wrap:anywhere]">
+              <Link
+                href={`/coins/${item.coinAddress}`}
+                className="relative z-10 font-semibold text-fg break-words [overflow-wrap:anywhere] hover:text-accent-strong"
+              >
                 ${item.coinSymbol}
-              </strong>{' '}
+              </Link>{' '}
               {item.coinName ? `· ${item.coinName}` : null}
             </p>
           </div>
@@ -415,9 +471,11 @@ function FeedCard({ item }: { item: FeedItem }) {
 // ── Propdate body (decode messageType, render markdown) ───────
 
 function PropdateBody({
+  proposalNumber,
   messageType,
   message,
 }: {
+  proposalNumber: number | string
   messageType: number
   message: string
 }) {
@@ -425,7 +483,19 @@ function PropdateBody({
   if (!content) return null
   return (
     <div className="mt-2 border-l-2 border-border-strong bg-surface-2/60 py-1.5 pl-3 pr-2">
-      <Markdown className="prose-sm max-w-none">{content}</Markdown>
+      {/* Always cap height (no measuring); a fade + read-more hint the overflow.
+          The body sits on bg-surface-2/60 over the card's bg-surface, so the
+          fade blends from surface-2 (surface and surface-2 are near-identical). */}
+      <div className="relative max-h-48 overflow-hidden">
+        <Markdown className="prose-sm max-w-none">{content}</Markdown>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface-2 to-transparent" />
+      </div>
+      <Link
+        href={`/proposals/${proposalNumber}`}
+        className="relative z-10 mt-1.5 inline-block text-xs font-semibold text-muted-fg hover:text-fg"
+      >
+        Read full update →
+      </Link>
     </div>
   )
 }

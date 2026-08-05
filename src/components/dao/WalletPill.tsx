@@ -1,6 +1,7 @@
 'use client'
 
 import { useEnsData } from '@buildeross/hooks'
+import { bgForAddress } from '@buildeross/utils'
 import { Check, Copy, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
@@ -66,7 +67,7 @@ export function WalletPill({
   const avatar = showAvatar && (
     <span
       className={cn('relative shrink-0 overflow-hidden rounded-full', preset.avatar)}
-      style={{ background: avatarColor(address) }}
+      style={{ background: bgForAddress(address, ensAvatar ?? null) }}
       aria-hidden
     >
       {ensAvatar && (
@@ -162,11 +163,6 @@ export function WalletPill({
 function short(addr: string): string {
   if (!addr || addr.length < 10) return addr
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
-}
-
-function avatarColor(addr: string): string {
-  const seed = Number.parseInt(addr.slice(2, 8), 16) || 0
-  return `oklch(0.7 0.15 ${seed % 360})`
 }
 
 function explorerUrl(chainId: number, addr: string): string {

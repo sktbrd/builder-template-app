@@ -30,24 +30,29 @@ export function HomeMetaStrip({
     })
   }
 
+  // Full-bleed band with the content constrained to the same max-w-[1180px]
+  // grid as the hero above it — stats distribute across the hero's width
+  // instead of clustering left with a dead right half.
   return (
-    <div className="flex flex-wrap items-baseline gap-x-7 gap-y-1.5 px-4 sm:px-6">
-      {stats.map((s) => (
-        <div key={s.label} className="flex items-baseline gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-fg">
-            {s.label}
-          </span>
-          <span
-            className={
-              s.tone === 'accent'
-                ? 'text-[15px] font-bold tabular-nums text-accent-strong'
-                : 'text-[15px] font-bold tabular-nums text-fg'
-            }
-          >
-            {s.value}
-          </span>
-        </div>
-      ))}
+    <div className="relative left-1/2 w-screen -translate-x-1/2 border-y border-border">
+      <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-baseline justify-between gap-x-6 gap-y-1.5 px-6 py-3 md:px-8">
+        {stats.map((s) => (
+          <div key={s.label} className="flex items-baseline gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-fg">
+              {s.label}
+            </span>
+            <span
+              className={
+                s.tone === 'accent'
+                  ? 'text-[15px] font-bold tabular-nums text-accent-strong'
+                  : 'text-[15px] font-bold tabular-nums text-fg'
+              }
+            >
+              {s.value}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

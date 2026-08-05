@@ -287,7 +287,7 @@ export function Header() {
 
 function ChainPill({ chainName }: { chainName: string }) {
   return (
-    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent-strong">
+    <span className="rounded-full border border-accent/30 bg-accent/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-accent-strong">
       {chainName}
     </span>
   )

@@ -27,14 +27,17 @@ export default async function Dashboard() {
         totalSupply={data.totalSupply}
         palette={palette}
         tokenLabel={tokenLabel}
-      />
-
-      <HomeMetaStrip
-        totalSupply={data.totalSupply}
-        ownerCount={data.ownerCount}
-        treasuryEth={data.treasuryEth}
-        totalAuctionSalesEth={data.totalAuctionSalesEth}
-        activeProposalCount={activeProposalCount}
+        // KPI row is threaded into the hero fragment so it lands directly under
+        // the hero (above the token strip) rather than after it.
+        metaSlot={
+          <HomeMetaStrip
+            totalSupply={data.totalSupply}
+            ownerCount={data.ownerCount}
+            treasuryEth={data.treasuryEth}
+            totalAuctionSalesEth={data.totalAuctionSalesEth}
+            activeProposalCount={activeProposalCount}
+          />
+        }
       />
 
       {/* Lower content sits inside a forced-dark themed panel so the layout

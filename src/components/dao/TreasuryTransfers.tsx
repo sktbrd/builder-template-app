@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { TokenLogo } from '@/components/dao/TokenLogo'
 import { daoConfig } from '@/lib/dao.config'
 
 const EXPLORER_BASE: Record<number, string> = {
@@ -48,7 +49,25 @@ function relativeTime(ts: number): string {
 const DIR_FILTERS = ['all', 'in', 'out'] as const
 type DirFilter = (typeof DIR_FILTERS)[number]
 
-export function TreasuryTransfers() {
+/** Rows rendered before the local "Show more" reveal kicks in. */
+const INITIAL_ROWS = 12
+
+export type KnownTransferAsset = {
+  symbol: string
+  /** Contract address for the token logo; omit for native ETH. */
+  address?: string
+}
+
+type Props = {
+  /**
+   * Assets the treasury page actually displays (priced holdings + allowlist +
+   * ETH). Transfers of anything else — usually airdrop spam — are collapsed
+   * behind a "show unrecognized" toggle instead of flooding the default view.
+   */
+  knownAssets?: KnownTransferAsset[]
+}
+
+export function TreasuryTransfers({ knownAssets = [] }: Props) {
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
   const [assetFilter, setAssetFilter] = useState<string>('all')
   const [transfers, setTransfers] = useState<Transfer[]>([])
@@ -57,6 +76,16 @@ export function TreasuryTransfers() {
   const [nextPageKeyIn, setNextPageKeyIn] = useState<string | undefined>()
   const [nextPageKeyOut, setNextPageKeyOut] = useState<string | undefined>()
   const [loadingMore, setLoadingMore] = useState(false)
+  const [showUnknown, setShowUnknown] = useState(false)
+  const [shown, setShown] = useState(INITIAL_ROWS)
+
+  const knownBySymbol = useMemo(() => {
+    const m = new Map<string, KnownTransferAsset>()
+    for (const a of knownAssets) m.set(a.symbol.toUpperCase(), a)
+    // Native ETH is always a recognized asset even if the caller omits it.
+    if (!m.has('ETH')) m.set('ETH', { symbol: 'ETH' })
+    return m
+  }, [knownAssets])
 
   const explorerBase = EXPLORER_BASE[daoConfig.chainId] ?? 'https://basescan.org'
 
@@ -100,8 +129,15 @@ export function TreasuryTransfers() {
 
   useEffect(() => {
     load(dirFilter, true)
+    setShowUnknown(false)
+    setShown(INITIAL_ROWS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirFilter])
+
+  const isKnown = useCallback(
+    (t: Transfer) => knownBySymbol.has((t.asset ?? '').toUpperCase()),
+    [knownBySymbol]
+  )
 
   const assets = useMemo(() => {
     const seen = new Set<string>()
@@ -109,9 +145,29 @@ export function TreasuryTransfers() {
     return Array.from(seen).sort()
   }, [transfers])
 
-  const visible = useMemo(() => {
-    return transfers.filter((t) => assetFilter === 'all' || t.asset === assetFilter)
-  }, [transfers, assetFilter])
+  // Chips only for assets the treasury page recognizes; the (usually spammy)
+  // long tail collapses into a select so it can't take over the layout.
+  const knownChipAssets = useMemo(
+    () => assets.filter((a) => knownBySymbol.has(a.toUpperCase())),
+    [assets, knownBySymbol]
+  )
+  const otherAssets = useMemo(
+    () => assets.filter((a) => !knownBySymbol.has(a.toUpperCase())),
+    [assets, knownBySymbol]
+  )
+
+  const { visible, hiddenCount } = useMemo(() => {
+    // An explicit asset filter always wins — picking a token from the
+    // "other assets" select must show its transfers even when unrecognized.
+    if (assetFilter !== 'all') {
+      return { visible: transfers.filter((t) => t.asset === assetFilter), hiddenCount: 0 }
+    }
+    const known = transfers.filter(isKnown)
+    return {
+      visible: showUnknown ? transfers : known,
+      hiddenCount: transfers.length - known.length,
+    }
+  }, [transfers, assetFilter, showUnknown, isKnown])
 
   const hasMore =
     (dirFilter !== 'out' && !!nextPageKeyIn) || (dirFilter !== 'in' && !!nextPageKeyOut)
@@ -143,17 +199,52 @@ export function TreasuryTransfers() {
         </div>
       </div>
 
-      {/* Asset filter chips */}
+      {/* Asset filter: chips for recognized assets, a select for the long tail */}
       {assets.length > 1 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          <Chip active={assetFilter === 'all'} onClick={() => setAssetFilter('all')}>
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <Chip
+            active={assetFilter === 'all'}
+            onClick={() => {
+              setAssetFilter('all')
+              setShown(INITIAL_ROWS)
+            }}
+          >
             All assets
           </Chip>
-          {assets.map((a) => (
-            <Chip key={a} active={assetFilter === a} onClick={() => setAssetFilter(a)}>
+          {knownChipAssets.map((a) => (
+            <Chip
+              key={a}
+              active={assetFilter === a}
+              onClick={() => {
+                setAssetFilter(a)
+                setShown(INITIAL_ROWS)
+              }}
+            >
               {a}
             </Chip>
           ))}
+          {otherAssets.length > 0 && (
+            <select
+              aria-label="Filter by other assets"
+              value={otherAssets.includes(assetFilter) ? assetFilter : ''}
+              onChange={(e) => {
+                setAssetFilter(e.target.value || 'all')
+                setShown(INITIAL_ROWS)
+              }}
+              className={`rounded-full border px-3 py-2 text-[12px] font-medium ${
+                otherAssets.includes(assetFilter)
+                  ? 'border-accent bg-accent text-accent-fg'
+                  : 'border-border bg-surface-2 text-muted-fg'
+              }`}
+            >
+              <option value="">Other assets ({otherAssets.length})</option>
+              {otherAssets.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
@@ -169,28 +260,85 @@ export function TreasuryTransfers() {
           Could not load transfers: {error}
         </div>
       ) : visible.length === 0 ? (
-        <div className="py-8 text-center text-sm text-muted-fg">No transfers found.</div>
+        <div className="py-8 text-center text-sm text-muted-fg">
+          {hiddenCount > 0
+            ? 'No transfers of recognized treasury assets in this page of results.'
+            : 'No transfers found.'}
+        </div>
       ) : (
         <div className="flex flex-col">
-          {visible.map((tx, i) => (
-            <TxRow key={`${tx.hash}-${i}`} tx={tx} explorerBase={explorerBase} />
+          {visible.slice(0, shown).map((tx, i) => (
+            <TxRow
+              key={`${tx.hash}-${i}`}
+              tx={tx}
+              explorerBase={explorerBase}
+              known={isKnown(tx)}
+              logoAddress={knownBySymbol.get((tx.asset ?? '').toUpperCase())?.address}
+            />
           ))}
         </div>
       )}
 
-      {hasMore && !loading && (
-        <div className="mt-4 flex justify-center">
-          <button
-            type="button"
-            onClick={() => load(dirFilter, false)}
-            disabled={loadingMore}
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-[13px] font-medium hover:bg-surface-3 disabled:opacity-50"
-          >
-            {loadingMore ? 'Loading…' : 'Load more'}
-          </button>
+      {/* Reveal chain: local "Show more" → unrecognized toggle → API "Load more" */}
+      {!loading && !error && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {visible.length > shown ? (
+            <RevealButton onClick={() => setShown((s) => s + 24)}>
+              Show more ({visible.length - shown} loaded)
+            </RevealButton>
+          ) : (
+            <>
+              {!showUnknown && hiddenCount > 0 && assetFilter === 'all' && (
+                <RevealButton
+                  muted
+                  onClick={() => {
+                    setShowUnknown(true)
+                    setShown((s) => Math.max(s, INITIAL_ROWS))
+                  }}
+                >
+                  Show {hiddenCount} unrecognized transfer{hiddenCount === 1 ? '' : 's'}
+                </RevealButton>
+              )}
+              {hasMore && (
+                <RevealButton
+                  onClick={() => load(dirFilter, false)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </RevealButton>
+              )}
+            </>
+          )}
         </div>
       )}
     </section>
+  )
+}
+
+function RevealButton({
+  onClick,
+  disabled,
+  muted = false,
+  children,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  muted?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-lg border border-border px-4 py-2 text-[13px] font-medium disabled:opacity-50 ${
+        muted
+          ? 'bg-surface text-muted-fg hover:text-fg hover:bg-surface-2'
+          : 'bg-surface-2 hover:bg-surface-3'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -218,7 +366,19 @@ function Chip({
   )
 }
 
-function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
+function TxRow({
+  tx,
+  explorerBase,
+  known,
+  logoAddress,
+}: {
+  tx: Transfer
+  explorerBase: string
+  /** Whether the asset is one the treasury page recognizes (holdings/allowlist/ETH). */
+  known: boolean
+  /** Contract address for the token logo; undefined for ETH / unrecognized. */
+  logoAddress?: string
+}) {
   const isIn = tx.dir === 'in'
   const counterpart = isIn ? tx.from : tx.to
   return (
@@ -226,18 +386,30 @@ function TxRow({ tx, explorerBase }: { tx: Transfer; explorerBase: string }) {
       href={`${explorerBase}/tx/${tx.hash}`}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors sm:grid sm:gap-3"
+      className={`flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors sm:grid sm:gap-3 ${
+        known ? '' : 'opacity-60'
+      }`}
       style={{ gridTemplateColumns: '28px 1fr auto auto' }}
     >
-      {/* direction badge */}
-      <span
-        className={
-          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
-          (isIn ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive')
-        }
-      >
-        {isIn ? '↓' : '↑'}
-      </span>
+      {/* token logo for recognized assets; direction badge for the rest
+          (direction stays encoded in the +/− sign and amount color) */}
+      {known ? (
+        <TokenLogo
+          address={logoAddress}
+          symbol={tx.asset || '?'}
+          chainId={daoConfig.chainId}
+          size={24}
+        />
+      ) : (
+        <span
+          className={
+            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
+            (isIn ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive')
+          }
+        >
+          {isIn ? '↓' : '↑'}
+        </span>
+      )}
 
       {/* counterpart */}
       <div className="min-w-0 flex-1">

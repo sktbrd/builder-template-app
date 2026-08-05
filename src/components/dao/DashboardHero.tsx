@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
 import { useWeb3Ready } from '@/app/web3-providers'
 import type { DashboardData, RecentTokenSummary } from '@/lib/dao-data'
@@ -20,6 +20,8 @@ type Props = {
   totalSupply: number
   palette: [string, string, string]
   tokenLabel: string
+  /** KPI row rendered between the hero and the token history strip. */
+  metaSlot?: ReactNode
 }
 
 /**
@@ -101,6 +103,7 @@ function DashboardHeroView({
   totalSupply,
   palette,
   tokenLabel,
+  metaSlot,
   truth,
   overlayImage,
 }: Props & { truth: AuctionTruth | null; overlayImage: string | null }) {
@@ -145,6 +148,7 @@ function DashboardHeroView({
   return (
     <>
       <AuctionHero auction={heroAuction} palette={palette} tokenLabel={tokenLabel} />
+      {metaSlot}
       <AuctionHistoryStrip
         tokens={recentTokens}
         totalSupply={totalSupply}

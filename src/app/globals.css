@@ -39,7 +39,7 @@
 
 :root {
   --accent: #2563eb;
-  --accent-strong: color-mix(in oklab, #2563eb 80%, black);
+  --accent-strong: color-mix(in oklab, var(--accent) 80%, black);
   --accent-fg: #ffffff;
   --radius: 12px;
 
@@ -64,6 +64,7 @@
 
 [data-theme='dark'] {
   --accent-fg: #ffffff;
+  --accent-strong: color-mix(in oklab, var(--accent) 70%, white);
 
   --bg: #09090b;
   --surface: #131316;

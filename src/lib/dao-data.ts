@@ -19,7 +19,14 @@ import { mainnet } from 'viem/chains'
 
 import { daoConfig } from './dao.config'
 import { decodeProposalTx } from './proposal-tx-decoder'
+import {
+  fetchAlchemyTreasuryHoldings,
+  formatTokenAmount,
+  type TreasuryTokenHolding,
+} from './treasury-holdings'
 import type { ProposalStatus } from './types'
+
+export type { TreasuryTokenHolding } from './treasury-holdings'
 
 const chainId = daoConfig.chainId
 const tokenAddressLc = daoConfig.addresses.token.toLowerCase() as `0x${string}`
@@ -51,10 +58,24 @@ async function safeFetch<T>(
   fn: () => Promise<T>,
   fallback: T
 ): Promise<T> {
+  return (await safeFetchResult(label, fn, fallback)).data
+}
+
+/**
+ * Like {@link safeFetch}, but reports whether the fetch actually succeeded so
+ * callers can tell "the query returned nothing" apart from "the query failed
+ * and we fell back". Needed where an empty fallback would otherwise be
+ * indistinguishable from a real empty result (e.g. 404-ing a token on outage).
+ */
+async function safeFetchResult<T>(
+  label: string,
+  fn: () => Promise<T>,
+  fallback: T
+): Promise<{ ok: boolean; data: T }> {
   const maxAttempts = 3
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await fn()
+      return { ok: true, data: await fn() }
     } catch (e) {
       if (attempt < maxAttempts && isRateLimited(e)) {
         const backoff = 500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 250)
@@ -62,10 +83,10 @@ async function safeFetch<T>(
         continue
       }
       console.error(`[dao-data] ${label} failed:`, e)
-      return fallback
+      return { ok: false, data: fallback }
     }
   }
-  return fallback
+  return { ok: false, data: fallback }
 }
 
 /**
@@ -943,16 +964,6 @@ function short(addr: string) {
 
 // ── Treasury page ──────────────────────────────────────────
 
-export type TreasuryTokenHolding = {
-  symbol: string
-  address: string
-  decimals: number
-  /** Formatted balance, trimmed (e.g. "1,234.56"). */
-  balance: string
-  /** Raw balance as string (for sorting / future USD price math). */
-  balanceRaw: string
-}
-
 export type TreasuryNft = {
   tokenId: number
   name: string
@@ -1255,56 +1266,70 @@ function txRelativeTime(timestamp: number): string {
 async function fetchTreasuryTokenHoldings(
   treasuryAddrLc: `0x${string}`
 ): Promise<TreasuryTokenHolding[]> {
-  const tokens = daoConfig.treasuryTokens
-  if (!tokens.length || !publicClient) return []
+  // Primary path: Alchemy discovers *every* ERC-20 the treasury holds (including
+  // tokens received by transfer that the DAO never created), enriches with USD
+  // prices, and drops sub-$5 dust. Returns null when there's no API key or the
+  // balances call fails — then we fall back to the static allowlist multicall.
+  const alchemy = await fetchAlchemyTreasuryHoldings(
+    daoConfig.chainId,
+    treasuryAddrLc,
+    daoConfig.treasuryTokens
+  )
+  if (alchemy) return alchemy
+
+  return fetchAllowlistTokenHoldings(treasuryAddrLc)
+}
+
+/**
+ * Fallback discovery: multicall `balanceOf` over the static
+ * `daoConfig.treasuryTokens` allowlist. No price oracle here, so `usdPrice` /
+ * `usdValue` are null — the page prices these by symbol (stables ≈ $1, WETH ×
+ * ETH price) instead.
+ */
+async function fetchAllowlistTokenHoldings(
+  treasuryAddrLc: `0x${string}`
+): Promise<TreasuryTokenHolding[]> {
+  const knownTokens = daoConfig.treasuryTokens
+  if (!publicClient || !knownTokens.length) return []
+
+  const contracts = knownTokens.map((t) => ({
+    address: t.address,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: [treasuryAddrLc],
+  }))
 
   const result = await safeFetch(
     'treasuryPage.tokenHoldings.multicall',
     () =>
       publicClient.multicall({
-        contracts: tokens.map((t) => ({
-          address: t.address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [treasuryAddrLc],
-        })),
+        contracts,
         allowFailure: true,
       }),
     [] as Array<{ status: 'success' | 'failure'; result?: unknown }>
   )
 
-  return tokens
-    .map((t, i) => {
-      const r = result[i]
-      const raw =
-        r?.status === 'success' && typeof r.result === 'bigint' ? r.result : BigInt(0)
-      const display = formatTokenAmount(raw, t.decimals)
-      return {
-        symbol: t.symbol,
-        address: t.address,
-        decimals: t.decimals,
-        balance: display,
-        balanceRaw: raw.toString(),
-      }
-    })
-    .filter((h) => h.balanceRaw !== '0')
-    .sort((a, b) => (BigInt(b.balanceRaw) > BigInt(a.balanceRaw) ? 1 : -1))
-}
+  const holdings: TreasuryTokenHolding[] = knownTokens.map((t, i) => {
+    const r = result[i]
+    const raw =
+      r?.status === 'success' && typeof r.result === 'bigint' ? r.result : BigInt(0)
+    return {
+      symbol: t.symbol,
+      address: t.address,
+      decimals: t.decimals,
+      balance: formatTokenAmount(raw, t.decimals),
+      balanceRaw: raw,
+      usdPrice: null,
+      usdValue: null,
+      discovered: false,
+    }
+  })
 
-function formatTokenAmount(value: bigint, decimals: number): string {
-  if (value === BigInt(0)) return '0'
-  const base = BigInt(10) ** BigInt(decimals)
-  const whole = value / base
-  const fraction = value % base
-  if (fraction === BigInt(0)) {
-    return whole.toLocaleString('en-US')
-  }
-  // Show up to 4 fractional digits (trim trailing zeros).
-  const fracStr = fraction.toString().padStart(decimals, '0').slice(0, 4)
-  const trimmed = fracStr.replace(/0+$/, '')
-  return trimmed
-    ? `${whole.toLocaleString('en-US')}.${trimmed}`
-    : whole.toLocaleString('en-US')
+  return holdings
+    .filter((h) => h.balanceRaw !== BigInt(0))
+    .sort((a, b) =>
+      b.balanceRaw > a.balanceRaw ? 1 : b.balanceRaw < a.balanceRaw ? -1 : 0
+    )
 }
 
 function bucketProposalsByMonth(proposals: Array<{ timeCreated: unknown }>): number[] {
@@ -2142,7 +2167,7 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
   const tokenIdBig = BigInt(tokenId).toString() as unknown as bigint
   const nowUnixSec = Math.floor(Date.now() / 1000)
 
-  const [auctionsResp, bidsResp, prevNextResp] = await Promise.all([
+  const [auctionsResp, bidsResp, prevNextResult] = await Promise.all([
     safeFetch(
       'auctionPage.findAuctions',
       () =>
@@ -2161,7 +2186,7 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
       () => getBids(chainId, daoConfig.addresses.token, tokenIdStr),
       [] as Awaited<ReturnType<typeof getBids>>
     ),
-    safeFetch(
+    safeFetchResult(
       'auctionPage.prevNext',
       () =>
         SubgraphSDK.connect(chainId).daoNextAndPreviousTokens({
@@ -2173,6 +2198,8 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
       >
     ),
   ])
+  const prevNextResp = prevNextResult.data
+  const prevNextOk = prevNextResult.ok
 
   const auction = auctionsResp.auctions.find((a) => Number(a.token.tokenId) === tokenId)
 
@@ -2193,14 +2220,42 @@ export async function getAuctionPageData(tokenId: number): Promise<AuctionPageDa
   const isLatest = latestId === tokenId
 
   if (!auction) {
-    // Auction not in the last 50; if we have a prev/next cursor, the token
-    // exists but its auction may already be settled and pruned from the
-    // recent window. Show what we can.
+    // Auction not in the last 50 window — fetch the Token entity directly so
+    // old (or founder-vested, never-auctioned) tokens still render their real
+    // name/artwork instead of a boilerplate-looking fallback.
+    const tokenResult = await safeFetchResult(
+      'auctionPage.tokenFallback',
+      () =>
+        SubgraphSDK.connect(chainId).tokens({
+          where: {
+            tokenContract: tokenAddressLc,
+            tokenId: tokenIdBig,
+          } as never,
+          first: 1,
+        }),
+      { tokens: [] } as Awaited<
+        ReturnType<ReturnType<typeof SubgraphSDK.connect>['tokens']>
+      >
+    )
+    const token = tokenResult.data.tokens?.[0] ?? null
+
+    // Only report the token as absent (→ 404) when we're confident:
+    //  - the id is above the latest minted token (prev/next query succeeded and
+    //    reported a `latest`), or
+    //  - both the token-entity and prev/next queries SUCCEEDED yet found nothing.
+    // A subgraph outage / 429 collapses every query to an empty fallback; in
+    // that case we stay unsure and render the degraded page rather than
+    // replacing a previously-good ISR-cached page with a 404.
+    const hasCursor = prevNextResp.prev.length > 0 || prevNextResp.next.length > 0
+    const aboveLatest = latestId != null && tokenId > latestId
+    const confidentlyAbsent =
+      !token && (aboveLatest || (prevNextOk && tokenResult.ok && !hasCursor))
+
     return {
-      exists: prevNextResp.prev.length > 0 || prevNextResp.next.length > 0,
+      exists: !confidentlyAbsent,
       tokenId,
-      name: null,
-      image: null,
+      name: token?.name ?? null,
+      image: token?.image ?? null,
       endTimeUnix: null,
       topBidEth: null,
       bidderShort: null,

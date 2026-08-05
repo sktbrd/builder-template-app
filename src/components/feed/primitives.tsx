@@ -79,17 +79,17 @@ const CATEGORY_CONFIG: Record<
   vote: {
     label: 'Vote',
     icon: Vote,
-    toneClass: 'bg-accent/10 text-accent-strong ring-1 ring-accent/30',
+    toneClass: 'bg-accent/15 text-accent-strong ring-1 ring-accent/40',
   },
   auction: {
     label: 'Auction',
     icon: Gavel,
-    toneClass: 'bg-accent/10 text-accent-strong ring-1 ring-accent/30',
+    toneClass: 'bg-accent/15 text-accent-strong ring-1 ring-accent/40',
   },
   'auction-bid': {
     label: 'Bid',
     icon: ArrowUpRight,
-    toneClass: 'bg-accent/10 text-accent-strong ring-1 ring-accent/30',
+    toneClass: 'bg-accent/15 text-accent-strong ring-1 ring-accent/40',
   },
   'auction-settled': {
     label: 'Settled',
@@ -99,7 +99,7 @@ const CATEGORY_CONFIG: Record<
   coin: {
     label: 'Coin',
     icon: Coins,
-    toneClass: 'bg-accent/10 text-accent-strong ring-1 ring-accent/30',
+    toneClass: 'bg-accent/15 text-accent-strong ring-1 ring-accent/40',
   },
   executed: {
     label: 'Executed',

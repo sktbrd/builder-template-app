@@ -177,12 +177,15 @@ function Strong({ children }: { children: React.ReactNode }) {
 }
 
 function AuctionLink({ id, name }: { id: number | string; name: string | null }) {
+  const label = name || `#${id}`
   return (
     <Link
       href={`/auction/${id}`}
+      title={label}
       className="font-semibold text-fg hover:text-accent-strong"
     >
-      {name || `#${id}`}
+      {/* inline-block inherits leading-6 so align-bottom keeps baseline with row text */}
+      <span className="inline-block max-w-[26ch] truncate align-bottom">{label}</span>
     </Link>
   )
 }
@@ -191,9 +194,11 @@ function ProposalLink({ number, title }: { number: number | string; title: strin
   return (
     <Link
       href={`/proposals/${number}`}
+      title={title}
       className="font-semibold text-fg hover:text-accent-strong"
     >
-      #{number} {title}
+      {/* keep #N always visible; only the title text truncates */}#{number}{' '}
+      <span className="inline-block max-w-[26ch] truncate align-bottom">{title}</span>
     </Link>
   )
 }

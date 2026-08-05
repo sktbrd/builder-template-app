@@ -26,6 +26,7 @@ export default async function AuctionPage({ params }: { params: Params }) {
     getAuctionPageData(tokenId),
     getAuctionPriceHistory(365),
   ])
+  if (!data.exists) notFound()
   const tokenLabel = daoConfig.name.split(' ')[0]
   const palette = fallbackArtPalette()
 

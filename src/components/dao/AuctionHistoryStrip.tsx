@@ -53,7 +53,7 @@ export function AuctionHistoryStrip({
         <li className="flex shrink-0 items-center">
           <Link
             href="/auction/latest"
-            className="flex h-full w-[88px] flex-col items-center justify-center gap-0.5 rounded-[6px] border border-dashed border-border bg-surface/30 text-center text-[11px] font-semibold text-muted-fg transition-colors hover:border-border-strong hover:text-fg"
+            className="flex h-full w-[90px] flex-col items-center justify-center gap-0.5 rounded-[6px] border border-dashed border-border bg-surface/30 text-center text-[11px] font-semibold text-muted-fg transition-colors hover:border-border-strong hover:text-fg"
           >
             View
             <br />
@@ -70,7 +70,7 @@ export function AuctionHistoryStrip({
   return (
     <section
       aria-label="Recent auctions"
-      className="group/marquee relative left-1/2 w-screen -translate-x-1/2 overflow-hidden"
+      className="group/marquee relative left-1/2 w-screen -translate-x-1/2 overflow-hidden py-1"
     >
       <div className="flex w-max gap-2 animate-[marquee_60s_linear_infinite] group-hover/marquee:[animation-play-state:paused]">
         {items}
@@ -147,6 +147,10 @@ function TokenTile({
   const ringClass = isSelected
     ? (liveishRing ?? 'border-fg ring-2 ring-fg/30')
     : (liveishRing ?? 'border-border')
+  // Live/settling or selected tiles already carry a colored border; the neutral
+  // hover border would override it and flicker on hover, so scope hover to the
+  // plain tiles only.
+  const isHighlighted = liveishRing !== null || isSelected
 
   return (
     <button
@@ -155,7 +159,8 @@ function TokenTile({
       aria-pressed={isSelected}
       aria-label={ariaLabel}
       className={cn(
-        'group relative flex flex-col overflow-hidden rounded-[6px] border bg-surface transition-colors hover:border-border-strong',
+        'group relative flex h-full flex-col overflow-hidden rounded-[6px] border bg-surface transition-colors',
+        !isHighlighted && 'hover:border-border-strong',
         ringClass
       )}
     >
@@ -187,9 +192,7 @@ function TokenTile({
         )}
       </div>
       <div className="flex flex-col px-2 pb-1.5 pt-1 text-left">
-        <span className="text-[12px] font-bold leading-tight text-fg">
-          #{token.tokenId}
-        </span>
+        <span className="text-[12px] font-bold leading-3 text-fg">#{token.tokenId}</span>
         <StatusLine status={status} />
       </div>
     </button>
@@ -199,28 +202,28 @@ function TokenTile({
 function StatusLine({ status }: { status: TileStatus }) {
   if (status.kind === 'live') {
     return (
-      <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-accent-strong">
+      <span className="truncate text-[10px] leading-3 font-semibold uppercase tracking-wider text-accent-strong">
         Live
       </span>
     )
   }
   if (status.kind === 'settling') {
     return (
-      <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-warning">
+      <span className="truncate text-[10px] leading-3 font-semibold uppercase tracking-wider text-warning">
         To settle
       </span>
     )
   }
   if (status.kind === 'treasury') {
     return (
-      <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-accent-strong">
+      <span className="truncate text-[10px] leading-3 font-semibold uppercase tracking-wider text-accent-strong">
         Treasury
       </span>
     )
   }
   if (status.kind === 'burned') {
     return (
-      <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-fg">
+      <span className="truncate text-[10px] leading-3 font-semibold uppercase tracking-wider text-muted-fg">
         Burned
       </span>
     )
@@ -230,7 +233,7 @@ function StatusLine({ status }: { status: TileStatus }) {
   return (
     <span
       className={cn(
-        'truncate text-[10px] tracking-wider text-muted-fg/80',
+        'truncate text-[10px] leading-3 tracking-wider text-muted-fg/80',
         isEns ? 'lowercase' : 'font-mono uppercase'
       )}
     >
