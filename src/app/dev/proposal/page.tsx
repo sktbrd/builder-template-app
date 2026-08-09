@@ -42,6 +42,9 @@ const STATUSES: ProposalStatus[] = [
 
 const HASH = ('0x' + 'ab'.repeat(32)) as `0x${string}`
 const DESC_HASH = ('0x' + 'cd'.repeat(32)) as `0x${string}`
+const EXEC_HASH = ('0x' + 'ef'.repeat(32)) as `0x${string}`
+const CANCEL_HASH = ('0x' + '12'.repeat(32)) as `0x${string}`
+const VETO_HASH = ('0x' + '34'.repeat(32)) as `0x${string}`
 const PROPOSER = '0x3a21d6f2c8b1a09e4f5c7d8e9a0b1c2d3e4f5ead'
 const RECIPIENT = '0x1b3c4d5e6f7081920a1b2c3d4e5f60718293a4b5'
 const USDC_BASE = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
@@ -132,6 +135,7 @@ function buildDetail(
   return {
     summary,
     proposalIdHash: HASH,
+    creationTransactionHash: HASH,
     descriptionHash: DESC_HASH,
     description: over.description ?? '',
     proposerFull: PROPOSER,
@@ -143,6 +147,9 @@ function buildDetail(
     nftImages: over.nftImages ?? {},
     voteCount: (over.votes ?? []).length,
     votes: over.votes ?? [],
+    executionTransactionHash: status === 'executed' ? EXEC_HASH : undefined,
+    cancelTransactionHash: status === 'cancelled' ? CANCEL_HASH : undefined,
+    vetoTransactionHash: status === 'vetoed' ? VETO_HASH : undefined,
   }
 }
 

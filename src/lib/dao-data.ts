@@ -962,6 +962,76 @@ function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
+function readStringValue(value: unknown): string {
+  return typeof value === 'string' ? value : value != null ? String(value) : ''
+}
+
+type AuctionSettledFeedEvent = {
+  transactionHash: string
+  timestamp: number
+  amount: string
+  winner: string
+  auction: { id: string }
+}
+
+type RawAuctionSettledEvent = {
+  transactionHash?: unknown
+  timestamp?: unknown
+  amount?: unknown
+  winner?: unknown
+  auction?: { id?: unknown } | null
+}
+
+async function fetchAuctionSettledFeedEvents(
+  first = 100
+): Promise<AuctionSettledFeedEvent[]> {
+  const { PUBLIC_SUBGRAPH_URL } = await import('@buildeross/constants')
+  const url = PUBLIC_SUBGRAPH_URL.get(chainId)
+  if (!url) return []
+
+  const query = `
+    query AuctionSettledEvents($dao: String!, $first: Int!) {
+      auctionSettledEvents(
+        where: { dao: $dao, amount_not: "0" }
+        orderBy: timestamp
+        orderDirection: desc
+        first: $first
+      ) {
+        transactionHash
+        timestamp
+        amount
+        winner
+        auction {
+          id
+        }
+      }
+    }
+  `
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables: { dao: tokenAddressLc, first } }),
+  })
+  if (!resp.ok) throw new Error(`subgraph ${resp.status}`)
+
+  const json = (await resp.json()) as {
+    data?: {
+      auctionSettledEvents?: RawAuctionSettledEvent[]
+    }
+    errors?: unknown
+  }
+  if (json.errors) throw new Error(JSON.stringify(json.errors))
+
+  return (json.data?.auctionSettledEvents ?? []).map((e) => ({
+    transactionHash: readStringValue(e.transactionHash),
+    timestamp: Number(e.timestamp ?? 0),
+    amount: readStringValue(e.amount),
+    winner: readStringValue(e.winner),
+    auction: { id: readStringValue(e.auction?.id) },
+  }))
+}
+
 // ── Treasury page ──────────────────────────────────────────
 
 export type TreasuryNft = {
@@ -976,6 +1046,7 @@ export type TreasuryTx = {
   who: string
   addr: string
   tag: string
+  hash: string
   amount: string
   symbol: string
   timestamp: number
@@ -1121,24 +1192,29 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
   const ethUsdPrice = await fetchEthUsdPrice()
 
   // ── Recent transactions (inflows from auctions, outflows from executed proposals) ──
-  const auctionTxs: TreasuryTx[] = (historyResp?.dao?.auctions ?? [])
-    .filter((a) => a.winningBid?.amount)
-    .map((a) => {
-      const idStr = String(a.id)
-      const tokenPart = idStr.includes(':') ? (idStr.split(':').pop() ?? '0') : idStr
-      const tokenId = Number.parseInt(tokenPart, 10) || 0
-      const amountEth = Number(formatEther(BigInt(String(a.winningBid!.amount))))
-      return {
-        dir: 'in' as const,
-        who: `Auction #${tokenId}`,
-        addr: short(daoConfig.addresses.auction),
-        tag: 'Auction settle',
-        amount: amountEth.toFixed(4).replace(/\.?0+$/, '') || '0',
-        symbol: 'ETH',
-        timestamp: Number(a.endTime),
-        relativeTime: txRelativeTime(Number(a.endTime)),
-      }
-    })
+  const auctionSettledEvents = await safeFetch(
+    'treasuryPage.auctionSettledEvents',
+    () => fetchAuctionSettledFeedEvents(),
+    [] as AuctionSettledFeedEvent[]
+  )
+
+  const auctionTxs: TreasuryTx[] = auctionSettledEvents.map((e) => {
+    const idStr = String(e.auction.id)
+    const tokenPart = idStr.includes(':') ? (idStr.split(':').pop() ?? '0') : idStr
+    const tokenId = Number.parseInt(tokenPart, 10) || 0
+    const amountEth = Number(formatEther(BigInt(e.amount)))
+    return {
+      dir: 'in' as const,
+      who: `Auction #${tokenId}`,
+      addr: short(daoConfig.addresses.auction),
+      tag: 'Auction settle',
+      hash: e.transactionHash,
+      amount: amountEth.toFixed(4).replace(/\.?0+$/, '') || '0',
+      symbol: 'ETH',
+      timestamp: Number(e.timestamp),
+      relativeTime: txRelativeTime(Number(e.timestamp)),
+    }
+  })
 
   // Decode per-token transfers from executed proposals
   const knownTokens = daoConfig.treasuryTokens
@@ -1156,12 +1232,14 @@ export async function getTreasuryPageData(): Promise<TreasuryPageData> {
         ? p.title.slice(0, 30) + '…'
         : p.title
       : `Prop #${p.proposalNumber}`
+    const proposal = p as unknown as { executionTransactionHash?: unknown }
     for (const t of transfers) {
       proposalTxs.push({
         dir: 'out',
         who: propWho,
         addr: short(String(p.proposer)),
         tag: `Prop #${p.proposalNumber}`,
+        hash: readStringValue(proposal.executionTransactionHash),
         amount: t.amount,
         symbol: t.symbol,
         timestamp: Number(p.executedAt),
@@ -1383,6 +1461,14 @@ export type ProposalDetail = {
   summary: ProposalSummary
   /** bytes32 onchain proposal id — used to call governor.castVote(...). */
   proposalIdHash: `0x${string}`
+  /** Proposal creation transaction hash. */
+  creationTransactionHash: `0x${string}`
+  /** Present when the proposal has been executed. */
+  executionTransactionHash?: string
+  /** Present when the proposal has been canceled. */
+  cancelTransactionHash?: string
+  /** Present when the proposal has been vetoed. */
+  vetoTransactionHash?: string
   /** keccak256(description) precomputed by the subgraph. Needed to call
    * governor.execute(...). */
   descriptionHash: `0x${string}`
@@ -1435,6 +1521,12 @@ export async function getProposalByNumber(
 
   const fragment = resp.proposals[0]
   if (!fragment) return null
+  const txHashes = fragment as unknown as {
+    transactionHash?: unknown
+    executionTransactionHash?: unknown
+    cancelTransactionHash?: unknown
+    vetoTransactionHash?: unknown
+  }
 
   // `Proposal.calldatas` is a single colon-separated string per Builder's
   // encoding; the module-level `splitCalldatas` rebuilds the array form.
@@ -1543,6 +1635,7 @@ export async function getProposalByNumber(
       treasury: treasuryBalances,
     }),
     proposalIdHash: String(fragment.proposalId) as `0x${string}`,
+    creationTransactionHash: readStringValue(txHashes.transactionHash) as `0x${string}`,
     descriptionHash: String(fragment.descriptionHash) as `0x${string}`,
     description: fragment.description ?? '',
     proposerFull: fragment.proposer,
@@ -1554,6 +1647,10 @@ export async function getProposalByNumber(
     nftImages,
     voteCount: votes.length,
     votes,
+    executionTransactionHash:
+      readStringValue(txHashes.executionTransactionHash) || undefined,
+    cancelTransactionHash: readStringValue(txHashes.cancelTransactionHash) || undefined,
+    vetoTransactionHash: readStringValue(txHashes.vetoTransactionHash) || undefined,
   }
 }
 

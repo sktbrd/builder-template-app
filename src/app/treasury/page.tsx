@@ -1,3 +1,5 @@
+import { ETHERSCAN_BASE_URL } from '@buildeross/constants'
+import { CHAIN_ID } from '@buildeross/types'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 
@@ -47,13 +49,19 @@ function fmtUSD(n: number, dp = 0): string {
   )
 }
 
-// ── Explorer link ─────────────────────────────────────────────────────────────
-
-const EXPLORER: Record<number, { name: string; base: string }> = {
-  1: { name: 'Etherscan', base: 'https://etherscan.io' },
-  10: { name: 'Optimistic', base: 'https://optimistic.etherscan.io' },
-  8453: { name: 'Basescan', base: 'https://basescan.org' },
-  7777777: { name: 'Zorascan', base: 'https://explorer.zora.energy' },
+function explorerName(chainId: number): string {
+  switch (chainId) {
+    case CHAIN_ID.ETHEREUM:
+      return 'Etherscan'
+    case CHAIN_ID.OPTIMISM:
+      return 'Optimistic'
+    case CHAIN_ID.BASE:
+      return 'Basescan'
+    case CHAIN_ID.ZORA:
+      return 'Zorascan'
+    default:
+      return 'Explorer'
+  }
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -90,9 +98,9 @@ export default async function TreasuryPage() {
   // Show donut fallback if no USD prices resolved
   const hasUsd = totalUsd > 0
 
-  const explorer = EXPLORER[daoConfig.chainId] ?? {
-    name: 'Explorer',
-    base: 'https://basescan.org',
+  const explorer = {
+    name: explorerName(daoConfig.chainId),
+    base: ETHERSCAN_BASE_URL[daoConfig.chainId as CHAIN_ID] || 'https://basescan.org',
   }
 
   return (
@@ -302,9 +310,12 @@ function TxCard({
           </div>
         )}
         {txs.map((tx, i) => (
-          <div
+          <a
+            href={`${explorer.base}/tx/${tx.hash}`}
+            target="_blank"
+            rel="noreferrer"
             key={i}
-            className="flex items-center gap-3 border-b border-border py-3 text-[13.5px] last:border-0 sm:grid sm:gap-4"
+            className="flex items-center gap-3 border-b border-border py-3 text-[13.5px] last:border-0 hover:bg-surface-2 sm:grid sm:gap-4"
             style={{ gridTemplateColumns: '28px 1fr auto auto auto' }}
           >
             {/* direction badge */}
@@ -347,7 +358,7 @@ function TxCard({
             <div className="hidden text-right font-mono text-[11.5px] text-muted-fg sm:block">
               {tx.relativeTime}
             </div>
-          </div>
+          </a>
         ))}
       </div>
 

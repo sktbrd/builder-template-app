@@ -1,3 +1,5 @@
+import { ETHERSCAN_BASE_URL } from '@buildeross/constants'
+import { CHAIN_ID } from '@buildeross/types'
 import { isChainIdSupportedByEAS } from '@buildeross/utils/eas'
 
 import { ProposalActions } from '@/components/dao/ProposalActions'
@@ -27,6 +29,29 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
   const showVotePanel = p.status === 'active' || p.status === 'pending'
   const isActive = p.status === 'active'
   const showPropdates = isChainIdSupportedByEAS(daoConfig.chainId)
+  const explorerBase =
+    ETHERSCAN_BASE_URL[daoConfig.chainId as CHAIN_ID] || 'https://basescan.org'
+
+  const lifecycleTx =
+    detail.executionTransactionHash && p.status === 'executed'
+      ? {
+          label: 'Executed',
+          hash: detail.executionTransactionHash,
+          tone: 'success' as const,
+        }
+      : detail.cancelTransactionHash && p.status === 'cancelled'
+        ? {
+            label: 'Cancelled',
+            hash: detail.cancelTransactionHash,
+            tone: 'muted' as const,
+          }
+        : detail.vetoTransactionHash && p.status === 'vetoed'
+          ? {
+              label: 'Vetoed',
+              hash: detail.vetoTransactionHash,
+              tone: 'destructive' as const,
+            }
+          : null
 
   return (
     <div
@@ -61,6 +86,21 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
               size="xs"
             />
             <span>· {p.date}</span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
+            {lifecycleTx && (
+              <TxLink
+                base={explorerBase}
+                label={lifecycleTx.label}
+                hash={lifecycleTx.hash}
+                tone={lifecycleTx.tone}
+              />
+            )}
+            <TxLink
+              base={explorerBase}
+              label="Created"
+              hash={detail.creationTransactionHash}
+            />
           </div>
         </div>
 
@@ -140,4 +180,40 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
       )}
     </div>
   )
+}
+
+function TxLink({
+  base,
+  label,
+  hash,
+  tone = 'muted',
+}: {
+  base: string
+  label: string
+  hash: string
+  tone?: 'muted' | 'success' | 'destructive'
+}) {
+  const toneClass =
+    tone === 'success'
+      ? 'border-success/30 bg-success/10 text-success'
+      : tone === 'destructive'
+        ? 'border-destructive/30 bg-destructive/10 text-destructive'
+        : 'border-border bg-surface-2 text-muted-fg hover:text-fg hover:bg-surface-3'
+
+  return (
+    <a
+      href={`${base}/tx/${hash}`}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[11px] font-semibold transition-colors ${toneClass}`}
+    >
+      <span className="tracking-wide">{label}</span>
+      <span className="max-w-[14ch] truncate">{shortHash(hash)}</span>
+    </a>
+  )
+}
+
+function shortHash(hash: string): string {
+  if (!hash || hash.length < 12) return hash
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`
 }
