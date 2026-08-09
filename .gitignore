@@ -40,9 +40,20 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# generated config files
+# generated config files (resolved on-chain by `pnpm fetch-dao`)
 /src/config/dao.json
 /src/config/dao.ts
 
 # generated icon
 /public/icon.png
+.env*.local
+
+# local agent / editor tooling (not part of the template)
+.claude/
+
+# session-local running notes
+implementation-notes.md
+
+# local dev-only artifacts (not part of the template)
+.vercel-deploy-trigger
+/sandbox/

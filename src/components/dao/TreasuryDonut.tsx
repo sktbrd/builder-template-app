@@ -1,0 +1,117 @@
+'use client'
+
+import { useState } from 'react'
+
+export type DonutSlice = {
+  name: string
+  color: string
+  value: number
+}
+
+type Props = {
+  slices: DonutSlice[]
+  totalUsd: number
+  size?: number
+  thickness?: number
+}
+
+function fmtUSD(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+}
+
+export function TreasuryDonut({ slices, totalUsd, size = 280, thickness = 42 }: Props) {
+  const [hovered, setHovered] = useState<number | null>(null)
+
+  const r = size / 2 - thickness / 2 - 2
+  const C = 2 * Math.PI * r
+  const total = slices.reduce((s, x) => s + x.value, 0)
+
+  // Precompute each slice's arc length, then derive its dash-offset as the sum
+  // of the preceding lengths. Avoids mutating a render-scoped accumulator
+  // (which the React Compiler flags); n is tiny (treasury token count).
+  const lens = slices.map((s) => (total > 0 ? (s.value / total) * C : 0))
+  const paths = slices.map((s, i) => ({
+    ...s,
+    len: lens[i],
+    dashOff: lens.slice(0, i).reduce((acc, l) => acc + l, 0),
+    i,
+  }))
+
+  const active = hovered !== null ? slices[hovered] : null
+
+  return (
+    <div>
+      <div
+        className="relative mx-auto w-full"
+        style={{ maxWidth: size, aspectRatio: '1 / 1' }}
+      >
+        <svg viewBox={`0 0 ${size} ${size}`} className="block h-auto w-full">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--surface-2)"
+            strokeWidth={thickness}
+          />
+          {paths.map(({ name, color, dashOff, len, i }) => (
+            <circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={color}
+              strokeWidth={hovered === i ? thickness + 5 : thickness}
+              strokeDasharray={`${len} ${C - len}`}
+              strokeDashoffset={-dashOff}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              style={{ cursor: 'pointer', transition: 'stroke-width 0.12s ease' }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              aria-label={`${name}: ${fmtUSD(slices[i].value)}`}
+            />
+          ))}
+        </svg>
+
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
+            {active ? active.name : 'Total value'}
+          </div>
+          <div
+            className="font-bold tabular-nums leading-none"
+            style={{ fontSize: 34, letterSpacing: '-0.02em' }}
+          >
+            {fmtUSD(active ? active.value : totalUsd)}
+          </div>
+          <div className="text-[12px] text-muted-fg">
+            {active
+              ? `${((active.value / totalUsd) * 100).toFixed(1)}% of treasury`
+              : `across ${slices.length} asset${slices.length !== 1 ? 's' : ''}`}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-[22px] flex flex-col gap-2.5 text-left">
+        {slices.map((s, i) => (
+          <div
+            key={i}
+            className="grid items-center gap-2.5 text-[13.5px]"
+            style={{ gridTemplateColumns: '14px 1fr auto' }}
+          >
+            <span
+              className="h-3 w-3 shrink-0 rounded-[3px]"
+              style={{ background: s.color }}
+            />
+            <span>{s.name}</span>
+            <span className="font-mono text-xs text-muted-fg">
+              {((s.value / totalUsd) * 100).toFixed(1)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

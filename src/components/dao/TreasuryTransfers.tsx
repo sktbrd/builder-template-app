@@ -1,0 +1,438 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { TokenLogo } from '@/components/dao/TokenLogo'
+import { daoConfig } from '@/lib/dao.config'
+
+const EXPLORER_BASE: Record<number, string> = {
+  1: 'https://etherscan.io',
+  10: 'https://optimistic.etherscan.io',
+  8453: 'https://basescan.org',
+  7777777: 'https://explorer.zora.energy',
+}
+
+type Transfer = {
+  hash: string
+  dir: 'in' | 'out'
+  from: string
+  to: string
+  asset: string
+  amount: string
+  amountNum: number
+  timestamp: number
+  blockNum: number
+}
+
+type ApiResponse = {
+  transfers: Transfer[]
+  nextPageKeyIn?: string
+  nextPageKeyOut?: string
+  error?: string
+}
+
+function shortAddr(addr: string) {
+  if (!addr || addr.length < 10) return addr
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+}
+
+function relativeTime(ts: number): string {
+  if (!ts) return ''
+  const diff = Math.floor(Date.now() / 1000) - ts
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`
+  return `${Math.floor(diff / 2592000)}mo ago`
+}
+
+const DIR_FILTERS = ['all', 'in', 'out'] as const
+type DirFilter = (typeof DIR_FILTERS)[number]
+
+/** Rows rendered before the local "Show more" reveal kicks in. */
+const INITIAL_ROWS = 12
+
+export type KnownTransferAsset = {
+  symbol: string
+  /** Contract address for the token logo; omit for native ETH. */
+  address?: string
+}
+
+type Props = {
+  /**
+   * Assets the treasury page actually displays (priced holdings + allowlist +
+   * ETH). Transfers of anything else — usually airdrop spam — are collapsed
+   * behind a "show unrecognized" toggle instead of flooding the default view.
+   */
+  knownAssets?: KnownTransferAsset[]
+}
+
+export function TreasuryTransfers({ knownAssets = [] }: Props) {
+  const [dirFilter, setDirFilter] = useState<DirFilter>('all')
+  const [assetFilter, setAssetFilter] = useState<string>('all')
+  const [transfers, setTransfers] = useState<Transfer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [nextPageKeyIn, setNextPageKeyIn] = useState<string | undefined>()
+  const [nextPageKeyOut, setNextPageKeyOut] = useState<string | undefined>()
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [showUnknown, setShowUnknown] = useState(false)
+  const [shown, setShown] = useState(INITIAL_ROWS)
+
+  const knownBySymbol = useMemo(() => {
+    const m = new Map<string, KnownTransferAsset>()
+    for (const a of knownAssets) m.set(a.symbol.toUpperCase(), a)
+    // Native ETH is always a recognized asset even if the caller omits it.
+    if (!m.has('ETH')) m.set('ETH', { symbol: 'ETH' })
+    return m
+  }, [knownAssets])
+
+  const explorerBase = EXPLORER_BASE[daoConfig.chainId] ?? 'https://basescan.org'
+
+  const load = useCallback(
+    async (dir: DirFilter, reset: boolean) => {
+      if (reset) {
+        setLoading(true)
+        setError(null)
+        setTransfers([])
+        setNextPageKeyIn(undefined)
+        setNextPageKeyOut(undefined)
+      } else {
+        setLoadingMore(true)
+      }
+
+      const params = new URLSearchParams({ dir })
+      if (!reset) {
+        // Carry each direction's cursor under its own param — 'all' mode
+        // paginates in- and out-bound independently, so a single shared
+        // pageKey would mix cursors and return duplicates past page 1.
+        if (dir !== 'out' && nextPageKeyIn) params.set('pageKeyIn', nextPageKeyIn)
+        if (dir !== 'in' && nextPageKeyOut) params.set('pageKeyOut', nextPageKeyOut)
+      }
+
+      try {
+        const res = await fetch(`/api/treasury/transfers?${params}`)
+        const data: ApiResponse = await res.json()
+        if (data.error) throw new Error(data.error)
+        setTransfers((prev) => (reset ? data.transfers : [...prev, ...data.transfers]))
+        setNextPageKeyIn(data.nextPageKeyIn)
+        setNextPageKeyOut(data.nextPageKeyOut)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
+      }
+    },
+    [nextPageKeyIn, nextPageKeyOut]
+  )
+
+  useEffect(() => {
+    load(dirFilter, true)
+    setShowUnknown(false)
+    setShown(INITIAL_ROWS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirFilter])
+
+  const isKnown = useCallback(
+    (t: Transfer) => knownBySymbol.has((t.asset ?? '').toUpperCase()),
+    [knownBySymbol]
+  )
+
+  const assets = useMemo(() => {
+    const seen = new Set<string>()
+    for (const t of transfers) seen.add(t.asset)
+    return Array.from(seen).sort()
+  }, [transfers])
+
+  // Chips only for assets the treasury page recognizes; the (usually spammy)
+  // long tail collapses into a select so it can't take over the layout.
+  const knownChipAssets = useMemo(
+    () => assets.filter((a) => knownBySymbol.has(a.toUpperCase())),
+    [assets, knownBySymbol]
+  )
+  const otherAssets = useMemo(
+    () => assets.filter((a) => !knownBySymbol.has(a.toUpperCase())),
+    [assets, knownBySymbol]
+  )
+
+  const { visible, hiddenCount } = useMemo(() => {
+    // An explicit asset filter always wins — picking a token from the
+    // "other assets" select must show its transfers even when unrecognized.
+    if (assetFilter !== 'all') {
+      return { visible: transfers.filter((t) => t.asset === assetFilter), hiddenCount: 0 }
+    }
+    const known = transfers.filter(isKnown)
+    return {
+      visible: showUnknown ? transfers : known,
+      hiddenCount: transfers.length - known.length,
+    }
+  }, [transfers, assetFilter, showUnknown, isKnown])
+
+  const hasMore =
+    (dirFilter !== 'out' && !!nextPageKeyIn) || (dirFilter !== 'in' && !!nextPageKeyOut)
+
+  return (
+    <section className="rounded-[14px] border border-border bg-surface px-6 py-[22px]">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-bold">Transfer history</h2>
+
+        {/* Direction filter */}
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-0.5">
+          {DIR_FILTERS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => {
+                setDirFilter(f)
+                setAssetFilter('all')
+              }}
+              className={
+                dirFilter === f
+                  ? 'rounded-md bg-surface px-3 py-2 text-[12px] font-semibold text-fg shadow-sm'
+                  : 'rounded-md px-3 py-2 text-[12px] font-medium text-muted-fg hover:text-fg'
+              }
+            >
+              {f === 'all' ? 'All' : f === 'in' ? '↓ In' : '↑ Out'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Asset filter: chips for recognized assets, a select for the long tail */}
+      {assets.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <Chip
+            active={assetFilter === 'all'}
+            onClick={() => {
+              setAssetFilter('all')
+              setShown(INITIAL_ROWS)
+            }}
+          >
+            All assets
+          </Chip>
+          {knownChipAssets.map((a) => (
+            <Chip
+              key={a}
+              active={assetFilter === a}
+              onClick={() => {
+                setAssetFilter(a)
+                setShown(INITIAL_ROWS)
+              }}
+            >
+              {a}
+            </Chip>
+          ))}
+          {otherAssets.length > 0 && (
+            <select
+              aria-label="Filter by other assets"
+              value={otherAssets.includes(assetFilter) ? assetFilter : ''}
+              onChange={(e) => {
+                setAssetFilter(e.target.value || 'all')
+                setShown(INITIAL_ROWS)
+              }}
+              className={`rounded-full border px-3 py-2 text-[12px] font-medium ${
+                otherAssets.includes(assetFilter)
+                  ? 'border-accent bg-accent text-accent-fg'
+                  : 'border-border bg-surface-2 text-muted-fg'
+              }`}
+            >
+              <option value="">Other assets ({otherAssets.length})</option>
+              {otherAssets.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex flex-col gap-2 py-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 rounded-lg bg-surface-2 animate-pulse" />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="py-8 text-center text-sm text-muted-fg">
+          Could not load transfers: {error}
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="py-8 text-center text-sm text-muted-fg">
+          {hiddenCount > 0
+            ? 'No transfers of recognized treasury assets in this page of results.'
+            : 'No transfers found.'}
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          {visible.slice(0, shown).map((tx, i) => (
+            <TxRow
+              key={`${tx.hash}-${i}`}
+              tx={tx}
+              explorerBase={explorerBase}
+              known={isKnown(tx)}
+              logoAddress={knownBySymbol.get((tx.asset ?? '').toUpperCase())?.address}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Reveal chain: local "Show more" → unrecognized toggle → API "Load more" */}
+      {!loading && !error && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {visible.length > shown ? (
+            <RevealButton onClick={() => setShown((s) => s + 24)}>
+              Show more ({visible.length - shown} loaded)
+            </RevealButton>
+          ) : (
+            <>
+              {!showUnknown && hiddenCount > 0 && assetFilter === 'all' && (
+                <RevealButton
+                  muted
+                  onClick={() => {
+                    setShowUnknown(true)
+                    setShown((s) => Math.max(s, INITIAL_ROWS))
+                  }}
+                >
+                  Show {hiddenCount} unrecognized transfer{hiddenCount === 1 ? '' : 's'}
+                </RevealButton>
+              )}
+              {hasMore && (
+                <RevealButton
+                  onClick={() => load(dirFilter, false)}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </RevealButton>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function RevealButton({
+  onClick,
+  disabled,
+  muted = false,
+  children,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  muted?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-lg border border-border px-4 py-2 text-[13px] font-medium disabled:opacity-50 ${
+        muted
+          ? 'bg-surface text-muted-fg hover:text-fg hover:bg-surface-2'
+          : 'bg-surface-2 hover:bg-surface-3'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-2 text-[12px] font-medium transition-colors ${
+        active
+          ? 'border-accent bg-accent text-accent-fg'
+          : 'border-border bg-surface-2 text-muted-fg hover:text-fg'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function TxRow({
+  tx,
+  explorerBase,
+  known,
+  logoAddress,
+}: {
+  tx: Transfer
+  explorerBase: string
+  /** Whether the asset is one the treasury page recognizes (holdings/allowlist/ETH). */
+  known: boolean
+  /** Contract address for the token logo; undefined for ETH / unrecognized. */
+  logoAddress?: string
+}) {
+  const isIn = tx.dir === 'in'
+  const counterpart = isIn ? tx.from : tx.to
+  return (
+    <a
+      href={`${explorerBase}/tx/${tx.hash}`}
+      target="_blank"
+      rel="noreferrer"
+      className={`flex items-center gap-3 border-b border-border py-3 text-[13px] last:border-0 hover:bg-surface-2 -mx-2 px-2 rounded-md transition-colors sm:grid sm:gap-3 ${
+        known ? '' : 'opacity-60'
+      }`}
+      style={{ gridTemplateColumns: '28px 1fr auto auto' }}
+    >
+      {/* token logo for recognized assets; direction badge for the rest
+          (direction stays encoded in the +/− sign and amount color) */}
+      {known ? (
+        <TokenLogo
+          address={logoAddress}
+          symbol={tx.asset || '?'}
+          chainId={daoConfig.chainId}
+          size={24}
+        />
+      ) : (
+        <span
+          className={
+            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ' +
+            (isIn ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive')
+          }
+        >
+          {isIn ? '↓' : '↑'}
+        </span>
+      )}
+
+      {/* counterpart */}
+      <div className="min-w-0 flex-1">
+        <span className="font-mono text-[12px] text-muted-fg">
+          {shortAddr(counterpart)}
+        </span>
+      </div>
+
+      {/* amount + asset */}
+      <span
+        className={
+          'shrink-0 font-mono font-semibold tabular-nums text-[13px] ' +
+          (isIn ? 'text-success' : 'text-destructive')
+        }
+      >
+        {isIn ? '+' : '−'}
+        {tx.amount} <span className="font-normal">{tx.asset}</span>
+      </span>
+
+      {/* time — hidden on mobile */}
+      <span className="hidden text-right font-mono text-[11.5px] text-muted-fg sm:block">
+        {relativeTime(tx.timestamp)}
+      </span>
+    </a>
+  )
+}

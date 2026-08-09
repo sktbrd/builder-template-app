@@ -1,0 +1,413 @@
+'use client'
+
+import {
+  Brush,
+  CloudRain,
+  Coins,
+  Flag,
+  ImageIcon,
+  Layers,
+  Package,
+  PauseCircle,
+  Pencil,
+  Pin,
+  RefreshCw,
+  Send,
+  Settings2,
+  Timer,
+  Trash2,
+  UserCheck,
+  Wallet,
+} from 'lucide-react'
+
+import { WalletPill } from '@/components/dao/WalletPill'
+import { daoConfig } from '@/lib/dao.config'
+import {
+  CUSTOM_LIKE_KINDS,
+  tokenKey,
+  type TokenMetaMap,
+  TX_KIND_LABELS,
+  type TxDraft,
+  type TxKind,
+} from '@/lib/proposal-tx'
+
+type Props = {
+  draft: TxDraft
+  index: number
+  tokenMeta: TokenMetaMap
+  onEdit?: () => void
+  onRemove?: () => void
+}
+
+const KIND_ICON: Record<TxKind, React.ElementType> = {
+  eth: Send,
+  erc20: Coins,
+  nft: ImageIcon,
+  custom: Settings2,
+  stream: Timer,
+  airdrop: CloudRain,
+  milestone: Flag,
+  mint_gov: Layers,
+  delegate: UserCheck,
+  pause_auction: PauseCircle,
+  walletconnect: Wallet,
+  pin_asset: Pin,
+  droposal: Package,
+  add_artwork: Brush,
+  replace_artwork: RefreshCw,
+}
+
+const KIND_ICON_CLASS: Record<TxKind, string> = {
+  eth: 'bg-accent/15 text-accent-strong',
+  erc20: 'bg-success/15 text-success',
+  nft: 'bg-accent/15 text-accent-strong',
+  custom: 'bg-muted-fg/15 text-muted-fg',
+  stream: 'bg-success/15 text-success',
+  airdrop: 'bg-success/15 text-success',
+  milestone: 'bg-success/15 text-success',
+  mint_gov: 'bg-success/15 text-success',
+  delegate: 'bg-warning/15 text-warning',
+  pause_auction: 'bg-destructive/15 text-destructive',
+  walletconnect: 'bg-accent/15 text-accent-strong',
+  pin_asset: 'bg-warning/15 text-warning',
+  droposal: 'bg-accent/15 text-accent-strong',
+  add_artwork: 'bg-accent/15 text-accent-strong',
+  replace_artwork: 'bg-accent/15 text-accent-strong',
+}
+
+export function SummaryCard({ draft, index, tokenMeta, onEdit, onRemove }: Props) {
+  const Icon = KIND_ICON[draft.kind]
+  return (
+    <div className="flex items-start gap-3 rounded-md border border-border bg-surface-2 px-4 py-3">
+      <span
+        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${KIND_ICON_CLASS[draft.kind]}`}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
+            Tx {index + 1}
+          </span>
+          <span className="text-sm font-semibold text-fg">
+            {TX_KIND_LABELS[draft.kind]}
+          </span>
+        </div>
+        <DraftSummary draft={draft} tokenMeta={tokenMeta} />
+      </div>
+      {(onEdit || onRemove) && (
+        <div className="flex shrink-0 gap-1">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label="Edit transaction"
+              className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-muted-fg hover:text-fg"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="Remove transaction"
+              className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-muted-fg hover:text-fg"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DraftSummary({ draft, tokenMeta }: { draft: TxDraft; tokenMeta: TokenMetaMap }) {
+  if (draft.kind === 'eth') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {formatNumber(draft.valueEth) || '0'} ETH
+        </span>
+        <span className="text-muted-fg">to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'erc20') {
+    const meta = tokenMeta[tokenKey(draft.token)]
+    const symbol = meta?.symbol ?? findTreasurySymbol(draft.token) ?? 'tokens'
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {formatNumber(draft.amount) || '0'} {symbol}
+        </span>
+        <span className="text-muted-fg">to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+        {draft.token && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <WalletPill
+              address={draft.token}
+              link={false}
+              size="xs"
+              showExplorer
+              chainId={daoConfig.chainId}
+            />
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'nft') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">Token #{draft.tokenId || '?'}</span>
+        <span className="text-muted-fg">from</span>
+        {draft.contract ? (
+          <WalletPill
+            address={draft.contract}
+            link={false}
+            size="xs"
+            showExplorer
+            chainId={daoConfig.chainId}
+          />
+        ) : (
+          <span className="italic text-muted-fg">(no contract)</span>
+        )}
+        <span className="text-muted-fg">to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'mint_gov') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="text-muted-fg">Mint to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'delegate') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="text-muted-fg">Delegate to</span>
+        {draft.delegatee ? (
+          <WalletPill address={draft.delegatee} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no delegate)</span>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'pause_auction') {
+    return (
+      <div className="text-[12.5px]">
+        <span className="font-semibold text-fg capitalize">{draft.action}</span>
+        <span className="text-muted-fg"> the auction house</span>
+      </div>
+    )
+  }
+
+  if (draft.kind === 'pin_asset') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="text-muted-fg">Pin</span>
+        <span className="font-semibold text-fg uppercase">{draft.tokenType}</span>
+        {draft.isCollection && (
+          <span className="rounded-full border border-border bg-surface px-1.5 py-0 text-[10px] font-medium text-muted-fg">
+            collection
+          </span>
+        )}
+        {!draft.isCollection && draft.tokenType !== 'erc20' && draft.tokenId && (
+          <span className="font-mono text-[11px] text-muted-fg">#{draft.tokenId}</span>
+        )}
+        {draft.contract && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <WalletPill
+              address={draft.contract}
+              link={false}
+              size="xs"
+              showExplorer
+              chainId={daoConfig.chainId}
+            />
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'milestone') {
+    const totalEth = draft.milestones
+      .map((m) => Number(m.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    return (
+      <div className="flex flex-col gap-1 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold text-fg">
+            {draft.milestones.length} milestone{draft.milestones.length === 1 ? '' : 's'}
+          </span>
+          {totalEth > 0 && (
+            <>
+              <span className="text-muted-fg">·</span>
+              <span className="font-semibold text-fg">
+                {formatNumber(totalEth.toString())} total
+              </span>
+            </>
+          )}
+          <span className="text-muted-fg">to</span>
+          {draft.recipient ? (
+            <WalletPill address={draft.recipient} link={false} size="xs" />
+          ) : (
+            <span className="italic text-muted-fg">(no recipient)</span>
+          )}
+        </div>
+        {draft.safetyValveDate && (
+          <div className="text-[11px] text-muted-fg">
+            Safety valve {draft.safetyValveDate}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'airdrop') {
+    const total = draft.recipients
+      .map((r) => Number(r.amount))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => a + b, 0)
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {draft.recipients.length} recipient{draft.recipients.length === 1 ? '' : 's'}
+        </span>
+        {total > 0 && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <span className="font-semibold text-fg">
+              {formatNumber(total.toString())}
+            </span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'droposal') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg truncate">
+          {draft.name || '(no name)'}
+        </span>
+        {draft.symbol && (
+          <span className="font-mono text-[11px] text-muted-fg">({draft.symbol})</span>
+        )}
+        <span className="text-muted-fg">·</span>
+        <span className="text-muted-fg">
+          {draft.editionSize ? `${draft.editionSize} editions` : 'open edition'}
+        </span>
+        {draft.priceEth && draft.priceEth !== '0' && (
+          <>
+            <span className="text-muted-fg">·</span>
+            <span className="font-semibold text-fg">
+              {formatNumber(draft.priceEth)} ETH
+            </span>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  if (draft.kind === 'stream') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-semibold text-fg">
+          {formatNumber(draft.totalAmount) || '0'}
+        </span>
+        <span className="text-muted-fg">over</span>
+        <span className="font-semibold text-fg">{draft.durationDays || '?'} days</span>
+        <span className="text-muted-fg">to</span>
+        {draft.recipient ? (
+          <WalletPill address={draft.recipient} link={false} size="xs" />
+        ) : (
+          <span className="italic text-muted-fg">(no recipient)</span>
+        )}
+      </div>
+    )
+  }
+
+  // custom + all custom-like kinds
+  if (draft.kind === 'custom' || CUSTOM_LIKE_KINDS.has(draft.kind)) {
+    const d = draft as Extract<
+      TxDraft,
+      { target: string; valueEth: string; calldata: string }
+    >
+    return (
+      <div className="flex flex-col gap-1 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-muted-fg">Target</span>
+          {d.target ? (
+            <WalletPill
+              address={d.target}
+              link={false}
+              size="xs"
+              showExplorer
+              chainId={daoConfig.chainId}
+            />
+          ) : (
+            <span className="italic text-muted-fg">(no target)</span>
+          )}
+          {d.valueEth && d.valueEth !== '0' && (
+            <>
+              <span className="text-muted-fg">·</span>
+              <span className="font-semibold text-fg">
+                {formatNumber(d.valueEth)} ETH
+              </span>
+            </>
+          )}
+        </div>
+        {d.calldata && d.calldata !== '0x' && (
+          <div className="truncate font-mono text-[11px] text-muted-fg">{d.calldata}</div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
+function findTreasurySymbol(addr: string): string | undefined {
+  const k = tokenKey(addr)
+  return daoConfig.treasuryTokens.find((t) => tokenKey(t.address) === k)?.symbol
+}
+
+function formatNumber(s: string): string {
+  if (!s.trim()) return ''
+  const n = Number(s)
+  if (!Number.isFinite(n)) return s
+  return n.toLocaleString('en-US', { maximumFractionDigits: 6 })
+}

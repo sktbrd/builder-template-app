@@ -1,153 +1,257 @@
-# Nouns Builder Template Site
+# Builder Community Site Template
 
-> ⚠️ **Note**: This template is in active development. Full theming functionality is not yet available or fully tested. Expect breaking changes and missing features.
+A forkable, fully-themed Next.js template for any [Builder DAO](https://nouns.build).
+Drop in your token contract address, run one command, deploy. You get a polished
+community site with light + dark themes, real on-chain governance UI (vote / bid /
+propose), treasury analytics, member directory, and Open Graph share images — out
+of the box.
 
-This is a template site for Nouns Builder DAOs, built with [Next.js](https://nextjs.org) and integrated with the Nouns Builder ecosystem.
+## What you get
 
-Built using packages from the [Nouns Builder](https://github.com/BuilderOSS/nouns-builder) monorepo, which provides the UI components, React hooks, utilities, SDK, and core functionality for interacting with Nouns Builder DAOs.
+| Page | Route | What's on it |
+|---|---|---|
+| Dashboard | `/` | Hero, live auction spotlight, real activity feed (recent bids + proposals), recent proposals card grid, treasury KPI snapshot |
+| Auction | `/auction/[id]` | Real artwork, live bid form (real `createBid`), bid history, voting-power gating, settle button when an auction has ended |
+| Proposals | `/proposals` | Filterable card grid against real subgraph data, embedded vote bars + status badges |
+| Proposal | `/proposals/[id]` | Markdown description, decoded transaction list, sticky vote panel with real `castVoteWithReason` and live voting-power resolution |
+| Create | `/proposals/new` | Eligibility-gated proposal create flow with markdown editor + preview, transaction builder, real `propose(...)` |
+| Treasury | `/treasury` | Real ETH balance, ERC-20 holdings via multicall, NFT grid (DAO-owned tokens), allocation donut + recent transfer history |
+| Members | `/members` | Real holder list with ENS resolution (top 20, gated on Alchemy), CSV export |
+| About | `/about` | Real on-chain founders, smart-contract list with copy-to-clipboard |
 
-## Quick Setup
+Plus:
 
-### 1. Install Dependencies
+- **Light + dark** themes via `next-themes`, theme tokens as CSS variables, accent + radius + display font driven by `dao.theme.json`
+- **`pnpm switch-dao <preset|0xtoken>`** — flip the local labrat to any Builder DAO in one command (Builder, Gnars, or any token address). Tested on Kendama (`0xd7d4…f5ff`)
+- **Real on-chain writes** for vote casting, bid placement, proposal creation, and auction settlement — all via wagmi + `@buildeross/sdk` ABIs
+- **Tweaks panel** in dev — preview theme overrides live without restarting
+- **Open Graph images** — Satori-rendered 1200×630 PNGs for `/`, `/proposals/[id]`, `/auction/[id]`, all theme-aware
+
+## Stack
+
+Next.js 16 (App Router) · React 19 · Tailwind v4 + Typography plugin · `wagmi` + RainbowKit · `next-themes` · `react-markdown` (gfm + breaks + sanitize) · `@buildeross/sdk` for the Builder subgraph + ABIs · TypeScript everywhere.
+
+---
+
+## Quick start
+
+### 1. Install
 
 ```bash
 pnpm install
 ```
 
-### 2. Environment Configuration
-
-Create your environment file from the sample:
+### 2. Environment
 
 ```bash
 cp sample.env .env.local
 ```
 
-Edit `.env.local` with your DAO configuration:
+Edit `.env.local`:
 
-```bash
-# Required: Network configuration
-NEXT_PUBLIC_NETWORK_TYPE="mainnet"  # or "testnet"
-NEXT_PUBLIC_CHAIN_ID="8453"         # Chain ID (1=Ethereum, 8453=Base, 10=Optimism, 7777777=Zora)
-NEXT_PUBLIC_DAO_TOKEN_ADDRESS="0xe8af882f2f5c79580230710ac0e2344070099432"
+| Var | Required | What it does |
+|---|---|---|
+| `NEXT_PUBLIC_NETWORK_TYPE` | yes | `"mainnet"` or `"testnet"` |
+| `NEXT_PUBLIC_CHAIN_ID` | yes | `1` (Ethereum) · `8453` (Base) · `10` (Optimism) · `7777777` (Zora) |
+| `NEXT_PUBLIC_DAO_TOKEN_ADDRESS` | yes | Your DAO's token contract |
+| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | yes | Free at [cloud.reown.com](https://cloud.reown.com) |
+| `NEXT_PUBLIC_ALCHEMY_API_KEY` | recommended | Faster RPC + enables ENS resolution on `/members` |
+| `PINATA_API_KEY` | media uploads | [Pinata](https://pinata.cloud) scoped-key JWT — required for `/coins` (coin media + metadata) and future proposal/propdate attachments |
+| `NEXT_PUBLIC_PINATA_GATEWAY` | optional | Public gateway hostname override (e.g. `your-gateway.mypinata.cloud`) |
+| `NEXT_PUBLIC_SITE_URL` | optional | Deployed URL (no trailing slash) so `sitemap.xml` / `robots.txt` resolve correctly |
 
-# Required: Core functionality
-PINATA_API_KEY=                     # Required for IPFS file uploads
-NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=  # Required for wallet connections
-
-# Optional: RPC providers for robust connectivity
-NEXT_PUBLIC_ALCHEMY_API_KEY=        # Optional RPC provider
-NEXT_PUBLIC_TENDERLY_RPC_KEY=       # Optional RPC provider (see Tenderly section below)
-
-# Optional: Tenderly integration (for transaction simulation)
-NEXT_PUBLIC_DISABLE_TENDERLY_SIMULATION="true"  # Set to "false" to enable
-TENDERLY_ACCESS_KEY=
-TENDERLY_PROJECT=
-TENDERLY_USER=
-NEXT_PUBLIC_TENDERLY_RPC_KEY=
-
-# Optional: AI transaction summaries, uses vercel's AI Gateway
-NEXT_PUBLIC_DISABLE_AI_SUMMARY="true"  # Set to "false" to enable
-AI_MODEL=
-AI_GATEWAY_API_KEY=
-
-# Optional: Redis for caching
-REDIS_URL=
-```
-
-### 3. Fetch DAO Configuration
-
-Before running the development server, fetch your DAO's contract addresses and metadata:
+### 3. Resolve your DAO's on-chain config
 
 ```bash
 pnpm fetch-dao
 ```
 
-This script will:
+Reads `NEXT_PUBLIC_DAO_TOKEN_ADDRESS` + `NEXT_PUBLIC_CHAIN_ID`, queries the chain, writes `src/config/dao.{ts,json}`, generates `public/icon.png` from your DAO's contract image.
 
-- Validate your environment variables
-- Fetch DAO contract addresses from the blockchain
-- Generate a favicon from your DAO's image
-- Create configuration files in `src/config/`
-
-### 4. Run Development Server
+### 4. Run
 
 ```bash
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your DAO site.
+Open <http://localhost:3000>.
 
-## Environment Variables
+---
 
-### Required Variables
+## Switching DAOs (the labrat)
 
-| Variable                                | Description                       | Example                                        |
-| --------------------------------------- | --------------------------------- | ---------------------------------------------- |
-| `NEXT_PUBLIC_NETWORK_TYPE`              | Network environment               | `"mainnet"` or `"testnet"`                     |
-| `NEXT_PUBLIC_CHAIN_ID`                  | Blockchain network ID             | `"8453"` (Base), `"1"` (Ethereum)              |
-| `NEXT_PUBLIC_DAO_TOKEN_ADDRESS`         | Your DAO's token contract address | `"0xe8af882f2f5c79580230710ac0e2344070099432"` |
-| `PINATA_API_KEY`                        | Pinata API key                    | **Required** for IPFS file uploads             |
-| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | WalletConnect project ID          | **Required** for wallet connections            |
+The `switch-dao` CLI flips your local environment to a different Builder DAO without hand-editing `.env.local`. Useful for testing the template against multiple real DAOs before deploying your own.
 
-### Network Configuration
+```bash
+# Built-in presets (fast — point at known addresses + theme)
+pnpm switch-dao builder              # Builder DAO on Base
+pnpm switch-dao gnars                # Gnars DAO on Base
 
-The `NEXT_PUBLIC_NETWORK_TYPE` should match your chain:
+# Any token address (defaults theme; tweak with flags)
+pnpm switch-dao 0xd7d40e5afceabc923b70dd299206155fb330f5ff \
+  --tagline "A nounish DAO for kendama players" \
+  --accent "#dc2626" \
+  --display-font "Geist" \
+  --radius 12
 
-- **Mainnet chains**: Ethereum (1), Base (8453), Optimism (10), Zora (7777777)
-- **Testnet chains**: Set `NEXT_PUBLIC_NETWORK_TYPE="testnet"` for test networks
+# See all flags
+pnpm switch-dao --help
+```
 
-### Optional RPC Providers
+Under the hood: rewrites `.env.local`, merges theme overrides into `src/config/dao.theme.json`, and re-runs `pnpm fetch-dao`. Restart `pnpm dev` to pick up the new DAO.
 
-| Variable                       | Description      | Purpose                                       |
-| ------------------------------ | ---------------- | --------------------------------------------- |
-| `NEXT_PUBLIC_ALCHEMY_API_KEY`  | Alchemy API key  | Optional RPC provider for robust connectivity |
-| `NEXT_PUBLIC_TENDERLY_RPC_KEY` | Tenderly RPC key | Optional RPC provider for robust connectivity |
+---
 
-### Optional Tenderly Simulation
+## Fork checklist
 
-| Variable                                  | Description                    | Required When                         |
-| ----------------------------------------- | ------------------------------ | ------------------------------------- |
-| `NEXT_PUBLIC_DISABLE_TENDERLY_SIMULATION` | Disable transaction simulation | Set to `"false"` to enable simulation |
-| `TENDERLY_ACCESS_KEY`                     | Tenderly access key            | **Required** if simulation enabled    |
-| `TENDERLY_PROJECT`                        | Tenderly project name          | **Required** if simulation enabled    |
-| `TENDERLY_USER`                           | Tenderly username              | **Required** if simulation enabled    |
+A re-skinned, deployed site for your DAO in under 20 minutes:
 
-> **Note**: When `NEXT_PUBLIC_SKIP_TENDERLY_SIMULATION="false"`, all Tenderly variables become required for proposal creation. The app simulates proposal transactions using Tenderly to ensure they can be executed before posting on-chain.
+- [ ] **Fork or clone** this repo into your DAO's GitHub org
+- [ ] `pnpm install`
+- [ ] **Set the 4 required env vars** in `.env.local` — chain id, token address, WalletConnect project id, and (recommended) an Alchemy key
+- [ ] `pnpm fetch-dao` — resolves your contract addresses + favicon
+- [ ] **Edit `src/config/dao.theme.json`** with your DAO's tagline + accent + radius + display font (or use `pnpm switch-dao 0x<token> --tagline "…" --accent "#…"`)
+- [ ] **Edit the About copy** in `src/app/about/page.tsx` — mission paragraphs are placeholder text. Founders, contracts, and treasury numbers all flow from on-chain.
+- [ ] **Configure treasury tokens** in `src/lib/dao.config.ts` if you want ERC-20 holdings on `/treasury` — spread `BASE_COMMON_TOKENS` from `src/lib/treasury-tokens.ts` or list custom contracts
+- [ ] **Toggle features** in `daoConfig.features` (e.g. set `bidComments: false` to hide the on-chain bid comment field)
+- [ ] **Test in dev** — open the Tweaks panel (gear icon, bottom-right) to preview light/dark + accent live before committing
+- [ ] **Deploy to Vercel** — see [Deploy](#deploy-to-vercel) below
+- [ ] **Update `socials`** in `daoConfig.socials` (twitter, farcaster, discord, github, website) — surfaces in the footer
 
-### Optional AI Transaction Summaries
+The Tweaks panel is dev-only (gated on `NODE_ENV !== 'production'`); production renders exactly what's in `dao.config.ts` + `dao.theme.json`.
 
-| Variable                         | Description                    | Required When                        |
-| -------------------------------- | ------------------------------ | ------------------------------------ |
-| `NEXT_PUBLIC_DISABLE_AI_SUMMARY` | Disable AI transaction summary | Set to `"false"` to enable summaries |
-| `AI_MODEL`                       | AI model                       | **Required** if summaries enabled    |
-| `AI_GATEWAY_API_KEY`             | AI Gateway API key             | **Required** if summaries enabled    |
+---
 
-### Optional Redis Caching
+## Theming & config surface
 
-| Variable    | Description | Purpose                            |
-| ----------- | ----------- | ---------------------------------- |
-| `REDIS_URL` | Redis URL   | Cache rate limits and ai summaries |
+Two committed files drive every fork's identity:
 
-## Available Scripts
+- `src/lib/dao.config.ts` — schema, defaults, feature flags
+- `src/config/dao.theme.json` — visible identity (tagline, accent, radius, display font)
 
-- `pnpm dev` - Start development server
-- `pnpm build` - Build for production (automatically runs `fetch-dao`)
-- `pnpm start` - Start production server
-- `pnpm fetch-dao` - Fetch DAO addresses and generate config
-- `pnpm lint` - Run linting and type checking
-- `pnpm type-check` - Run TypeScript type checking
+```ts
+// src/lib/dao.config.ts
 
-## Learn More
+import { BASE_COMMON_TOKENS } from '@/lib/treasury-tokens'
 
-To learn more about Next.js, take a look at the following resources:
+export const daoConfig: DaoConfig = {
+  // Identity (name + image come from on-chain via fetch-dao)
+  name: ONCHAIN_CONFIG.name,
+  tagline: T.tagline ?? 'Powering Onchain Communities.',
+  image: ONCHAIN_CONFIG.image,
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+  // Chain + addresses (auto-resolved by fetch-dao)
+  chainId: ONCHAIN_CONFIG.chain.id,
+  addresses: { token, auction, governor, treasury, metadata },
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+  // Theme — driven by dao.theme.json
+  theme: {
+    accent: T.accent ?? '#2563eb',
+    radius: T.radius ?? 12,
+    font: T.font ?? 'Geist',
+    displayFont: T.displayFont ?? 'Geist',
+    defaultMode: T.defaultMode ?? 'system',
+  },
 
-## Deploy on Vercel
+  // Optional feature flags
+  features: {
+    bidComments: true,
+    coins: true,
+  },
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  // ERC-20 contracts shown on /treasury (opt-in)
+  treasuryTokens:
+    ONCHAIN_CONFIG.chain.id === 8453 ? BASE_COMMON_TOKENS : [],
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+  socials: { /* twitter, farcaster, discord, github, website */ },
+}
+```
+
+Theme **values** live in `src/app/globals.css` under `:root` and `[data-theme='dark']`. The Tailwind v4 `@theme` block exposes them as utility classes (`bg-accent`, `text-muted-fg`, `border-border-strong`, etc.) — don't hardcode hex colors anywhere in components.
+
+---
+
+## Deploy to Vercel
+
+### One-click
+
+1. Push your fork to GitHub
+2. Import on [vercel.com/new](https://vercel.com/new)
+3. Add the same env vars from `.env.local` to the Vercel project
+4. Deploy — Vercel runs `pnpm build` which pre-runs `pnpm fetch-dao`
+
+### Manual
+
+```bash
+pnpm build && pnpm start
+```
+
+### Custom domain
+
+Set up the domain in Vercel, point your DNS at it, done.
+
+---
+
+## Available scripts
+
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Next.js dev server (port 3000) |
+| `pnpm fetch-dao` | Resolves on-chain DAO config + writes `src/config/dao.ts` |
+| `pnpm switch-dao <preset\|0x…>` | Switch the labrat to any Builder DAO |
+| `pnpm build` | Production build (auto-runs `fetch-dao` first) |
+| `pnpm start` | Production server |
+| `pnpm type-check` | `tsc --noEmit` |
+| `pnpm lint` | type-check + ESLint with `--fix` |
+
+---
+
+## Project structure
+
+```
+scripts/
+├── fetchDaoAddresses.ts  # `pnpm fetch-dao`
+└── switchDao.ts          # `pnpm switch-dao` labrat CLI
+src/
+├── app/                  # App Router pages + API + OG images
+│   ├── api/              # Pinata · feed · treasury · img-proxy route handlers
+│   ├── auction/[id]/     # + opengraph-image.tsx + latest/ redirect route
+│   ├── proposals/        # list · [id]/ detail · new/ create
+│   ├── treasury/
+│   ├── members/
+│   ├── about/
+│   ├── globals.css       # Tailwind v4 @theme + CSS-var theme tokens
+│   ├── layout.tsx        # Root layout, fonts, theme injection
+│   ├── opengraph-image.tsx
+│   ├── web3-providers.tsx # wagmi, RainbowKit, react-query, next-themes
+│   └── page.tsx          # Dashboard
+├── components/
+│   ├── ui/               # shadcn-style atoms (Button)
+│   ├── dao/              # DAO-specific composites (VoteBar, BidForm,
+│   │                       VotePanel, ProposalCreateForm, …)
+│   ├── DaoAvatar.tsx     # Real DAO image (IPFS) with stripes fallback
+│   ├── DaoLogo.tsx
+│   ├── Header.tsx
+│   ├── Footer.tsx
+│   ├── Markdown.tsx      # react-markdown wrapper (gfm + sanitize)
+│   └── TweaksPanel.tsx   # Dev-only theme tweak floater
+├── lib/
+│   ├── dao.config.ts     # 👈 the config surface every fork edits
+│   ├── dao-data.ts       # All server-side subgraph + chain reads
+│   ├── presets.ts        # Builder/Gnars/Verdant — shared with switch-dao
+│   ├── treasury-tokens.ts # Opt-in ERC-20 defaults per chain
+│   ├── og-utils.ts       # Shared OG_SIZE, theme colors
+│   ├── types.ts          # ProposalStatus etc.
+│   └── utils.ts          # cn()
+└── config/               # Auto-generated by fetch-dao + per-fork theme
+    ├── dao.ts            # ⚠️ Auto-generated, do not edit
+    ├── dao.json          # Auto-generated companion
+    ├── dao.theme.json    # 👈 Per-fork tagline + theme overrides
+    └── types.ts
+```
+
+---
+
+## License
+
+MIT — see [license.md](./license.md).

@@ -1,0 +1,61 @@
+import { DashboardHero } from '@/components/dao/DashboardHero'
+import { HomeFeed } from '@/components/dao/HomeFeed'
+import { HomeMetaStrip } from '@/components/dao/HomeMetaStrip'
+import { HomeProposals } from '@/components/dao/HomeProposals'
+import { daoConfig, fallbackArtPalette } from '@/lib/dao.config'
+import { getDashboardData } from '@/lib/dao-data'
+
+// Re-fetch every 5min on the server. Subgraph free tier rate-limits aggressively.
+export const revalidate = 300
+
+const ACTIVE_PROPOSAL_STATES = new Set(['active', 'pending', 'queued', 'succeeded'])
+
+export default async function Dashboard() {
+  const data = await getDashboardData()
+
+  const tokenLabel = daoConfig.name.split(' ')[0]
+  const palette = fallbackArtPalette()
+  const activeProposalCount = data.recentProposals.filter((p) =>
+    ACTIVE_PROPOSAL_STATES.has(p.status)
+  ).length
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DashboardHero
+        currentAuction={data.currentAuction}
+        recentTokens={data.recentTokens}
+        totalSupply={data.totalSupply}
+        palette={palette}
+        tokenLabel={tokenLabel}
+        // KPI row is threaded into the hero fragment so it lands directly under
+        // the hero (above the token strip) rather than after it.
+        metaSlot={
+          <HomeMetaStrip
+            totalSupply={data.totalSupply}
+            ownerCount={data.ownerCount}
+            treasuryEth={data.treasuryEth}
+            totalAuctionSalesEth={data.totalAuctionSalesEth}
+            activeProposalCount={activeProposalCount}
+          />
+        }
+      />
+
+      {/* Lower content sits inside a forced-dark themed panel so the layout
+       * mirrors nouns.game's high-contrast top→bottom split regardless of
+       * whether the user is in light or dark mode. The data-theme attribute
+       * re-binds every --bg/--surface/--border var inside this subtree to
+       * its dark-mode value (see globals.css). Negative margins cancel the
+       * MainContainer column padding so the dark band fills the full column
+       * width, then it re-pads its own content. */}
+      <section
+        data-theme="dark"
+        className="mt-2 -mx-4 bg-bg px-4 py-8 text-fg sm:-mx-6 sm:px-6 sm:py-10"
+      >
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <HomeFeed />
+          <HomeProposals proposals={data.recentProposals} />
+        </div>
+      </section>
+    </div>
+  )
+}

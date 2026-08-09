@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # `src/config/dao.{ts,json}` are generated (gitignored), so type-check/lint
+      # need them present. Resolve them for the template's default DAO over a
+      # public RPC — no secrets required (favicon generation is skipped gracefully).
+      - name: Generate DAO config
+        run: pnpm fetch-dao
+        env:
+          NEXT_PUBLIC_CHAIN_ID: '8453'
+          NEXT_PUBLIC_DAO_TOKEN_ADDRESS: '0x6940100c44d214cd1570b394a1c42949c3eb820d'
+          NEXT_PUBLIC_NETWORK_TYPE: mainnet
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm exec eslint .
+
+      - name: Test
+        run: pnpm test
+
+      # `pnpm build` is intentionally omitted to keep CI fast — type-check, lint,
+      # and test cover correctness. DAO config is generated above for those steps.

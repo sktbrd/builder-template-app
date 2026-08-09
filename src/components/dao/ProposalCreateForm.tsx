@@ -1,0 +1,876 @@
+'use client'
+
+import { erc20Abi, governorAbi, tokenAbi } from '@buildeross/sdk/contract'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
+import { ChevronDown, ChevronLeft, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { type Address, parseEther } from 'viem'
+import {
+  useAccount,
+  useReadContracts,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from 'wagmi'
+
+import { useWeb3Ready } from '@/app/web3-providers'
+import {
+  CreatorCoinProposalModal,
+  type QueuedCreatorCoinTx,
+} from '@/components/coins/CreatorCoinProposalModal'
+import { Markdown } from '@/components/Markdown'
+import { Button } from '@/components/ui/button'
+import { daoConfig } from '@/lib/dao.config'
+import type { TreasuryNft, TreasuryTokenHolding } from '@/lib/dao-data'
+import {
+  emptyDraft,
+  encodeDraftToTxs,
+  summarizeDraftsMarkdown,
+  tokenKey,
+  type TokenMetaMap,
+  type TxDraft,
+  type TxKind,
+  uniqueErc20Tokens,
+  validateDraft,
+} from '@/lib/proposal-tx'
+import { composeDescription, parseWriteError } from '@/lib/proposal-validation'
+
+import { DraftForm } from './ProposalCreate/DraftForm'
+import { Review } from './ProposalCreate/Review'
+import { SummaryCard } from './ProposalCreate/SummaryCard'
+import { TypeCard } from './ProposalCreate/TypeCard'
+import { type WizardStep, WizardTabs } from './ProposalCreate/WizardTabs'
+
+const BASIC_KINDS: TxKind[] = ['eth', 'erc20', 'nft']
+
+// Only simple, self-contained, on-chain-correct kinds are offered. The complex
+// external-contract flows (stream/airdrop/milestone/delegate/pin_asset) and the
+// raw artwork pass-throughs (add_artwork/replace_artwork) are intentionally
+// hidden until they're verified against a real proposal — their encoder code is
+// kept in proposal-tx.ts, just not reachable from the picker.
+const ADVANCED_KINDS: TxKind[] = [
+  'mint_gov',
+  'walletconnect',
+  'custom',
+  'droposal',
+  'pause_auction',
+]
+
+type ProposalCreateFormProps = {
+  treasuryNfts?: TreasuryNft[]
+  treasuryTokens?: TreasuryTokenHolding[]
+}
+
+export function ProposalCreateForm({
+  treasuryNfts = [],
+  treasuryTokens = [],
+}: ProposalCreateFormProps) {
+  const ready = useWeb3Ready()
+  if (!ready) return <ProposalCreateFormSkeleton />
+  return (
+    <ProposalCreateFormInner
+      treasuryNfts={treasuryNfts}
+      treasuryTokens={treasuryTokens}
+    />
+  )
+}
+
+function ProposalCreateFormSkeleton() {
+  return <div className="h-[400px] animate-pulse rounded-md bg-surface-2" />
+}
+
+type EditorState =
+  | { mode: 'list' }
+  | { mode: 'new'; draft: TxDraft }
+  | { mode: 'edit'; index: number; draft: TxDraft }
+
+const DRAFT_STORAGE_KEY = `proposal-draft.v1.${daoConfig.chainId}.${daoConfig.addresses.token.toLowerCase()}`
+
+type PersistedDraftState = {
+  title: string
+  description: string
+  drafts: TxDraft[]
+}
+
+function readPersistedDraft(): PersistedDraftState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedDraftState
+    if (
+      typeof parsed.title === 'string' &&
+      typeof parsed.description === 'string' &&
+      Array.isArray(parsed.drafts)
+    ) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function ProposalCreateFormInner({
+  treasuryNfts,
+  treasuryTokens,
+}: {
+  treasuryNfts: TreasuryNft[]
+  treasuryTokens: TreasuryTokenHolding[]
+}) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // URL params take priority over persisted state — landing here from
+  // a "Send NFT" deep link should always show that draft, not stale local state.
+  const fromUrlKind = searchParams.get('tx_kind')
+  const fromUrlTitle = searchParams.get('title')
+  const fromUrlDescription = searchParams.get('description')
+  const hasUrlData = !!(fromUrlKind || fromUrlTitle || fromUrlDescription)
+  const persisted = hasUrlData ? null : readPersistedDraft()
+
+  const [step, setStep] = useState<WizardStep>('details')
+  const [title, setTitle] = useState(() => fromUrlTitle ?? persisted?.title ?? '')
+  const [description, setDescription] = useState(
+    () => fromUrlDescription ?? persisted?.description ?? ''
+  )
+  const [drafts, setDrafts] = useState<TxDraft[]>(() => {
+    const kind = searchParams.get('tx_kind')
+    if (kind === 'nft') {
+      return [
+        {
+          kind: 'nft' as const,
+          contract: searchParams.get('tx_contract') ?? '',
+          tokenId: searchParams.get('tx_token_id') ?? '',
+          recipient: searchParams.get('tx_recipient') ?? '',
+        },
+      ]
+    }
+    const target = searchParams.get('tx_target')
+    const calldata = searchParams.get('tx_calldata')
+    if (target && calldata) {
+      return [{ kind: 'custom' as const, target, valueEth: '0', calldata }]
+    }
+    return persisted?.drafts ?? []
+  })
+  const [editor, setEditor] = useState<EditorState>({ mode: 'list' })
+  const [showPreview, setShowPreview] = useState(false)
+  /** Toggle in the Review step — when true, the decoded-transactions section
+   *  is appended to the proposal description on submit. */
+  const [includeDecodedSummary, setIncludeDecodedSummary] = useState(true)
+
+  // Persist title/description/drafts to localStorage so refresh or wallet
+  // network switches don't lose the in-progress proposal. Cleared by
+  // submit() on a successful proposal write.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hasAny =
+      title.trim().length > 0 || description.trim().length > 0 || drafts.length > 0
+    const timer = window.setTimeout(() => {
+      try {
+        if (hasAny) {
+          window.localStorage.setItem(
+            DRAFT_STORAGE_KEY,
+            JSON.stringify({ title, description, drafts })
+          )
+        } else {
+          window.localStorage.removeItem(DRAFT_STORAGE_KEY)
+        }
+      } catch {
+        // localStorage quota / disabled — silently drop
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [title, description, drafts])
+
+  const { address, isConnected, chainId: walletChainId } = useAccount()
+  const { openConnectModal } = useConnectModal()
+  const { switchChain, isPending: isSwitching } = useSwitchChain()
+
+  const onWrongChain =
+    isConnected && walletChainId != null && walletChainId !== daoConfig.chainId
+
+  // ── Eligibility (token balance vs governor proposalThreshold)
+  const { data: eligibilityReads } = useReadContracts({
+    contracts: address
+      ? [
+          {
+            address: daoConfig.addresses.governor as Address,
+            abi: governorAbi,
+            functionName: 'proposalThreshold' as const,
+            chainId: daoConfig.chainId,
+          },
+          {
+            address: daoConfig.addresses.token as Address,
+            abi: tokenAbi,
+            functionName: 'getVotes' as const,
+            args: [address] as const,
+            chainId: daoConfig.chainId,
+          },
+        ]
+      : [],
+    query: { enabled: !!address },
+  })
+
+  const proposalThreshold =
+    eligibilityReads?.[0]?.status === 'success'
+      ? Number(eligibilityReads[0].result as bigint)
+      : 0
+  const myBalance =
+    eligibilityReads?.[1]?.status === 'success'
+      ? Number(eligibilityReads[1].result as bigint)
+      : 0
+
+  const eligible = isConnected && myBalance > proposalThreshold
+
+  // ── Token metadata for ERC-20 drafts: treasury list is free, custom tokens
+  //    read decimals + symbol on-chain via wagmi.
+  const treasuryMeta = useMemo<TokenMetaMap>(() => {
+    const m: TokenMetaMap = {}
+    for (const t of daoConfig.treasuryTokens) {
+      m[tokenKey(t.address)] = { decimals: t.decimals, symbol: t.symbol }
+    }
+    return m
+  }, [])
+
+  const draftsForMeta = useMemo(() => {
+    const all: TxDraft[] = [...drafts]
+    if (editor.mode !== 'list') all.push(editor.draft)
+    return all
+  }, [drafts, editor])
+
+  const customTokens = useMemo(() => {
+    const treasurySet = new Set(daoConfig.treasuryTokens.map((t) => tokenKey(t.address)))
+    return uniqueErc20Tokens(draftsForMeta).filter((a) => !treasurySet.has(tokenKey(a)))
+  }, [draftsForMeta])
+
+  const tokenReadContracts = useMemo(
+    () =>
+      customTokens.flatMap((addr) => [
+        {
+          address: addr,
+          abi: erc20Abi,
+          functionName: 'decimals' as const,
+          chainId: daoConfig.chainId,
+        },
+        {
+          address: addr,
+          abi: erc20Abi,
+          functionName: 'symbol' as const,
+          chainId: daoConfig.chainId,
+        },
+      ]),
+    [customTokens]
+  )
+
+  const { data: tokenReads } = useReadContracts({
+    contracts: tokenReadContracts,
+    query: { enabled: tokenReadContracts.length > 0 },
+  })
+
+  const tokenMeta = useMemo<TokenMetaMap>(() => {
+    const m: TokenMetaMap = { ...treasuryMeta }
+    customTokens.forEach((addr, i) => {
+      const dec = tokenReads?.[i * 2]
+      const sym = tokenReads?.[i * 2 + 1]
+      if (dec?.status === 'success') {
+        const decimals = Number(dec.result as number | bigint)
+        const symbol = sym?.status === 'success' ? (sym.result as string) : undefined
+        m[tokenKey(addr)] = { decimals, symbol }
+      }
+    })
+    return m
+  }, [treasuryMeta, customTokens, tokenReads])
+
+  // ── Step-readiness rules
+  const detailsValid = title.trim().length > 0 && description.trim().length > 0
+  const transactionsValid =
+    drafts.length > 0 && drafts.every((d) => validateDraft(d, tokenMeta).length === 0)
+
+  const unlocked: Record<WizardStep, boolean> = {
+    details: true,
+    transactions: detailsValid,
+    preview: detailsValid && transactionsValid,
+  }
+
+  // ── Submit
+  const {
+    writeContract,
+    data: txHash,
+    isPending: isWriting,
+    error: writeError,
+  } = useWriteContract()
+  const {
+    isLoading: isMining,
+    isSuccess: isMined,
+    error: mineError,
+  } = useWaitForTransactionReceipt({ hash: txHash })
+
+  useEffect(() => {
+    if (!isMined) return
+    // Successful submit — clear the persisted draft so a refresh on /proposals
+    // doesn't bring us back here with the same state.
+    try {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+    const t = setTimeout(() => {
+      router.push('/proposals')
+    }, 1600)
+    return () => clearTimeout(t)
+  }, [isMined, router])
+
+  const phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle' =
+    !isConnected
+      ? 'connect'
+      : onWrongChain
+        ? 'switch'
+        : isWriting
+          ? 'sign'
+          : isMining
+            ? 'mine'
+            : isMined
+              ? 'done'
+              : writeError || mineError
+                ? 'error'
+                : 'idle'
+
+  const submit = () => {
+    if (!detailsValid || !transactionsValid) return
+    // encodeDraftToTxs returns Tx[] (1 tx for most kinds, ≥2 for kinds that
+    // need a paired ERC-20 approval). Flatten before submitting so the
+    // governor sees the linearized call sequence.
+    const encoded = drafts.map((d) =>
+      encodeDraftToTxs(d, tokenMeta, {
+        treasury: daoConfig.addresses.treasury,
+        token: daoConfig.addresses.token,
+        auction: daoConfig.addresses.auction,
+      })
+    )
+    if (encoded.some((e) => e === null)) return
+    const flat = encoded.flat() as {
+      target: string
+      valueEth: string
+      calldata: string
+    }[]
+    let valuesWei: bigint[]
+    try {
+      valuesWei = flat.map((e) =>
+        e.valueEth.trim() ? parseEther(e.valueEth) : BigInt(0)
+      )
+    } catch {
+      return
+    }
+    const targets = flat.map((e) => e.target as Address)
+    const calldatas = flat.map((e) => (e.calldata?.trim() || '0x') as `0x${string}`)
+    const decodedSection =
+      includeDecodedSummary && drafts.length > 0
+        ? `\n\n${summarizeDraftsMarkdown(drafts, tokenMeta)}`
+        : ''
+    const fullDescription = composeDescription(title, description + decodedSection)
+
+    writeContract({
+      address: daoConfig.addresses.governor as Address,
+      abi: governorAbi,
+      functionName: 'propose',
+      args: [targets, valuesWei, calldatas, fullDescription],
+    })
+  }
+
+  // ── Editor helpers
+  const openNew = (kind: TxKind) => {
+    let draft = emptyDraft(kind)
+    if (draft.kind === 'nft') {
+      draft = { ...draft, contract: daoConfig.addresses.token }
+    }
+    setEditor({ mode: 'new', draft })
+  }
+  const openEdit = (i: number) => setEditor({ mode: 'edit', index: i, draft: drafts[i] })
+  const cancelEdit = () => setEditor({ mode: 'list' })
+  const saveEdit = () => {
+    if (editor.mode === 'new') {
+      setDrafts((prev) => [...prev, editor.draft])
+    } else if (editor.mode === 'edit') {
+      setDrafts((prev) => prev.map((d, j) => (j === editor.index ? editor.draft : d)))
+    }
+    setEditor({ mode: 'list' })
+  }
+  const removeDraft = (i: number) => setDrafts((prev) => prev.filter((_, j) => j !== i))
+  const setEditorDraft = (next: TxDraft) =>
+    setEditor((cur) => (cur.mode === 'list' ? cur : { ...cur, draft: next }))
+
+  // ── Creator-coin modal → queue. The modal builds its deploy tx and hands it
+  //    back here as a custom draft. Append it to the queue and prefill
+  //    title/description only when the user hasn't typed their own (never
+  //    overwrite existing text). From here it flows through the normal
+  //    Details → Transactions → Review path + localStorage persistence.
+  const queueCreatorCoin = ({
+    draft,
+    suggestedTitle,
+    suggestedDescription,
+  }: QueuedCreatorCoinTx) => {
+    setDrafts((prev) => [...prev, draft])
+    setTitle((prev) => (prev.trim() ? prev : suggestedTitle))
+    setDescription((prev) => (prev.trim() ? prev : suggestedDescription))
+  }
+
+  // ── Navigation
+  const goNext = () => {
+    if (step === 'details' && unlocked.transactions) setStep('transactions')
+    else if (step === 'transactions' && unlocked.preview) setStep('preview')
+  }
+  const goBack = () => {
+    if (step === 'transactions') setStep('details')
+    else if (step === 'preview') setStep('transactions')
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Link
+          href="/proposals"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-accent-strong hover:underline"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          All proposals
+        </Link>
+      </div>
+
+      <div>
+        <h1 className="font-display text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.04] tracking-[-0.025em]">
+          New proposal
+        </h1>
+        <p className="mt-1 text-muted-fg">
+          Submit a proposal to the {daoConfig.name} DAO governor.
+        </p>
+      </div>
+
+      <EligibilityBanner
+        connected={isConnected}
+        eligible={eligible}
+        balance={myBalance}
+        threshold={proposalThreshold}
+      />
+
+      <WizardTabs current={step} onChange={setStep} unlocked={unlocked} />
+
+      {step === 'details' && (
+        <DetailsStep
+          title={title}
+          description={description}
+          showPreview={showPreview}
+          onTitleChange={setTitle}
+          onDescriptionChange={setDescription}
+          onTogglePreview={setShowPreview}
+        />
+      )}
+
+      {step === 'transactions' && (
+        <TransactionsStep
+          drafts={drafts}
+          tokenMeta={tokenMeta}
+          treasuryNfts={treasuryNfts}
+          treasuryTokens={treasuryTokens}
+          editor={editor}
+          onOpenNew={openNew}
+          onOpenEdit={openEdit}
+          onCancelEdit={cancelEdit}
+          onSaveEdit={saveEdit}
+          onRemove={removeDraft}
+          onEditorChange={setEditorDraft}
+          onQueueCreatorCoin={queueCreatorCoin}
+        />
+      )}
+
+      {step === 'preview' && (
+        <PreviewStep
+          title={title}
+          description={description}
+          drafts={drafts}
+          tokenMeta={tokenMeta}
+          includeDecodedSummary={includeDecodedSummary}
+          onIncludeDecodedSummaryChange={setIncludeDecodedSummary}
+        />
+      )}
+
+      <StepFooter
+        step={step}
+        unlocked={unlocked}
+        editing={editor.mode !== 'list'}
+        eligible={eligible}
+        phase={phase}
+        isSwitching={isSwitching}
+        onBack={goBack}
+        onNext={goNext}
+        onConnect={() => openConnectModal?.()}
+        onSwitch={() => switchChain({ chainId: daoConfig.chainId })}
+        onSubmit={submit}
+        writeError={writeError}
+        mineError={mineError}
+      />
+    </div>
+  )
+}
+
+function DetailsStep({
+  title,
+  description,
+  showPreview,
+  onTitleChange,
+  onDescriptionChange,
+  onTogglePreview,
+}: {
+  title: string
+  description: string
+  showPreview: boolean
+  onTitleChange: (s: string) => void
+  onDescriptionChange: (s: string) => void
+  onTogglePreview: (b: boolean) => void
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+        <label className="block text-base font-bold">Title</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="A short, action-oriented title"
+          className="mt-3 w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+          maxLength={200}
+        />
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <label className="block text-base font-bold">Description</label>
+          <div className="flex gap-1 rounded-md border border-border bg-surface-2 p-0.5">
+            <button
+              type="button"
+              onClick={() => onTogglePreview(false)}
+              className={
+                !showPreview
+                  ? 'rounded-sm bg-surface px-2.5 py-1 text-[12px] font-semibold text-fg shadow-sm'
+                  : 'rounded-sm px-2.5 py-1 text-[12px] font-medium text-muted-fg hover:text-fg'
+              }
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => onTogglePreview(true)}
+              className={
+                showPreview
+                  ? 'rounded-sm bg-surface px-2.5 py-1 text-[12px] font-semibold text-fg shadow-sm'
+                  : 'rounded-sm px-2.5 py-1 text-[12px] font-medium text-muted-fg hover:text-fg'
+              }
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+        {showPreview ? (
+          <div className="mt-4 min-h-[160px] rounded-md border border-dashed border-border bg-surface-2 px-4 py-3">
+            {description ? (
+              <Markdown>{description}</Markdown>
+            ) : (
+              <div className="text-sm text-muted-fg">Nothing to preview yet.</div>
+            )}
+          </div>
+        ) : (
+          <textarea
+            rows={10}
+            value={description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+            placeholder="Markdown supported — headings, lists, links, code, tables…"
+            className="mt-3 w-full resize-y rounded-md border border-border bg-surface px-3 py-2.5 font-mono text-[13px] outline-none focus:border-accent"
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TransactionsStep({
+  drafts,
+  tokenMeta,
+  treasuryNfts,
+  treasuryTokens,
+  editor,
+  onOpenNew,
+  onOpenEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onRemove,
+  onEditorChange,
+  onQueueCreatorCoin,
+}: {
+  drafts: TxDraft[]
+  tokenMeta: TokenMetaMap
+  treasuryNfts: TreasuryNft[]
+  treasuryTokens: TreasuryTokenHolding[]
+  editor: EditorState
+  onOpenNew: (kind: TxKind) => void
+  onOpenEdit: (i: number) => void
+  onCancelEdit: () => void
+  onSaveEdit: () => void
+  onRemove: (i: number) => void
+  onEditorChange: (next: TxDraft) => void
+  onQueueCreatorCoin: (queued: QueuedCreatorCoinTx) => void
+}) {
+  const [creatorCoinOpen, setCreatorCoinOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  if (editor.mode !== 'list') {
+    return (
+      <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+        <DraftForm
+          draft={editor.draft}
+          onChange={onEditorChange}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+          tokenMeta={tokenMeta}
+          treasuryNfts={treasuryNfts}
+          treasuryTokens={treasuryTokens}
+          saveLabel={editor.mode === 'edit' ? 'Save changes' : 'Add to queue'}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {creatorCoinOpen && (
+        <CreatorCoinProposalModal
+          open={creatorCoinOpen}
+          onClose={() => setCreatorCoinOpen(false)}
+          onQueue={(queued) => {
+            onQueueCreatorCoin(queued)
+            setCreatorCoinOpen(false)
+          }}
+        />
+      )}
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+          <h3 className="text-base font-bold">Add a transaction</h3>
+          <p className="mt-1 text-[12.5px] text-muted-fg">
+            Each call the proposal executes if it passes. Pick a type to start.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {BASIC_KINDS.map((k) => (
+              <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="mt-3 flex items-center gap-1.5 text-[12.5px] font-medium text-muted-fg hover:text-fg"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+            />
+            Advanced transactions
+          </button>
+
+          {advancedOpen && (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {ADVANCED_KINDS.map((k) => (
+                <TypeCard key={k} kind={k} onSelect={() => onOpenNew(k)} />
+              ))}
+              <TypeCard kind="creator_coin" onSelect={() => setCreatorCoinOpen(true)} />
+            </div>
+          )}
+        </div>
+
+        {drafts.length > 0 && (
+          <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+            <h3 className="text-base font-bold">
+              Queue{' '}
+              <span className="ml-1 text-[12.5px] font-normal text-muted-fg">
+                {drafts.length}
+              </span>
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2">
+              {drafts.map((d, i) => (
+                <li key={i}>
+                  <SummaryCard
+                    draft={d}
+                    index={i}
+                    tokenMeta={tokenMeta}
+                    onEdit={() => onOpenEdit(i)}
+                    onRemove={() => onRemove(i)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function PreviewStep({
+  title,
+  description,
+  drafts,
+  tokenMeta,
+  includeDecodedSummary,
+  onIncludeDecodedSummaryChange,
+}: {
+  title: string
+  description: string
+  drafts: TxDraft[]
+  tokenMeta: TokenMetaMap
+  includeDecodedSummary: boolean
+  onIncludeDecodedSummaryChange: (next: boolean) => void
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+      <Review
+        title={title}
+        description={description}
+        drafts={drafts}
+        tokenMeta={tokenMeta}
+        includeDecodedSummary={includeDecodedSummary}
+        onIncludeDecodedSummaryChange={onIncludeDecodedSummaryChange}
+      />
+    </div>
+  )
+}
+
+function StepFooter({
+  step,
+  unlocked,
+  editing,
+  eligible,
+  phase,
+  isSwitching,
+  onBack,
+  onNext,
+  onConnect,
+  onSwitch,
+  onSubmit,
+  writeError,
+  mineError,
+}: {
+  step: WizardStep
+  unlocked: Record<WizardStep, boolean>
+  editing: boolean
+  eligible: boolean
+  phase: 'connect' | 'switch' | 'sign' | 'mine' | 'done' | 'error' | 'idle'
+  isSwitching: boolean
+  onBack: () => void
+  onNext: () => void
+  onConnect: () => void
+  onSwitch: () => void
+  onSubmit: () => void
+  writeError: unknown
+  mineError: unknown
+}) {
+  // While editing a transaction the focused form owns its own Save/Cancel.
+  if (step === 'transactions' && editing) return null
+
+  const isPreview = step === 'preview'
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-[22px] sm:px-6">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          variant="outline"
+          onClick={onBack}
+          disabled={step === 'details'}
+          className="w-full sm:w-auto"
+        >
+          Back
+        </Button>
+
+        {!isPreview ? (
+          <Button
+            onClick={onNext}
+            disabled={!unlocked[step === 'details' ? 'transactions' : 'preview']}
+            className="w-full sm:w-auto"
+          >
+            {step === 'details' ? 'Next: Transactions' : 'Next: Preview'}
+          </Button>
+        ) : phase === 'connect' ? (
+          <Button onClick={onConnect} className="w-full sm:w-auto">
+            Connect wallet to propose
+          </Button>
+        ) : phase === 'switch' ? (
+          <Button onClick={onSwitch} className="w-full sm:w-auto" disabled={isSwitching}>
+            {isSwitching && <Loader2 className="h-4 w-4 animate-spin" />}
+            Switch network
+          </Button>
+        ) : (
+          <Button
+            onClick={onSubmit}
+            disabled={!eligible || phase === 'sign' || phase === 'mine'}
+            className="w-full sm:w-auto"
+          >
+            {phase === 'sign' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirm in wallet…
+              </>
+            )}
+            {phase === 'mine' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting on-chain…
+              </>
+            )}
+            {phase === 'done' && 'Proposal submitted ✓'}
+            {(phase === 'idle' || phase === 'error') && 'Submit proposal'}
+          </Button>
+        )}
+      </div>
+      {isPreview && phase === 'error' && (
+        <div className="mt-2 text-[12.5px] text-destructive">
+          {parseWriteError(writeError ?? mineError)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EligibilityBanner({
+  connected,
+  eligible,
+  balance,
+  threshold,
+}: {
+  connected: boolean
+  eligible: boolean
+  balance: number
+  threshold: number
+}) {
+  if (!connected) {
+    return (
+      <div className="rounded-md border border-accent/25 bg-accent/5 px-4 py-3 text-sm">
+        <strong className="font-semibold">Connect your wallet</strong> to check proposal
+        eligibility.
+      </div>
+    )
+  }
+  if (eligible) {
+    return (
+      <div className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm">
+        <strong className="font-semibold text-success">Eligible</strong> — you have{' '}
+        {balance} {balance === 1 ? 'vote' : 'votes'} (threshold: {threshold}).
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-md border border-warning/25 bg-warning/5 px-4 py-3 text-sm">
+      <strong className="font-semibold text-warning">Not eligible</strong> — you have{' '}
+      {balance} {balance === 1 ? 'vote' : 'votes'}; the proposal threshold is{' '}
+      {threshold + 1}+.
+    </div>
+  )
+}

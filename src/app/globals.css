@@ -1,0 +1,165 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+  --font-sans: var(--font-geist), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: var(--font-display-active), var(--font-geist), system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-muted-fg: var(--muted-fg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fg: var(--accent-fg);
+
+  --color-success: var(--success);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+
+  --color-vote-for: var(--vote-for);
+  --color-vote-against: var(--vote-against);
+  --color-vote-abstain: var(--vote-abstain);
+
+  --radius-xs: calc(var(--radius) * 0.25);
+  --radius-sm: calc(var(--radius) * 0.4);
+  --radius-md: calc(var(--radius) * 0.7);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  --accent: #2563eb;
+  --accent-strong: color-mix(in oklab, var(--accent) 80%, black);
+  --accent-fg: #ffffff;
+  --radius: 12px;
+
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #ededee;
+  --border: #e5e5e7;
+  --border-strong: #d4d4d7;
+  --fg: #0b0b0c;
+  --fg-2: #2a2a2e;
+  --muted-fg: #71717a;
+
+  --success: #16a34a;
+  --destructive: #dc2626;
+  --warning: #ea580c;
+
+  --vote-for: #16a34a;
+  --vote-against: #dc2626;
+  --vote-abstain: #a1a1aa;
+}
+
+[data-theme='dark'] {
+  --accent-fg: #ffffff;
+  --accent-strong: color-mix(in oklab, var(--accent) 70%, white);
+
+  --bg: #09090b;
+  --surface: #131316;
+  --surface-2: #1c1c20;
+  --surface-3: #26262b;
+  --border: #26262b;
+  --border-strong: #3a3a40;
+  --fg: #fafafa;
+  --fg-2: #d4d4d7;
+  --muted-fg: #9a9aa2;
+}
+
+/* Applied to content sitting on a colored hero band: rebinds tokens to
+   white-on-translucent so child widgets (bid form, settle panel, success /
+   error states) read against an arbitrary tint. `--accent` is intentionally
+   NOT rebound — the primary action button keeps its brand color. */
+[data-theme='tint'] {
+  --surface: rgba(255, 255, 255, 0.1);
+  --surface-2: rgba(255, 255, 255, 0.12);
+  --surface-3: rgba(255, 255, 255, 0.16);
+  --border: rgba(255, 255, 255, 0.25);
+  --border-strong: rgba(255, 255, 255, 0.4);
+  --fg: #ffffff;
+  --fg-2: rgba(255, 255, 255, 0.85);
+  --muted-fg: rgba(255, 255, 255, 0.7);
+  --success: #ffffff;
+  --destructive: #fecaca;
+  --warning: #fde68a;
+}
+
+/* Applied to content on a LIGHT colored hero band: forces the light-theme
+   tokens (white surfaces, dark text) regardless of the page's light/dark mode,
+   so child widgets read against the light tint. */
+[data-theme='tint-light'] {
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #ededee;
+  --border: #e5e5e7;
+  --border-strong: #d4d4d7;
+  --fg: #0b0b0c;
+  --fg-2: #2a2a2e;
+  --muted-fg: #71717a;
+  --success: #16a34a;
+  --destructive: #dc2626;
+  --warning: #ea580c;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    overflow-x: clip;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    color: inherit;
+  }
+}
+
+/**
+ * Nudges a page header's right-hand control (button / filter pills / search)
+ * down so its TOP edge meets the CAP-HEIGHT of the adjacent display heading
+ * rather than the heading's line-box top. The big `clamp(36px,5vw,56px)`
+ * display font leaves a leading gap above its capitals; this offset (~0.18× the
+ * font size, tracked with the same clamp curve so it scales with the heading)
+ * cancels that gap, landing the control level with the visible title text.
+ */
+@utility cap-nudge {
+  margin-top: clamp(6.5px, 0.9vw, 10px);
+}
