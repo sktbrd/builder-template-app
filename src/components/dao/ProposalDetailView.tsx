@@ -3,6 +3,7 @@ import { CHAIN_ID } from '@buildeross/types'
 import { isChainIdSupportedByEAS } from '@buildeross/utils/eas'
 
 import { ProposalActions } from '@/components/dao/ProposalActions'
+import { ProposalTabs } from '@/components/dao/ProposalTabs'
 import { ProposalTransactionList } from '@/components/dao/ProposalTransactionList'
 import { ProposalVotesList } from '@/components/dao/ProposalVotesList'
 import { StatusBadge } from '@/components/dao/StatusBadge'
@@ -118,53 +119,43 @@ export function ProposalDetailView({ detail }: { detail: ProposalDetail }) {
           quorum={p.quorum}
         />
 
-        <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
-          <h3 className="mb-3 text-base font-bold">Description</h3>
-          {description ? (
-            <Markdown>{description}</Markdown>
-          ) : (
-            <div className="text-sm text-muted-fg">(No description provided.)</div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
-          <h3 className="mb-3 text-base font-bold">
-            Transactions
-            <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
-              {transactions.length}
-            </span>
-          </h3>
-          <ProposalTransactionList
-            chainId={daoConfig.chainId}
-            transactions={transactions.map((t) => ({
-              target: t.target,
-              calldata: t.calldata,
-              valueWei: t.valueWei,
-            }))}
-            daoTokenAddress={daoConfig.addresses.token}
-            nftImages={detail.nftImages}
-          />
-        </section>
-
-        <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
-          <h3 className="mb-3 text-base font-bold">
-            Votes
-            <span className="ml-2 text-[12.5px] font-normal text-muted-fg">
-              {detail.votes.length}
-            </span>
-          </h3>
-          <ProposalVotesList
-            votes={detail.votes}
-            proposalIdHash={detail.proposalIdHash}
-          />
-        </section>
-
-        {showPropdates ? (
-          <section className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]">
-            <h3 className="mb-3 text-base font-bold">Propdates</h3>
-            <PropdateThread proposalIdHash={detail.proposalIdHash} />
-          </section>
-        ) : null}
+        <ProposalTabs
+          propdatesSupported={showPropdates}
+          counts={{
+            transactions: transactions.length,
+            votes: detail.votes.length,
+          }}
+          panels={{
+            proposal: description ? (
+              <div className="mx-auto max-w-[80ch]">
+                <Markdown className="max-w-none">{description}</Markdown>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-fg">(No description provided.)</div>
+            ),
+            transactions: (
+              <ProposalTransactionList
+                chainId={daoConfig.chainId}
+                transactions={transactions.map((t) => ({
+                  target: t.target,
+                  calldata: t.calldata,
+                  valueWei: t.valueWei,
+                }))}
+                daoTokenAddress={daoConfig.addresses.token}
+                nftImages={detail.nftImages}
+              />
+            ),
+            votes: (
+              <ProposalVotesList
+                votes={detail.votes}
+                proposalIdHash={detail.proposalIdHash}
+              />
+            ),
+            propdates: showPropdates ? (
+              <PropdateThread proposalIdHash={detail.proposalIdHash} />
+            ) : undefined,
+          }}
+        />
       </div>
 
       {showVotePanel && (
