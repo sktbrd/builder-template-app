@@ -151,13 +151,14 @@ export function PropdateThread({ proposalIdHash }: Props) {
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {topLevel.map((pd) => (
+        {topLevel.map((pd, index) => (
           <div key={pd.id} className="flex flex-col gap-3">
             <PropdateCard
               propdate={pd}
               replies={repliesFor(pd)}
               isReplying={replyingTo?.id === pd.id}
               onReplyClick={onReplyClick}
+              defaultExpanded={index === 0}
             />
             {replyingTo?.id === pd.id ? (
               <div className="ml-4 sm:ml-6">
