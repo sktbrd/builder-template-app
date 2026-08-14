@@ -1,6 +1,14 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import {
   availableProposalTabs,
@@ -31,7 +39,9 @@ function readTabFromLocation(available: readonly ProposalTabKey[]): ProposalTabK
  * the prerendered HTML complete (no Suspense fallback) while still yielding a
  * shareable link. A panel is mounted the first time it is opened and stays
  * mounted afterwards, so `PropdateThread`'s 15s SWR poll never runs for readers
- * who don't open that tab, and reopening a tab doesn't refetch.
+ * who don't open that tab, and reopening a tab doesn't refetch — though once the
+ * Propdates tab has been opened, that poll keeps running for the rest of the
+ * session even while the tab is hidden.
  */
 export function ProposalTabs({ propdatesSupported, counts, panels }: Props) {
   const available = useMemo(
@@ -41,24 +51,28 @@ export function ProposalTabs({ propdatesSupported, counts, panels }: Props) {
   const [active, setActive] = useState<ProposalTabKey>(() => available[0])
   const [mounted, setMounted] = useState<ProposalTabKey[]>(() => [available[0]])
   const tabRefs = useRef<Partial<Record<ProposalTabKey, HTMLButtonElement | null>>>({})
+  const uid = useId()
+
+  // Activating a tab must mark it mounted in the same update as making it
+  // active — otherwise there's a frame where the previous panel is already
+  // hidden and the new one isn't mounted yet, and the panel region collapses.
+  const activate = useCallback((key: ProposalTabKey) => {
+    setActive(key)
+    setMounted((prev) => (prev.includes(key) ? prev : [...prev, key]))
+  }, [])
 
   // Adopt the deep-linked tab after hydration, and follow back/forward.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActive(readTabFromLocation(available))
-    const onPopState = () => setActive(readTabFromLocation(available))
+    activate(readTabFromLocation(available))
+    const onPopState = () => activate(readTabFromLocation(available))
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [available])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted((prev) => (prev.includes(active) ? prev : [...prev, active]))
-  }, [active])
+  }, [available, activate])
 
   const selectTab = useCallback(
     (key: ProposalTabKey) => {
-      setActive(key)
+      activate(key)
       const params = new URLSearchParams(window.location.search)
       if (key === available[0]) params.delete('tab')
       else params.set('tab', key)
@@ -69,7 +83,7 @@ export function ProposalTabs({ propdatesSupported, counts, panels }: Props) {
         query ? `${window.location.pathname}?${query}` : window.location.pathname
       )
     },
-    [available]
+    [available, activate]
   )
 
   const onKeyDown = useCallback(
@@ -109,9 +123,9 @@ export function ProposalTabs({ propdatesSupported, counts, panels }: Props) {
               }}
               type="button"
               role="tab"
-              id={`proposal-tab-${key}`}
+              id={`${uid}-tab-${key}`}
               aria-selected={isActive}
-              aria-controls={`proposal-panel-${key}`}
+              aria-controls={`${uid}-panel-${key}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => selectTab(key)}
               className={cn(
@@ -138,8 +152,8 @@ export function ProposalTabs({ propdatesSupported, counts, panels }: Props) {
           <div
             key={key}
             role="tabpanel"
-            id={`proposal-panel-${key}`}
-            aria-labelledby={`proposal-tab-${key}`}
+            id={`${uid}-panel-${key}`}
+            aria-labelledby={`${uid}-tab-${key}`}
             hidden={key !== active}
             tabIndex={0}
             className="rounded-xl border border-border bg-surface px-4 py-5 sm:px-6 sm:py-[22px]"
