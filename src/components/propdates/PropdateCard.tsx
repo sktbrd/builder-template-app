@@ -37,13 +37,11 @@ export function PropdateCard({
   )
 
   const toggle = useCallback(() => {
-    setExpanded((prev) => {
-      // Collapsing the card that owns the open reply form would leave that form
-      // stranded below a closed card — PropdateThread renders it as a sibling.
-      if (prev && isReplying) onReplyClick(propdate)
-      return !prev
-    })
-  }, [isReplying, onReplyClick, propdate])
+    // Collapsing the card that owns the open reply form would leave that form
+    // stranded below a closed card — PropdateThread renders it as a sibling.
+    if (expanded && isReplying) onReplyClick(propdate)
+    setExpanded((prev) => !prev)
+  }, [expanded, isReplying, onReplyClick, propdate])
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-surface">
