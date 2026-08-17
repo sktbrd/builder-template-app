@@ -67,8 +67,20 @@ export function Web3Providers({ children }: { children: React.ReactNode }) {
     </ChainStoreProvider>
   )
 
+  // `QueryClientProvider` has to wrap `stores` in BOTH branches. wagmi's config
+  // is created in the effect above, so on the first client render `config` is
+  // still null — and any component that calls `useQuery` while this branch is
+  // live throws "No QueryClient set". That is reachable from ordinary pages:
+  // `ProposalTransactionList` → `useDecodedTx` → `useQuery` renders during SSR,
+  // which took `/proposals/[id]` down with a 500. `queryClient` is a module
+  // singleton, so both branches share one cache and nothing is refetched when
+  // the config resolves and the tree swaps.
   if (!config) {
-    return <Web3ReadyContext.Provider value={false}>{stores}</Web3ReadyContext.Provider>
+    return (
+      <Web3ReadyContext.Provider value={false}>
+        <QueryClientProvider client={queryClient}>{stores}</QueryClientProvider>
+      </Web3ReadyContext.Provider>
+    )
   }
 
   return (
